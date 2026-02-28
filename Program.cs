@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text.Json;
 using backend.Data;
 using backend.Repositories;
@@ -13,6 +14,18 @@ builder.Services.AddControllers()
     {
         o.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
     });
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend",
+        policy =>
+        {
+            policy.WithOrigins("http://localhost:5173", "http://localhost:5174") // Allow Vite dev servers
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials();
+        });
+});
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -98,6 +111,33 @@ builder.Services
 
                 return Task.CompletedTask;
             },
+            OnTokenValidated = async context =>
+            {
+                var principal = context.Principal;
+                if (principal == null) return;
+                
+                var clerkUserId = principal.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier) 
+                                  ?? principal.FindFirstValue("sub");
+                
+                if (string.IsNullOrEmpty(clerkUserId)) return;
+
+                // Look up the user's role in the MySQL database
+                var dbHelper = context.HttpContext.RequestServices.GetRequiredService<DatabaseHelper>();
+                await using var connection = await dbHelper.OpenConnectionAsync();
+                
+                const string sql = "SELECT Role FROM Users WHERE ClerkUserId = @ClerkId LIMIT 1";
+                await using var cmd = new MySql.Data.MySqlClient.MySqlCommand(sql, connection);
+                cmd.Parameters.AddWithValue("@ClerkId", clerkUserId);
+                
+                var role = await cmd.ExecuteScalarAsync() as string;
+                
+                if (!string.IsNullOrEmpty(role))
+                {
+                    // Add the Role claim so [Authorize(Roles = "Admin")] works correctly
+                    var identity = (System.Security.Claims.ClaimsIdentity)principal.Identity!;
+                    identity.AddClaim(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, role));
+                }
+            },
             OnChallenge = context =>
             {
                 // Suppress the default WWW-Authenticate body and return JSON instead
@@ -134,6 +174,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseCors("AllowFrontend");
 
 app.UseAuthentication();   // Must come before UseAuthorization
 app.UseAuthorization();
