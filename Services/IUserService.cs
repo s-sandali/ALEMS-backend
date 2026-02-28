@@ -18,4 +18,13 @@ public interface IUserService
     /// Creates a new user (admin operation). Returns null if email already exists.
     /// </summary>
     Task<UserResponseDto?> CreateUserAsync(string email, string username, string role);
+    /// <summary>
+    /// Retrieves all users.
+    /// </summary>
+    Task<IEnumerable<UserResponseDto>> GetAllUsersAsync();
+
+    /// <summary>
+    /// Retrieves a user by ID. Returns null if not found.
+    /// </summary>
+    Task<UserResponseDto?> GetUserByIdAsync(int id);
 }
