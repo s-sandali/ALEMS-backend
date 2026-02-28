@@ -191,6 +191,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+// ── Correlation ID (must be first — enriches all downstream logs) ─
+app.UseMiddleware<backend.Middleware.CorrelationIdMiddleware>();
+
 // ── Global Exception Handler (must be early in the pipeline) ──────
 app.UseMiddleware<backend.Middleware.GlobalExceptionMiddleware>();
 
