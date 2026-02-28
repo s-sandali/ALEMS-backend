@@ -1,0 +1,63 @@
+## .NET / ASP.NET Core
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build output
+[Bb]in/
+[Oo]bj/
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Rider
+.idea/
+
+# Visual Studio
+.vs/
+*.rsuser
+*.vsp
+*.vspx
+*.sap
+
+# Roslyn cache
+*.SourceLink.cache
+
+# MSBuild
+*.binlog
+
+# Test results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+*.coverage
+*.coveragexml
+
+# Publish output
+[Pp]ublish/
+[Pp]ublish[Oo]utput/
+
+# Crash dumps
+*.dmp
+
+## Secrets & environment
+appsettings.Production.json
+appsettings.Staging.json
+.env
+.env.*
+secrets.json
+**/Properties/launchSettings.json
+
+## ASP.NET Scaffolding
+ScaffoldingReadMe.txt
+
+## OS
+.DS_Store
+Thumbs.db
