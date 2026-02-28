@@ -1,0 +1,77 @@
+name: Backend CI/CD
+
+on:
+  # Run CI on all PRs to dev or main
+  pull_request:
+    branches:
+      - dev
+      - main
+
+  # Deploy only when main gets updated (after merge)
+  push:
+    branches:
+      - main
+
+jobs:
+
+  # ─────────────────────────────────────────────
+  # BUILD + TEST JOB (Runs on PRs and main push)
+  # ─────────────────────────────────────────────
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Run Unit Tests
+        run: dotnet test --configuration Release --no-build --verbosity normal
+
+      - name: Publish
+        if: github.event_name == 'push'
+        run: dotnet publish --configuration Release --output ./publish
+
+      - name: Upload Artifact (only for deployment)
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-app
+          path: ./publish
+
+
+  # ─────────────────────────────────────────────
+  # DEPLOY JOB (ONLY when main is pushed)
+  # ─────────────────────────────────────────────
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.webapp-url }}
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-app
+
+      - name: Deploy to Azure Web App
+        id: deploy
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'alems-backend'
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: .
