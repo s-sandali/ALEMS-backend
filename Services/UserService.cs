@@ -49,6 +49,33 @@ public class UserService : IUserService
         return (MapToDto(createdUser), true);
     }
 
+    /// <inheritdoc />
+    public async Task<UserResponseDto?> CreateUserAsync(string email, string username, string role)
+    {
+        // Check for duplicate email
+        var existing = await _userRepository.GetByEmailAsync(email);
+        if (existing is not null)
+        {
+            _logger.LogWarning("Admin create user: duplicate email — {Email}", email);
+            return null; // signals duplicate to the controller
+        }
+
+        var newUser = new User
+        {
+            ClerkUserId = string.Empty,  // NULL in DB — admin-created, no Clerk link
+            Email = email,
+            Username = username,
+            Role = role,
+            XpTotal = 0,
+            IsActive = true
+        };
+
+        var created = await _userRepository.CreateAsync(newUser);
+        _logger.LogInformation("Admin create user: UserId={UserId}, Email={Email}", created.UserId, email);
+
+        return MapToDto(created);
+    }
+
     /// <summary>
     /// Maps a <see cref="User"/> domain model to a <see cref="UserResponseDto"/>.
     /// </summary>
