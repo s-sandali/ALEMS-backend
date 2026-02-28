@@ -29,6 +29,28 @@ builder.Services.AddControllers()
     .AddJsonOptions(o =>
     {
         o.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    })
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        // Override the default 400 validation response to use our standardized format
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var errors = context.ModelState
+                .Where(e => e.Value?.Errors.Count > 0)
+                .ToDictionary(
+                    e => e.Key,
+                    e => e.Value!.Errors.Select(err => err.ErrorMessage).ToArray()
+                );
+
+            var response = new
+            {
+                statusCode = 400,
+                message = "Validation Failed",
+                errors
+            };
+
+            return new Microsoft.AspNetCore.Mvc.BadRequestObjectResult(response);
+        };
     });
 
 builder.Services.AddCors(options =>
