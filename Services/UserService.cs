@@ -76,6 +76,20 @@ public class UserService : IUserService
         return MapToDto(created);
     }
 
+    /// <inheritdoc />
+    public async Task<IEnumerable<UserResponseDto>> GetAllUsersAsync()
+    {
+        var users = await _userRepository.GetAllAsync();
+        return users.Select(MapToDto);
+    }
+
+    /// <inheritdoc />
+    public async Task<UserResponseDto?> GetUserByIdAsync(int id)
+    {
+        var user = await _userRepository.GetByIdAsync(id);
+        return user is not null ? MapToDto(user) : null;
+    }
+
     /// <summary>
     /// Maps a <see cref="User"/> domain model to a <see cref="UserResponseDto"/>.
     /// </summary>
