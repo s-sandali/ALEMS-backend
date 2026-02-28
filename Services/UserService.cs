@@ -90,6 +90,25 @@ public class UserService : IUserService
         return user is not null ? MapToDto(user) : null;
     }
 
+    /// <inheritdoc />
+    public async Task<UserResponseDto?> UpdateUserAsync(int id, string role, bool isActive)
+    {
+        var success = await _userRepository.UpdateAsync(id, role, isActive);
+        
+        if (!success)
+        {
+            _logger.LogWarning("Admin update user: user not found — ID={Id}", id);
+            return null;
+        }
+
+        _logger.LogInformation("Admin update user: success — ID={Id}, Role={Role}, IsActive={IsActive}", 
+            id, role, isActive);
+
+        // Re-fetch the updated user to return the full DTO (including updated_at)
+        var updatedUser = await _userRepository.GetByIdAsync(id);
+        return updatedUser is not null ? MapToDto(updatedUser) : null;
+    }
+
     /// <summary>
     /// Maps a <see cref="User"/> domain model to a <see cref="UserResponseDto"/>.
     /// </summary>
