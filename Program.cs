@@ -175,6 +175,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+// ── Global Exception Handler (must be early in the pipeline) ──────
+app.UseMiddleware<backend.Middleware.GlobalExceptionMiddleware>();
+
 app.UseCors("AllowFrontend");
 
 app.UseAuthentication();   // Must come before UseAuthorization
