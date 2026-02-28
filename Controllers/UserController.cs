@@ -77,4 +77,69 @@ public class UserController : ControllerBase
             });
         }
     }
+
+    /// <summary>
+    /// GET /api/users
+    /// Retrieves all users (admin operation).
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> GetAllUsers()
+    {
+        try
+        {
+            var users = await _userService.GetAllUsersAsync();
+            return Ok(new
+            {
+                status = "success",
+                data = users
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unhandled error in GET /api/users");
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                status = "error",
+                message = "An unexpected error occurred while retrieving users.",
+                detail = ex.Message
+            });
+        }
+    }
+
+    /// <summary>
+    /// GET /api/users/{id}
+    /// Retrieves a specific user by ID (admin operation).
+    /// </summary>
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetUserById(int id)
+    {
+        try
+        {
+            var user = await _userService.GetUserByIdAsync(id);
+            if (user is null)
+            {
+                return NotFound(new
+                {
+                    status = "error",
+                    message = $"User with ID {id} not found."
+                });
+            }
+
+            return Ok(new
+            {
+                status = "success",
+                data = user
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unhandled error in GET /api/users/{id}", id);
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                status = "error",
+                message = "An unexpected error occurred while retrieving the user.",
+                detail = ex.Message
+            });
+        }
+    }
 }
