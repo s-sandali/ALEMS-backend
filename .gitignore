@@ -1,22 +1,63 @@
-# Build results
-bin/
-obj/
+## .NET / ASP.NET Core
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build output
+[Bb]in/
+[Oo]bj/
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Rider
+.idea/
 
 # Visual Studio
 .vs/
-*.user
-*.suo
-*.cache
-*.pdb
-*.dll
+*.rsuser
+*.vsp
+*.vspx
+*.sap
 
-# Rider / VSCode
-.idea/
-.vscode/
+# Roslyn cache
+*.SourceLink.cache
 
-# ASP.NET
-appsettings.Development.json
+# MSBuild
+*.binlog
 
-# OS
+# Test results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+*.coverage
+*.coveragexml
+
+# Publish output
+[Pp]ublish/
+[Pp]ublish[Oo]utput/
+
+# Crash dumps
+*.dmp
+
+## Secrets & environment
+appsettings.Production.json
+appsettings.Staging.json
+.env
+.env.*
+secrets.json
+**/Properties/launchSettings.json
+
+## ASP.NET Scaffolding
+ScaffoldingReadMe.txt
+
+## OS
 .DS_Store
 Thumbs.db
