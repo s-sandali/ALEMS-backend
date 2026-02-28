@@ -43,21 +43,77 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // ── Clerk JWT Authentication ───────────────────────────────────────
-var clerkAuthority = builder.Configuration["Clerk:Authority"]
-    ?? throw new InvalidOperationException("Clerk:Authority is not configured.");
+// Priority: Environment variable → appsettings.json
+var clerkAuthority = Environment.GetEnvironmentVariable("CLERK_AUTHORITY")
+    ?? builder.Configuration["Clerk:Authority"]
+    ?? throw new InvalidOperationException(
+        "Clerk authority is not configured. Set the CLERK_AUTHORITY environment variable " +
+        "or Clerk:Authority in appsettings.json.");
+
+var clerkAudience = Environment.GetEnvironmentVariable("CLERK_AUDIENCE")
+    ?? builder.Configuration["Clerk:Audience"];  // optional — null disables audience check
 
 builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddAuthentication(options =>
+    {
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme    = JwtBearerDefaults.AuthenticationScheme;
+    })
     .AddJwtBearer(options =>
     {
+        // Clerk publishes its JWKS at {Authority}/.well-known/jwks.json
         options.Authority = clerkAuthority;
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
+            // Issuer — must match Clerk authority
             ValidateIssuer = true,
-            ValidIssuer = clerkAuthority,
-            ValidateAudience = false,   // Clerk doesn't set an audience by default
+            ValidIssuer    = clerkAuthority,
+
+            // Audience — validate only when configured
+            ValidateAudience = !string.IsNullOrEmpty(clerkAudience),
+            ValidAudience    = clerkAudience,
+
+            // Lifetime — reject expired tokens
             ValidateLifetime = true,
-            ValidateIssuerSigningKey = true
+
+            // Signing key — validated via JWKS endpoint automatically
+            ValidateIssuerSigningKey = true,
+
+            // Allow a small clock skew (default is 5 min, tighten to 30 sec)
+            ClockSkew = TimeSpan.FromSeconds(30)
+        };
+
+        // Structured 401 error responses
+        options.Events = new JwtBearerEvents
+        {
+            OnAuthenticationFailed = context =>
+            {
+                var logger = context.HttpContext.RequestServices
+                    .GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("JwtAuthentication");
+
+                logger.LogWarning(context.Exception,
+                    "JWT authentication failed: {Message}", context.Exception.Message);
+
+                return Task.CompletedTask;
+            },
+            OnChallenge = context =>
+            {
+                // Suppress the default WWW-Authenticate body and return JSON instead
+                context.HandleResponse();
+                context.Response.StatusCode  = StatusCodes.Status401Unauthorized;
+                context.Response.ContentType = "application/json";
+
+                var payload = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    status  = "error",
+                    message = "Authentication required. Provide a valid Clerk JWT in the Authorization header.",
+                    detail  = context.ErrorDescription ?? context.Error
+                });
+
+                return context.Response.WriteAsync(payload);
+            }
         };
     });
 
