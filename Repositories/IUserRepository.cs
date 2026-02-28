@@ -30,4 +30,10 @@ public interface IUserRepository
     /// Retrieves a user by their auto-incrementing ID.
     /// </summary>
     Task<User?> GetByIdAsync(int id);
+
+    /// <summary>
+    /// Updates an existing user's role and is_active status.
+    /// Returns true if successful, false if the user was not found.
+    /// </summary>
+    Task<bool> UpdateAsync(int id, string role, bool isActive);
 }
