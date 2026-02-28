@@ -142,4 +142,58 @@ public class UserController : ControllerBase
             });
         }
     }
+
+    /// <summary>
+    /// PUT /api/users/{id}
+    /// Updates a user's role and active status (admin operation).
+    /// </summary>
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdateUser(int id, [FromBody] UpdateUserDto dto)
+    {
+        try
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(new
+                {
+                    status = "error",
+                    message = "Validation failed.",
+                    errors = ModelState
+                        .Where(e => e.Value?.Errors.Count > 0)
+                        .ToDictionary(
+                            e => e.Key,
+                            e => e.Value!.Errors.Select(err => err.ErrorMessage).ToArray())
+                });
+            }
+
+            var result = await _userService.UpdateUserAsync(id, dto.Role, dto.IsActive.GetValueOrDefault());
+
+            if (result is null)
+            {
+                return NotFound(new
+                {
+                    status = "error",
+                    message = $"User with ID {id} not found."
+                });
+            }
+
+            _logger.LogInformation("POST /api/users/{Id} — updated user", id);
+            return Ok(new
+            {
+                status = "success",
+                message = "User updated successfully.",
+                data = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unhandled error in PUT /api/users/{id}", id);
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                status = "error",
+                message = "An unexpected error occurred while updating the user.",
+                detail = ex.Message
+            });
+        }
+    }
 }
