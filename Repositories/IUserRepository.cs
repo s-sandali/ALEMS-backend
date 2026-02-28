@@ -21,4 +21,13 @@ public interface IUserRepository
     /// Inserts a new user and returns the created record with the generated ID.
     /// </summary>
     Task<User> CreateAsync(User user);
+    /// <summary>
+    /// Retrieves all users.
+    /// </summary>
+    Task<IEnumerable<User>> GetAllAsync();
+
+    /// <summary>
+    /// Retrieves a user by their auto-incrementing ID.
+    /// </summary>
+    Task<User?> GetByIdAsync(int id);
 }
