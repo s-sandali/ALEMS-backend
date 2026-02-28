@@ -84,25 +84,45 @@ public class UserRepository : IUserRepository
         user.UserId = insertedId;
 
         // Re-fetch to get server-generated timestamps
-        var created = await GetByUserIdAsync(insertedId);
+        var created = await GetByIdAsync(insertedId);
         return created ?? user;
     }
 
-    /// <summary>
-    /// Retrieves a user by their auto-incremented user_id.
-    /// </summary>
-    private async Task<User?> GetByUserIdAsync(int userId)
+    /// <inheritdoc />
+    public async Task<IEnumerable<User>> GetAllAsync()
     {
         const string sql = @"
             SELECT user_id, clerk_user_id, email, username, role,
                    xp_total, is_active, created_at, updated_at
             FROM Users
-            WHERE user_id = @UserId
+            ORDER BY created_at DESC;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+        await using var reader = (MySqlDataReader)await cmd.ExecuteReaderAsync();
+
+        var users = new List<User>();
+        while (await reader.ReadAsync())
+        {
+            users.Add(MapUser(reader));
+        }
+
+        return users;
+    }
+
+    /// <inheritdoc />
+    public async Task<User?> GetByIdAsync(int id)
+    {
+        const string sql = @"
+            SELECT user_id, clerk_user_id, email, username, role,
+                   xp_total, is_active, created_at, updated_at
+            FROM Users
+            WHERE user_id = @Id
             LIMIT 1;";
 
         await using var connection = await _db.OpenConnectionAsync();
         await using var cmd = new MySqlCommand(sql, connection);
-        cmd.Parameters.AddWithValue("@UserId", userId);
+        cmd.Parameters.AddWithValue("@Id", id);
 
         await using var reader = (MySqlDataReader)await cmd.ExecuteReaderAsync();
 
