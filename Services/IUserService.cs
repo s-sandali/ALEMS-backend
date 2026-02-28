@@ -33,4 +33,10 @@ public interface IUserService
     /// Returns the updated DTO, or null if the user was not found.
     /// </summary>
     Task<UserResponseDto?> UpdateUserAsync(int id, string role, bool isActive);
+
+    /// <summary>
+    /// Soft deletes a user by ID.
+    /// Returns true if successful, false if not found.
+    /// </summary>
+    Task<bool> DeleteUserAsync(int id);
 }
