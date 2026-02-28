@@ -21,10 +21,10 @@ public class UserRepository : IUserRepository
     public async Task<User?> GetByClerkUserIdAsync(string clerkUserId)
     {
         const string sql = @"
-            SELECT user_id, clerk_user_id, email, username, role,
-                   xp_total, is_active, created_at, updated_at
+            SELECT Id, ClerkUserId, Email, Role,
+                   XpTotal, IsActive, CreatedAt
             FROM Users
-            WHERE clerk_user_id = @ClerkUserId
+            WHERE ClerkUserId = @ClerkUserId
             LIMIT 1;";
 
         await using var connection = await _db.OpenConnectionAsync();
@@ -43,10 +43,10 @@ public class UserRepository : IUserRepository
     public async Task<User?> GetByEmailAsync(string email)
     {
         const string sql = @"
-            SELECT user_id, clerk_user_id, email, username, role,
-                   xp_total, is_active, created_at, updated_at
+            SELECT Id, ClerkUserId, Email, Role,
+                   XpTotal, IsActive, CreatedAt
             FROM Users
-            WHERE email = @Email
+            WHERE Email = @Email
             LIMIT 1;";
 
         await using var connection = await _db.OpenConnectionAsync();
@@ -65,8 +65,8 @@ public class UserRepository : IUserRepository
     public async Task<User> CreateAsync(User user)
     {
         const string sql = @"
-            INSERT INTO Users (clerk_user_id, email, username, role, xp_total, is_active)
-            VALUES (@ClerkUserId, @Email, @Username, @Role, @XpTotal, @IsActive);
+            INSERT INTO Users (ClerkUserId, Email, Role, XpTotal, IsActive, CreatedAt)
+            VALUES (@ClerkUserId, @Email, @Role, @XpTotal, @IsActive, @CreatedAt);
             SELECT LAST_INSERT_ID();";
 
         await using var connection = await _db.OpenConnectionAsync();
@@ -75,10 +75,10 @@ public class UserRepository : IUserRepository
         cmd.Parameters.AddWithValue("@ClerkUserId",
             string.IsNullOrEmpty(user.ClerkUserId) ? DBNull.Value : user.ClerkUserId);
         cmd.Parameters.AddWithValue("@Email", user.Email);
-        cmd.Parameters.AddWithValue("@Username", user.Username);
         cmd.Parameters.AddWithValue("@Role", user.Role);
         cmd.Parameters.AddWithValue("@XpTotal", user.XpTotal);
         cmd.Parameters.AddWithValue("@IsActive", user.IsActive);
+        cmd.Parameters.AddWithValue("@CreatedAt", DateTime.UtcNow);
 
         var insertedId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
         user.UserId = insertedId;
@@ -92,10 +92,10 @@ public class UserRepository : IUserRepository
     public async Task<IEnumerable<User>> GetAllAsync()
     {
         const string sql = @"
-            SELECT user_id, clerk_user_id, email, username, role,
-                   xp_total, is_active, created_at, updated_at
+            SELECT Id, ClerkUserId, Email, Role,
+                   XpTotal, IsActive, CreatedAt
             FROM Users
-            ORDER BY created_at DESC;";
+            ORDER BY CreatedAt DESC;";
 
         await using var connection = await _db.OpenConnectionAsync();
         await using var cmd = new MySqlCommand(sql, connection);
@@ -114,10 +114,10 @@ public class UserRepository : IUserRepository
     public async Task<User?> GetByIdAsync(int id)
     {
         const string sql = @"
-            SELECT user_id, clerk_user_id, email, username, role,
-                   xp_total, is_active, created_at, updated_at
+            SELECT Id, ClerkUserId, Email, Role,
+                   XpTotal, IsActive, CreatedAt
             FROM Users
-            WHERE user_id = @Id
+            WHERE Id = @Id
             LIMIT 1;";
 
         await using var connection = await _db.OpenConnectionAsync();
@@ -137,9 +137,9 @@ public class UserRepository : IUserRepository
     {
         const string sql = @"
             UPDATE Users
-            SET role = @Role,
-                is_active = @IsActive
-            WHERE user_id = @Id;";
+            SET Role = @Role,
+                IsActive = @IsActive
+            WHERE Id = @Id;";
 
         await using var connection = await _db.OpenConnectionAsync();
         await using var cmd = new MySqlCommand(sql, connection);
@@ -157,8 +157,8 @@ public class UserRepository : IUserRepository
     {
         const string sql = @"
             UPDATE Users
-            SET is_active = false
-            WHERE user_id = @Id;";
+            SET IsActive = false
+            WHERE Id = @Id;";
 
         await using var connection = await _db.OpenConnectionAsync();
         await using var cmd = new MySqlCommand(sql, connection);
@@ -174,19 +174,19 @@ public class UserRepository : IUserRepository
     /// </summary>
     private static User MapUser(MySqlDataReader reader)
     {
-        var clerkOrdinal = reader.GetOrdinal("clerk_user_id");
+        var clerkOrdinal = reader.GetOrdinal("ClerkUserId");
 
         return new User
         {
-            UserId = reader.GetInt32("user_id"),
+            UserId = reader.GetInt32("Id"),
             ClerkUserId = reader.IsDBNull(clerkOrdinal) ? string.Empty : reader.GetString(clerkOrdinal),
-            Email = reader.GetString("email"),
-            Username = reader.GetString("username"),
-            Role = reader.GetString("role"),
-            XpTotal = reader.GetInt32("xp_total"),
-            IsActive = reader.GetBoolean("is_active"),
-            CreatedAt = reader.GetDateTime("created_at"),
-            UpdatedAt = reader.GetDateTime("updated_at")
+            Email = reader.GetString("Email"),
+            Username = string.Empty,
+            Role = reader.GetString("Role"),
+            XpTotal = reader.GetInt32("XpTotal"),
+            IsActive = reader.GetBoolean("IsActive"),
+            CreatedAt = reader.GetDateTime("CreatedAt"),
+            UpdatedAt = DateTime.UtcNow
         };
     }
 }
