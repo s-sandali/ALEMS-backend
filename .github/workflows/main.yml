@@ -73,5 +73,5 @@ jobs:
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'alems-backend'
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_BE }}
           package: .
