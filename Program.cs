@@ -5,8 +5,24 @@ using backend.Repositories;
 using backend.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Serilog;
+
+// ── Serilog Bootstrap ─────────────────────────────────────────────
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
+    .Enrich.FromLogContext()
+    .WriteTo.Console(outputTemplate:
+        "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
+    .CreateLogger();
+
+try
+{
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Replace default logging with Serilog
+builder.Host.UseSerilog();
 
 // ── Services ───────────────────────────────────────────────────────
 builder.Services.AddControllers()
@@ -178,6 +194,9 @@ app.UseHttpsRedirection();
 // ── Global Exception Handler (must be early in the pipeline) ──────
 app.UseMiddleware<backend.Middleware.GlobalExceptionMiddleware>();
 
+// ── Request Logging (logs method, path, status, duration) ─────────
+app.UseMiddleware<backend.Middleware.RequestLoggingMiddleware>();
+
 app.UseCors("AllowFrontend");
 
 app.UseAuthentication();   // Must come before UseAuthorization
@@ -186,3 +205,13 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Application terminated unexpectedly");
+}
+finally
+{
+    Log.CloseAndFlush();
+}
