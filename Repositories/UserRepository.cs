@@ -40,6 +40,28 @@ public class UserRepository : IUserRepository
     }
 
     /// <inheritdoc />
+    public async Task<User?> GetByEmailAsync(string email)
+    {
+        const string sql = @"
+            SELECT user_id, clerk_user_id, email, username, role,
+                   xp_total, is_active, created_at, updated_at
+            FROM Users
+            WHERE email = @Email
+            LIMIT 1;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@Email", email);
+
+        await using var reader = (MySqlDataReader)await cmd.ExecuteReaderAsync();
+
+        if (!await reader.ReadAsync())
+            return null;
+
+        return MapUser(reader);
+    }
+
+    /// <inheritdoc />
     public async Task<User> CreateAsync(User user)
     {
         const string sql = @"
@@ -50,7 +72,8 @@ public class UserRepository : IUserRepository
         await using var connection = await _db.OpenConnectionAsync();
         await using var cmd = new MySqlCommand(sql, connection);
 
-        cmd.Parameters.AddWithValue("@ClerkUserId", user.ClerkUserId);
+        cmd.Parameters.AddWithValue("@ClerkUserId",
+            string.IsNullOrEmpty(user.ClerkUserId) ? DBNull.Value : user.ClerkUserId);
         cmd.Parameters.AddWithValue("@Email", user.Email);
         cmd.Parameters.AddWithValue("@Username", user.Username);
         cmd.Parameters.AddWithValue("@Role", user.Role);
@@ -61,19 +84,46 @@ public class UserRepository : IUserRepository
         user.UserId = insertedId;
 
         // Re-fetch to get server-generated timestamps
-        var created = await GetByClerkUserIdAsync(user.ClerkUserId);
+        var created = await GetByUserIdAsync(insertedId);
         return created ?? user;
     }
 
     /// <summary>
+    /// Retrieves a user by their auto-incremented user_id.
+    /// </summary>
+    private async Task<User?> GetByUserIdAsync(int userId)
+    {
+        const string sql = @"
+            SELECT user_id, clerk_user_id, email, username, role,
+                   xp_total, is_active, created_at, updated_at
+            FROM Users
+            WHERE user_id = @UserId
+            LIMIT 1;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@UserId", userId);
+
+        await using var reader = (MySqlDataReader)await cmd.ExecuteReaderAsync();
+
+        if (!await reader.ReadAsync())
+            return null;
+
+        return MapUser(reader);
+    }
+
+    /// <summary>
     /// Maps the current row of a <see cref="MySqlDataReader"/> to a <see cref="User"/> object.
+    /// Handles nullable clerk_user_id for admin-created users.
     /// </summary>
     private static User MapUser(MySqlDataReader reader)
     {
+        var clerkOrdinal = reader.GetOrdinal("clerk_user_id");
+
         return new User
         {
             UserId = reader.GetInt32("user_id"),
-            ClerkUserId = reader.GetString("clerk_user_id"),
+            ClerkUserId = reader.IsDBNull(clerkOrdinal) ? string.Empty : reader.GetString(clerkOrdinal),
             Email = reader.GetString("email"),
             Username = reader.GetString("username"),
             Role = reader.GetString("role"),
