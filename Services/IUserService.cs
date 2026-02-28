@@ -13,4 +13,9 @@ public interface IUserService
     /// </summary>
     Task<(UserResponseDto Dto, bool IsNewUser)> SyncUserAsync(
         string clerkUserId, string email, string username);
+
+    /// <summary>
+    /// Creates a new user (admin operation). Returns null if email already exists.
+    /// </summary>
+    Task<UserResponseDto?> CreateUserAsync(string email, string username, string role);
 }
