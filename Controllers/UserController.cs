@@ -196,4 +196,38 @@ public class UserController : ControllerBase
             });
         }
     }
+
+    /// <summary>
+    /// DELETE /api/users/{id}
+    /// Soft deletes a user by setting is_active to false (admin operation).
+    /// </summary>
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteUser(int id)
+    {
+        try
+        {
+            var success = await _userService.DeleteUserAsync(id);
+
+            if (!success)
+            {
+                return NotFound(new
+                {
+                    status = "error",
+                    message = $"User with ID {id} not found."
+                });
+            }
+
+            return NoContent(); // 204
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unhandled error in DELETE /api/users/{id}", id);
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                status = "error",
+                message = "An unexpected error occurred while deleting the user.",
+                detail = ex.Message
+            });
+        }
+    }
 }

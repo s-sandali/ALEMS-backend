@@ -36,4 +36,10 @@ public interface IUserRepository
     /// Returns true if successful, false if the user was not found.
     /// </summary>
     Task<bool> UpdateAsync(int id, string role, bool isActive);
+
+    /// <summary>
+    /// Soft deletes an existing user by setting is_active to false.
+    /// Returns true if successful, false if the user was not found.
+    /// </summary>
+    Task<bool> DeleteAsync(int id);
 }

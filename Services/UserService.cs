@@ -109,6 +109,23 @@ public class UserService : IUserService
         return updatedUser is not null ? MapToDto(updatedUser) : null;
     }
 
+    /// <inheritdoc />
+    public async Task<bool> DeleteUserAsync(int id)
+    {
+        var success = await _userRepository.DeleteAsync(id);
+        
+        if (success)
+        {
+            _logger.LogInformation("Admin delete user: success (soft delete) — ID={Id}", id);
+        }
+        else
+        {
+            _logger.LogWarning("Admin delete user: user not found — ID={Id}", id);
+        }
+
+        return success;
+    }
+
     /// <summary>
     /// Maps a <see cref="User"/> domain model to a <see cref="UserResponseDto"/>.
     /// </summary>

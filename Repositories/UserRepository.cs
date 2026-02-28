@@ -152,6 +152,22 @@ public class UserRepository : IUserRepository
         return rowsAffected > 0;
     }
 
+    /// <inheritdoc />
+    public async Task<bool> DeleteAsync(int id)
+    {
+        const string sql = @"
+            UPDATE Users
+            SET is_active = false
+            WHERE user_id = @Id;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@Id", id);
+
+        var rowsAffected = await cmd.ExecuteNonQueryAsync();
+        return rowsAffected > 0;
+    }
+
     /// <summary>
     /// Maps the current row of a <see cref="MySqlDataReader"/> to a <see cref="User"/> object.
     /// Handles nullable clerk_user_id for admin-created users.
