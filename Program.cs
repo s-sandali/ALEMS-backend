@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text.Json;
 using backend.Data;
 using backend.Repositories;
@@ -109,6 +110,33 @@ builder.Services
                     "JWT authentication failed: {Message}", context.Exception.Message);
 
                 return Task.CompletedTask;
+            },
+            OnTokenValidated = async context =>
+            {
+                var principal = context.Principal;
+                if (principal == null) return;
+                
+                var clerkUserId = principal.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier) 
+                                  ?? principal.FindFirstValue("sub");
+                
+                if (string.IsNullOrEmpty(clerkUserId)) return;
+
+                // Look up the user's role in the MySQL database
+                var dbHelper = context.HttpContext.RequestServices.GetRequiredService<DatabaseHelper>();
+                await using var connection = await dbHelper.OpenConnectionAsync();
+                
+                const string sql = "SELECT Role FROM Users WHERE ClerkUserId = @ClerkId LIMIT 1";
+                await using var cmd = new MySql.Data.MySqlClient.MySqlCommand(sql, connection);
+                cmd.Parameters.AddWithValue("@ClerkId", clerkUserId);
+                
+                var role = await cmd.ExecuteScalarAsync() as string;
+                
+                if (!string.IsNullOrEmpty(role))
+                {
+                    // Add the Role claim so [Authorize(Roles = "Admin")] works correctly
+                    var identity = (System.Security.Claims.ClaimsIdentity)principal.Identity!;
+                    identity.AddClaim(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, role));
+                }
             },
             OnChallenge = context =>
             {
