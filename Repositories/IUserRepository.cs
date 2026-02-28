@@ -13,6 +13,11 @@ public interface IUserRepository
     Task<User?> GetByClerkUserIdAsync(string clerkUserId);
 
     /// <summary>
+    /// Retrieves a user by email, or null if not found.
+    /// </summary>
+    Task<User?> GetByEmailAsync(string email);
+
+    /// <summary>
     /// Inserts a new user and returns the created record with the generated ID.
     /// </summary>
     Task<User> CreateAsync(User user);
