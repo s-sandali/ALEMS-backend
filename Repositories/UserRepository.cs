@@ -132,6 +132,26 @@ public class UserRepository : IUserRepository
         return MapUser(reader);
     }
 
+    /// <inheritdoc />
+    public async Task<bool> UpdateAsync(int id, string role, bool isActive)
+    {
+        const string sql = @"
+            UPDATE Users
+            SET role = @Role,
+                is_active = @IsActive
+            WHERE user_id = @Id;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+        
+        cmd.Parameters.AddWithValue("@Role", role);
+        cmd.Parameters.AddWithValue("@IsActive", isActive);
+        cmd.Parameters.AddWithValue("@Id", id);
+
+        var rowsAffected = await cmd.ExecuteNonQueryAsync();
+        return rowsAffected > 0;
+    }
+
     /// <summary>
     /// Maps the current row of a <see cref="MySqlDataReader"/> to a <see cref="User"/> object.
     /// Handles nullable clerk_user_id for admin-created users.

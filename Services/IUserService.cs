@@ -27,4 +27,10 @@ public interface IUserService
     /// Retrieves a user by ID. Returns null if not found.
     /// </summary>
     Task<UserResponseDto?> GetUserByIdAsync(int id);
+
+    /// <summary>
+    /// Updates a user's role and active status.
+    /// Returns the updated DTO, or null if the user was not found.
+    /// </summary>
+    Task<UserResponseDto?> UpdateUserAsync(int id, string role, bool isActive);
 }
