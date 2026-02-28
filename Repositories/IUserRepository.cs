@@ -1,0 +1,19 @@
+using backend.Models;
+
+namespace backend.Repositories;
+
+/// <summary>
+/// Defines data-access operations for the Users table.
+/// </summary>
+public interface IUserRepository
+{
+    /// <summary>
+    /// Retrieves a user by their Clerk user ID, or null if not found.
+    /// </summary>
+    Task<User?> GetByClerkUserIdAsync(string clerkUserId);
+
+    /// <summary>
+    /// Inserts a new user and returns the created record with the generated ID.
+    /// </summary>
+    Task<User> CreateAsync(User user);
+}
