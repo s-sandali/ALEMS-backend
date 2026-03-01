@@ -58,7 +58,12 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowFrontend",
         policy =>
         {
-            policy.WithOrigins("http://localhost:5173", "http://localhost:5174") // Allow Vite dev servers
+            // Read allowed origins from environment or config
+            var allowedOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")
+                ?? builder.Configuration["AllowedOrigins"]
+                ?? "http://localhost:5173,http://localhost:5174";
+
+            policy.WithOrigins(allowedOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials();
@@ -205,11 +210,12 @@ builder.Services.AddScoped<IUserService, UserService>();
 var app = builder.Build();
 
 // ── Middleware Pipeline ────────────────────────────────────────────
-if (app.Environment.IsDevelopment())
+app.UseSwagger();
+app.UseSwaggerUI(options =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "ALEMS API v1");
+    options.RoutePrefix = "swagger";
+});
 
 app.UseHttpsRedirection();
 
