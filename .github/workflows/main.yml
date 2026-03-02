@@ -37,7 +37,15 @@ jobs:
         run: dotnet build BigO.sln --configuration Release --no-restore
 
       - name: Run Unit Tests
-        run: dotnet test BigO.sln --configuration Release --no-build --verbosity normal
+        run: dotnet test Testing/UnitTests/UnitTests.csproj --configuration Release --no-build --verbosity normal
+
+      - name: Run Integration Tests
+        run: dotnet test Testing/IntegrationTests/IntegrationTests.csproj --configuration Release --no-build --verbosity normal
+
+      # NOTE: E2E tests (Testing/E2ETests) are excluded from CI.
+      # They require a visible Chrome browser and manual human interaction
+      # (e.g. entering Clerk email verification codes) and cannot run in
+      # a headless GitHub Actions environment.
 
       - name: Publish
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
