@@ -1,0 +1,10 @@
+{
+    "FrontendBaseUrl": "http://localhost:5173",
+    "ConnectionStrings": {
+        "DefaultConnection": "server=bigo.mysql.database.azure.com;port=3306;database=alems_db;user=sandali;password=Usas@5667;SslMode=Required;"
+    },
+    "TestAccount": {
+        "Email": "It23651456@my.sliit.lk",
+        "Password": "Usas@5667"
+    }
+}

@@ -1,11 +1,24 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>43d81e90-0fbf-4b78-a0f0-b2b35b30f5f7</UserSecretsId>
+    <!-- Generate the XML file consumed by Swashbuckle to render /// doc-comments in Swagger UI -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Suppress CS1591 "Missing XML comment for publicly visible type"
+         on non-controller classes that intentionally omit comments -->
+    <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
+
+  <!-- Exclude the Testing folder — it contains separate test projects with their own .csproj -->
+  <ItemGroup>
+    <Compile Remove="Testing\**" />
+    <Content Remove="Testing\**" />
+    <EmbeddedResource Remove="Testing\**" />
+    <None Remove="Testing\**" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.12" />

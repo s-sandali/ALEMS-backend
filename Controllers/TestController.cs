@@ -1,14 +1,17 @@
 using backend.Data;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MySql.Data.MySqlClient;
 
 namespace backend.Controllers;
 
 /// <summary>
-/// Provides health-check endpoints for infrastructure validation.
+/// Provides infrastructure health-check endpoints.
 /// </summary>
 [ApiController]
 [Route("api/test")]
+[AllowAnonymous]           // public — no JWT required
+[Produces("application/json")]
 public class TestController : ControllerBase
 {
     private readonly DatabaseHelper _databaseHelper;
@@ -25,7 +28,11 @@ public class TestController : ControllerBase
     /// Opens a MySQL connection and returns 200 OK on success,
     /// or 500 with a structured error payload on failure.
     /// </summary>
+    /// <response code="200">Database connection is healthy.</response>
+    /// <response code="500">MySQL connection failed or unexpected error.</response>
     [HttpGet("test-db")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> TestDatabase()
     {
         try
