@@ -4,19 +4,27 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>43d81e90-0fbf-4b78-a0f0-b2b35b30f5f7</UserSecretsId>
+    <!-- Generate the XML file consumed by Swashbuckle to render /// doc-comments in Swagger UI -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Suppress CS1591 "Missing XML comment for publicly visible type"
+         on non-controller classes that intentionally omit comments -->
+    <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 
+  <!-- Exclude the Testing folder — it contains separate test projects with their own .csproj -->
   <ItemGroup>
-    <PackageReference Include="coverlet.collector" Version="8.0.0">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.3" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.3" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
+    <Compile Remove="Testing\**" />
+    <Content Remove="Testing\**" />
+    <EmbeddedResource Remove="Testing\**" />
+    <None Remove="Testing\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.12" />
     <PackageReference Include="MySql.Data" Version="9.6.0" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.4" />
-    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
   </ItemGroup>
 
 </Project>
