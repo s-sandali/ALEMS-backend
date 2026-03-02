@@ -7,6 +7,14 @@
     <UserSecretsId>43d81e90-0fbf-4b78-a0f0-b2b35b30f5f7</UserSecretsId>
   </PropertyGroup>
 
+  <!-- Exclude the Testing folder — it contains separate test projects with their own .csproj -->
+  <ItemGroup>
+    <Compile Remove="Testing\**" />
+    <Content Remove="Testing\**" />
+    <EmbeddedResource Remove="Testing\**" />
+    <None Remove="Testing\**" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.12" />
     <PackageReference Include="MySql.Data" Version="9.6.0" />
