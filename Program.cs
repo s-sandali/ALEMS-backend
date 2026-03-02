@@ -71,7 +71,7 @@ builder.Services.AddSwaggerGen(options =>
     // ── API metadata ─────────────────────────────────────────────────
     options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
     {
-        Title       = "ALEMS API",
+        Title       = "BigO API",
         Version     = "v1",
         Description =
             "**Adaptive Learning & Engagement Management System** — REST API\n\n" +
@@ -227,9 +227,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI(ui =>
     {
-        ui.SwaggerEndpoint("/swagger/v1/swagger.json", "ALEMS API v1");
+        ui.SwaggerEndpoint("/swagger/v1/swagger.json", "BigO API v1");
         ui.RoutePrefix        = "swagger";           // served at /swagger
-        ui.DocumentTitle      = "ALEMS API – Swagger UI";
+        ui.DocumentTitle      = "BigO API – Swagger UI";
         ui.DisplayRequestDuration();                  // shows ms per call
         ui.EnableDeepLinking();                       // bookmarkable operations
     });
