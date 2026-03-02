@@ -34,4 +34,22 @@ public class DatabaseHelper
         await connection.OpenAsync();
         return connection;
     }
+
+    /// <summary>
+    /// Verifies database reachability by opening a connection and executing
+    /// a lightweight <c>SELECT 1</c> ping query.
+    ///
+    /// <para>Declared <c>virtual</c> so test doubles can override it without
+    /// requiring a real MySQL server.</para>
+    /// </summary>
+    /// <exception cref="Exception">
+    /// Any exception (e.g. <see cref="MySqlException"/>) thrown here signals
+    /// that the database is unreachable and the caller should report <b>Degraded</b>.
+    /// </exception>
+    public virtual async Task PingAsync()
+    {
+        await using var connection = await OpenConnectionAsync();
+        await using var cmd = new MySqlCommand("SELECT 1", connection);
+        await cmd.ExecuteScalarAsync();
+    }
 }
