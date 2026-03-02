@@ -240,3 +240,6 @@ finally
 {
     Log.CloseAndFlush();
 }
+
+// Expose Program to the integration-test project (WebApplicationFactory<Program>)
+public partial class Program { }
