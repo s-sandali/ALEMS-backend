@@ -46,6 +46,13 @@ public class ClerkLoginTests : IDisposable
         // Configure Chrome in VISIBLE mode so the tester can watch the flow
         var options = new ChromeOptions();
         // NOTE: Headless mode is intentionally disabled
+        // Anti-bot evasion to prevent Clerk's "failed security validations" block
+        options.AddArgument("--disable-blink-features=AutomationControlled");
+        options.AddExcludedArgument("enable-automation");
+        options.AddAdditionalOption("useAutomationExtension", false);
+        options.AddUserProfilePreference("credentials_enable_service", false);
+        options.AddUserProfilePreference("profile.password_manager_enabled", false);
+
         options.AddArgument("--no-sandbox");
         options.AddArgument("--disable-dev-shm-usage");
         options.AddArgument("--disable-gpu");
