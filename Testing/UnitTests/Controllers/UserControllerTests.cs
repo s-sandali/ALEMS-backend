@@ -248,4 +248,41 @@ public class UserControllerTests
 
         result!.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
     }
+
+    // -----------------------------------------------------------------------
+    // ModelState.IsValid fallback branches
+    // These cover the manual validation guard inside CreateUser / UpdateUser
+    // that acts as a safety net when [ApiController] auto-validation is bypassed.
+    // -----------------------------------------------------------------------
+
+    [Fact(DisplayName = "Scenario 15 — CreateUser: invalid ModelState returns 400 with validation errors")]
+    public async Task CreateUser_InvalidModelState_Returns400()
+    {
+        var svc  = new Mock<IUserService>();
+        var ctrl = BuildController(svc);
+
+        // Simulate a model binding error as if [ApiController] were absent
+        ctrl.ModelState.AddModelError("Email", "Email is required.");
+
+        var dto    = new CreateUserDto { Email = "", Username = "alice", Role = "Student" };
+        var result = await ctrl.CreateUser(dto) as ObjectResult;
+
+        result!.StatusCode.Should().Be(StatusCodes.Status400BadRequest,
+            because: "a controller with invalid ModelState must return 400");
+    }
+
+    [Fact(DisplayName = "Scenario 16 — UpdateUser: invalid ModelState returns 400 with validation errors")]
+    public async Task UpdateUser_InvalidModelState_Returns400()
+    {
+        var svc  = new Mock<IUserService>();
+        var ctrl = BuildController(svc);
+
+        ctrl.ModelState.AddModelError("Role", "Role is required.");
+
+        var dto    = new UpdateUserDto { Role = "", IsActive = true };
+        var result = await ctrl.UpdateUser(1, dto) as ObjectResult;
+
+        result!.StatusCode.Should().Be(StatusCodes.Status400BadRequest,
+            because: "a controller with invalid ModelState must return 400");
+    }
 }

@@ -28,7 +28,7 @@ public class DatabaseHelper
     /// </summary>
     /// <returns>An open <see cref="MySqlConnection"/>.</returns>
     /// <exception cref="MySqlException">Thrown when the connection cannot be opened.</exception>
-    public async Task<MySqlConnection> OpenConnectionAsync()
+    public virtual async Task<MySqlConnection> OpenConnectionAsync()
     {
         var connection = new MySqlConnection(_connectionString);
         await connection.OpenAsync();
