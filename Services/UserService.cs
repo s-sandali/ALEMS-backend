@@ -98,7 +98,7 @@ public class UserService : IUserService
         if (!success)
         {
             _logger.LogWarning("Admin update user: user not found — ID={Id}", id);
-            return null;
+            throw new KeyNotFoundException($"User with ID {id} was not found.");
         }
 
         _logger.LogInformation("Admin update user: success — ID={Id}, Role={Role}, IsActive={IsActive}", 

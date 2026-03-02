@@ -168,21 +168,20 @@ public class UserController : ControllerBase
 
             var result = await _userService.UpdateUserAsync(id, dto.Role, dto.IsActive.GetValueOrDefault());
 
-            if (result is null)
-            {
-                return NotFound(new
-                {
-                    status = "error",
-                    message = $"User with ID {id} not found."
-                });
-            }
-
             _logger.LogInformation("POST /api/users/{Id} — updated user", id);
             return Ok(new
             {
                 status = "success",
                 message = "User updated successfully.",
                 data = result
+            });
+        }
+        catch (KeyNotFoundException knfe)
+        {
+            return NotFound(new
+            {
+                status = "error",
+                message = knfe.Message
             });
         }
         catch (Exception ex)
