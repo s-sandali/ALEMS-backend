@@ -51,6 +51,10 @@ artifacts/
 appsettings.json
 appsettings.Production.json
 appsettings.Staging.json
+.env
+.env.*
+secrets.json
+**/Properties/launchSettings.json
 
 ## ASP.NET Scaffolding
 ScaffoldingReadMe.txt
