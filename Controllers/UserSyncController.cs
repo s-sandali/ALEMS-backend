@@ -8,9 +8,13 @@ namespace backend.Controllers;
 /// <summary>
 /// Handles Clerk-authenticated user synchronisation with the local database.
 /// </summary>
+/// <remarks>
+/// Requires a valid Clerk JWT (any authenticated role).
+/// </remarks>
 [ApiController]
 [Route("api/users")]
 [Authorize]
+[Produces("application/json")]
 public class UserSyncController : ControllerBase
 {
     private readonly IUserService _userService;
@@ -23,11 +27,19 @@ public class UserSyncController : ControllerBase
     }
 
     /// <summary>
-    /// POST /api/users/sync
-    /// Extracts user info from the Clerk JWT and upserts the user in the database.
-    /// Returns 201 Created for new users or 200 OK for existing users.
+    /// POST /api/users/sync — Upsert the authenticated user from their Clerk JWT.
     /// </summary>
+    /// <remarks>
+    /// Extracts <c>sub</c>, <c>email</c>, and <c>name</c> / <c>preferred_username</c>
+    /// claims from the Bearer token and creates or returns the matching local record.
+    /// </remarks>
+    /// <response code="200">Existing user record returned.</response>
+    /// <response code="201">New user created and returned.</response>
+    /// <response code="500">Unexpected server error.</response>
     [HttpPost("sync")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> SyncUser()
     {
         try

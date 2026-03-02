@@ -68,29 +68,46 @@ builder.Services.AddCors(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
+    // ── API metadata ─────────────────────────────────────────────────
+    options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title       = "ALEMS API",
+        Version     = "v1",
+        Description =
+            "**Adaptive Learning & Engagement Management System** — REST API\n\n" +
+            "Protected endpoints require a valid **Clerk JWT** Bearer token.\n" +
+            "Click **Authorize ▶** and enter your token (without the `Bearer ` prefix — " +
+            "Swashbuckle prepends it automatically)."
+    });
+
+    // ── JWT security definition ──────────────────────────────────────
+    // Registers the Bearer scheme so the Authorize button appears in UI.
+    // The global AddSecurityRequirement is intentionally absent — the
+    // AuthorizeOperationFilter below applies the lock only to [Authorize] endpoints.
     options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {
-        Name = "Authorization",
-        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
-        Scheme = "bearer",
+        Name        = "Authorization",
+        Type        = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Scheme      = "bearer",
         BearerFormat = "JWT",
-        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
-        Description = "Enter your Clerk JWT token"
+        In          = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Description =
+            "Enter your Clerk JWT token. " +
+            "The `Bearer ` prefix is added automatically by Swagger UI."
     });
-    options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
-    {
-        {
-            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
-            {
-                Reference = new Microsoft.OpenApi.Models.OpenApiReference
-                {
-                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            Array.Empty<string>()
-        }
-    });
+
+    // ── Operation filter — selective padlock icon ────────────────────
+    // Adds Bearer requirement (+ 401/403 responses) only to endpoints
+    // that carry [Authorize]. Leaves [AllowAnonymous] / unannotated
+    // endpoints unlocked.
+    options.OperationFilter<backend.Infrastructure.Swagger.AuthorizeOperationFilter>();
+
+    // ── XML doc comments ─────────────────────────────────────────────
+    // Surface the /// summary / remarks written on every controller action.
+    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    if (File.Exists(xmlPath))
+        options.IncludeXmlComments(xmlPath, includeControllerXmlComments: true);
 });
 
 // ── Clerk JWT Authentication ───────────────────────────────────────
@@ -208,7 +225,14 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(ui =>
+    {
+        ui.SwaggerEndpoint("/swagger/v1/swagger.json", "ALEMS API v1");
+        ui.RoutePrefix        = "swagger";           // served at /swagger
+        ui.DocumentTitle      = "ALEMS API – Swagger UI";
+        ui.DisplayRequestDuration();                  // shows ms per call
+        ui.EnableDeepLinking();                       // bookmarkable operations
+    });
 }
 
 app.UseHttpsRedirection();

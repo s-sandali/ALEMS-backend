@@ -6,11 +6,15 @@ using Microsoft.AspNetCore.Mvc;
 namespace backend.Controllers;
 
 /// <summary>
-/// Admin-only endpoints for user management.
+/// Admin-only endpoints for user management (CRUD).
 /// </summary>
+/// <remarks>
+/// All endpoints require a valid Clerk JWT with the <b>Admin</b> role.
+/// </remarks>
 [ApiController]
 [Route("api/users")]
 [Authorize(Roles = "Admin")]
+[Produces("application/json")]
 public class UserController : ControllerBase
 {
     private readonly IUserService _userService;
@@ -23,11 +27,16 @@ public class UserController : ControllerBase
     }
 
     /// <summary>
-    /// POST /api/users
-    /// Creates a new user (admin operation).
-    /// Returns 201 Created or 400 if email already exists.
+    /// POST /api/users — Create a new user.
     /// </summary>
+    /// <remarks>Returns <b>400</b> if the e-mail address is already registered.</remarks>
+    /// <response code="201">User created successfully.</response>
+    /// <response code="400">Validation failed or duplicate e-mail.</response>
+    /// <response code="500">Unexpected server error.</response>
     [HttpPost]
+    [ProducesResponseType(typeof(object), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> CreateUser([FromBody] CreateUserDto dto)
     {
         try
@@ -79,10 +88,13 @@ public class UserController : ControllerBase
     }
 
     /// <summary>
-    /// GET /api/users
-    /// Retrieves all users (admin operation).
+    /// GET /api/users — Retrieve all users.
     /// </summary>
+    /// <response code="200">List of all users.</response>
+    /// <response code="500">Unexpected server error.</response>
     [HttpGet]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetAllUsers()
     {
         try
@@ -107,10 +119,16 @@ public class UserController : ControllerBase
     }
 
     /// <summary>
-    /// GET /api/users/{id}
-    /// Retrieves a specific user by ID (admin operation).
+    /// GET /api/users/{id} — Retrieve a user by ID.
     /// </summary>
+    /// <param name="id">The auto-increment user ID.</param>
+    /// <response code="200">User found.</response>
+    /// <response code="404">No user with the supplied ID.</response>
+    /// <response code="500">Unexpected server error.</response>
     [HttpGet("{id}")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetUserById(int id)
     {
         try
@@ -144,10 +162,19 @@ public class UserController : ControllerBase
     }
 
     /// <summary>
-    /// PUT /api/users/{id}
-    /// Updates a user's role and active status (admin operation).
+    /// PUT /api/users/{id} — Update a user's role and active status.
     /// </summary>
+    /// <param name="id">The auto-increment user ID.</param>
+    /// <param name="dto">Fields to update: <c>role</c> and <c>isActive</c>.</param>
+    /// <response code="200">User updated successfully.</response>
+    /// <response code="400">Validation failed.</response>
+    /// <response code="404">No user with the supplied ID.</response>
+    /// <response code="500">Unexpected server error.</response>
     [HttpPut("{id}")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> UpdateUser(int id, [FromBody] UpdateUserDto dto)
     {
         try
@@ -197,10 +224,16 @@ public class UserController : ControllerBase
     }
 
     /// <summary>
-    /// DELETE /api/users/{id}
-    /// Soft deletes a user by setting is_active to false (admin operation).
+    /// DELETE /api/users/{id} — Soft-delete a user (sets is_active = false).
     /// </summary>
+    /// <param name="id">The auto-increment user ID.</param>
+    /// <response code="204">User soft-deleted successfully.</response>
+    /// <response code="404">No user with the supplied ID.</response>
+    /// <response code="500">Unexpected server error.</response>
     [HttpDelete("{id}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> DeleteUser(int id)
     {
         try
