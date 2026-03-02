@@ -42,10 +42,9 @@ public class HealthController : ControllerBase
 
         try
         {
-            // Attempt a lightweight database connection + query
-            await using var connection = await _db.OpenConnectionAsync();
-            await using var cmd = new MySql.Data.MySqlClient.MySqlCommand("SELECT 1", connection);
-            await cmd.ExecuteScalarAsync();
+            // Delegate the ping to DatabaseHelper.PingAsync() —
+            // virtual so test doubles can override without a real MySQL server.
+            await _db.PingAsync();
 
             _logger.LogInformation("Health check: Database connected successfully");
         }
