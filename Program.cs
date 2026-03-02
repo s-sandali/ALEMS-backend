@@ -58,7 +58,12 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowFrontend",
         policy =>
         {
-            policy.WithOrigins("http://localhost:5173", "http://localhost:5174") // Allow Vite dev servers
+            // Read allowed origins from environment or config
+            var allowedOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")
+                ?? builder.Configuration["AllowedOrigins"]
+                ?? "http://localhost:5173,http://localhost:5174";
+
+            policy.WithOrigins(allowedOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials();
@@ -228,10 +233,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(ui =>
     {
         ui.SwaggerEndpoint("/swagger/v1/swagger.json", "BigO API v1");
-        ui.RoutePrefix        = "swagger";           // served at /swagger
-        ui.DocumentTitle      = "BigO API – Swagger UI";
-        ui.DisplayRequestDuration();                  // shows ms per call
-        ui.EnableDeepLinking();                       // bookmarkable operations
+        ui.RoutePrefix       = "swagger";           // served at /swagger
+        ui.DocumentTitle     = "BigO API – Swagger UI";
+        ui.DisplayRequestDuration();                 // shows ms per call
+        ui.EnableDeepLinking();                      // bookmarkable operations
     });
 }
 
