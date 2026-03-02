@@ -28,9 +28,10 @@
     <PackageReference Include="FluentAssertions"                  Version="6.12.2" />
   </ItemGroup>
 
-  <!-- ASP.NET Core hosting abstractions (for ClaimsPrincipal) -->
+  <!-- ASP.NET Core shared framework — gives access to DefaultHttpContext,
+       IAuthenticationService, AddJwtBearer, JwtBearerDefaults, etc. -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.0" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <!-- Reference to the main project under test -->
