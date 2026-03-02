@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -7,9 +7,12 @@
     <UserSecretsId>43d81e90-0fbf-4b78-a0f0-b2b35b30f5f7</UserSecretsId>
   </PropertyGroup>
 
-  <!-- Exclude the test project subfolder from the main project's compile glob -->
+  <!-- Exclude the Testing folder — it contains separate test projects with their own .csproj -->
   <ItemGroup>
-    <Compile Remove="backend.Tests\**\*.cs" />
+    <Compile Remove="Testing\**" />
+    <Content Remove="Testing\**" />
+    <EmbeddedResource Remove="Testing\**" />
+    <None Remove="Testing\**" />
   </ItemGroup>
 
   <ItemGroup>
