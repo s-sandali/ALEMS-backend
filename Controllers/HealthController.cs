@@ -1,4 +1,5 @@
 using backend.Data;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers;
@@ -10,6 +11,8 @@ namespace backend.Controllers;
 /// </summary>
 [ApiController]
 [Route("api")]
+[AllowAnonymous]           // public — no JWT required
+[Produces("application/json")]
 public class HealthController : ControllerBase
 {
     private readonly DatabaseHelper _db;
@@ -25,7 +28,13 @@ public class HealthController : ControllerBase
     /// GET /api/health
     /// Checks application liveness and database connectivity.
     /// </summary>
+    /// <remarks>
+    /// Always returns <b>200 OK</b>. Parse the <c>status</c> field in the body
+    /// (<c>Healthy</c> | <c>Degraded</c>) to determine the actual state.
+    /// </remarks>
+    /// <response code="200">Application is running; body contains db connectivity status.</response>
     [HttpGet("health")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetHealth()
     {
         var dbStatus = "Connected";
