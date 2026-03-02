@@ -227,12 +227,18 @@ builder.Services.AddScoped<IUserService, UserService>();
 var app = builder.Build();
 
 // ── Middleware Pipeline ────────────────────────────────────────────
-app.UseSwagger();
-app.UseSwaggerUI(options =>
+if (app.Environment.IsDevelopment())
 {
-    options.SwaggerEndpoint("/swagger/v1/swagger.json", "ALEMS API v1");
-    options.RoutePrefix = "swagger";
-});
+    app.UseSwagger();
+    app.UseSwaggerUI(ui =>
+    {
+        ui.SwaggerEndpoint("/swagger/v1/swagger.json", "BigO API v1");
+        ui.RoutePrefix       = "swagger";           // served at /swagger
+        ui.DocumentTitle     = "BigO API – Swagger UI";
+        ui.DisplayRequestDuration();                 // shows ms per call
+        ui.EnableDeepLinking();                      // bookmarkable operations
+    });
+}
 
 app.UseHttpsRedirection();
 
