@@ -41,9 +41,11 @@ public class UserSyncControllerTests
         UpdatedAt   = DateTime.UtcNow
     };
 
-    private static UserSyncController BuildController(Mock<IUserService> svc, ClaimsPrincipal user)
+    private static UserSyncController BuildController(Mock<IUserService> svc, ClaimsPrincipal user,
+        IClerkService? clerkService = null)
     {
-        var ctrl = new UserSyncController(svc.Object, NullLogger<UserSyncController>.Instance);
+        var clerk = clerkService ?? new Mock<IClerkService>().Object;
+        var ctrl = new UserSyncController(svc.Object, clerk, NullLogger<UserSyncController>.Instance);
         ctrl.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext { User = user }
