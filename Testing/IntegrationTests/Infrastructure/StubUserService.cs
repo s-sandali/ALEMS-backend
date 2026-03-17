@@ -17,7 +17,7 @@ public sealed class StubUserService : IUserService
             ClerkUserId = clerkUserId,
             Email       = string.IsNullOrWhiteSpace(email)    ? "test@example.com" : email,
             Username    = string.IsNullOrWhiteSpace(username) ? "testuser"         : username,
-            Role        = "Student",
+            Role        = "User",
             IsActive    = true
         };
         return Task.FromResult((dto, true));
