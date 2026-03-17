@@ -45,6 +45,61 @@ public class BubbleSortSimulationEngine : IAlgorithmSimulationEngine
         };
     }
 
+    public SimulationValidationResponse ValidateStep(int[] currentArray, string actionType, int[] indices)
+    {
+        var normalizedAction = actionType.Trim().ToLowerInvariant();
+        var expectedSwapIndex = FindNextSwapIndex(currentArray);
+
+        if (expectedSwapIndex is null)
+        {
+            var isCompletionAction = normalizedAction is "found" or "complete" or "sorted";
+            return new SimulationValidationResponse
+            {
+                Correct = isCompletionAction,
+                NextState = currentArray.ToArray()
+            };
+        }
+
+        var leftIndex = expectedSwapIndex.Value;
+        var expectedIndices = new[] { leftIndex, leftIndex + 1 };
+        var isCorrectAction =
+            normalizedAction == "swap" &&
+            indices.Length == 2 &&
+            indices[0] == expectedIndices[0] &&
+            indices[1] == expectedIndices[1];
+
+        if (!isCorrectAction)
+        {
+            return new SimulationValidationResponse
+            {
+                Correct = false,
+                NextState = currentArray.ToArray()
+            };
+        }
+
+        var nextState = currentArray.ToArray();
+        (nextState[leftIndex], nextState[leftIndex + 1]) = (nextState[leftIndex + 1], nextState[leftIndex]);
+
+        return new SimulationValidationResponse
+        {
+            Correct = true,
+            NextState = nextState
+        };
+    }
+
+    private static int? FindNextSwapIndex(int[] array)
+    {
+        for (var i = 0; i < array.Length - 1; i++)
+        {
+            if (array[i] > array[i + 1])
+            {
+                return i;
+            }
+        }
+
+        return null;
+    }
+
     private static void AddStep(
         List<SimulationStep> steps,
         ref int stepNumber,
