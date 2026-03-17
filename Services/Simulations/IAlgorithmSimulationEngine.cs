@@ -16,4 +16,9 @@ public interface IAlgorithmSimulationEngine
     /// Executes the simulation and returns the full step trace.
     /// </summary>
     SimulationResponse Run(int[] array);
+
+    /// <summary>
+    /// Validates a learner action against the next legal move for the algorithm.
+    /// </summary>
+    SimulationValidationResponse ValidateStep(int[] currentArray, string actionType, int[] indices);
 }

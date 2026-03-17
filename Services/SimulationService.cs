@@ -22,8 +22,29 @@ public class SimulationService : ISimulationService
     /// <inheritdoc />
     public Task<SimulationResponse> RunAsync(string algorithm, int[] array)
     {
-        var normalizedAlgorithm = algorithm.Trim().ToLowerInvariant();
+        var engine = ResolveEngine(algorithm);
+        var clonedInput = array.ToArray();
+        return Task.FromResult(engine.Run(clonedInput));
+    }
 
+    /// <inheritdoc />
+    public Task<SimulationValidationResponse> ValidateStepAsync(
+        string algorithm,
+        int[] currentArray,
+        string actionType,
+        int[] indices)
+    {
+        var engine = ResolveEngine(algorithm);
+
+        return Task.FromResult(engine.ValidateStep(
+            currentArray.ToArray(),
+            actionType,
+            indices.ToArray()));
+    }
+
+    private IAlgorithmSimulationEngine ResolveEngine(string algorithm)
+    {
+        var normalizedAlgorithm = algorithm.Trim().ToLowerInvariant();
         var engine = _engines.FirstOrDefault(e => e.CanHandle(normalizedAlgorithm));
         if (engine is null)
         {
@@ -31,7 +52,6 @@ public class SimulationService : ISimulationService
             throw new NotSupportedException($"Algorithm '{algorithm}' is not supported.");
         }
 
-        var clonedInput = array.ToArray();
-        return Task.FromResult(engine.Run(clonedInput));
+        return engine;
     }
 }
