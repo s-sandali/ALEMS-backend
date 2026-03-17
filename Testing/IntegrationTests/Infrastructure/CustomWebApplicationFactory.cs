@@ -28,6 +28,7 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Clerk:Authority"]                    = "https://test.clerk.example.com",
+                ["Clerk:SecretKey"]                    = "sk_test_dummy_value_for_integration_tests",
                 ["ConnectionStrings:DefaultConnection"] =
                     "Server=localhost;Database=test_db;User=test;Password=test;"
             });
