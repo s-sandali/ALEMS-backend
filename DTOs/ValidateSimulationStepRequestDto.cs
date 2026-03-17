@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace backend.DTOs;
 
@@ -8,12 +9,28 @@ namespace backend.DTOs;
 public class ValidateSimulationStepRequestDto
 {
     [Required]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Legacy request field retained for compatibility with earlier callers.
+    /// </summary>
     public string Algorithm { get; set; } = string.Empty;
 
-    [Required]
-    [MinLength(1)]
-    public int[] CurrentArray { get; set; } = [];
+    /// <summary>
+    /// Legacy request field retained for compatibility with earlier callers.
+    /// </summary>
+    public int[]? CurrentArray { get; set; }
 
-    [Required]
-    public SimulationUserActionDto UserAction { get; set; } = new();
+    /// <summary>
+    /// Preferred request field used by the frontend practice-mode flow.
+    /// </summary>
+    public SimulationUserActionDto? Action { get; set; }
+
+    /// <summary>
+    /// Legacy request field retained for compatibility with earlier callers.
+    /// </summary>
+    public SimulationUserActionDto? UserAction { get; set; }
+
+    [JsonIgnore]
+    public SimulationUserActionDto? ResolvedAction => Action ?? UserAction;
 }
