@@ -128,7 +128,7 @@ public class UserRepositoryTests
         {
             Email    = "bob@example.com",
             Username = "bob",
-            Role     = "Student",
+            Role     = "User",
             IsActive = true
         };
 

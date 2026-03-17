@@ -8,8 +8,8 @@ namespace backend.DTOs;
 public class UpdateUserDto
 {
     [Required(ErrorMessage = "Role is required.")]
-    [RegularExpression("^(Student|Admin|Instructor)$",
-        ErrorMessage = "Role must be 'Student', 'Admin', or 'Instructor'.")]
+    [RegularExpression("^(User|Admin)$",
+        ErrorMessage = "Role must be 'User' or 'Admin'.")]
     public string Role { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "IsActive is required.")]

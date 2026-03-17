@@ -7,6 +7,10 @@
 # Build output
 [Bb]in/
 [Oo]bj/
+[Bb]in-verify/
+[Oo]bj-verify/
+
+.claude/
 
 # NuGet
 *.nupkg
@@ -48,6 +52,7 @@ artifacts/
 *.dmp
 
 ## Secrets & environment
+appsettings.Development.json
 appsettings.Production.json
 appsettings.Staging.json
 .env

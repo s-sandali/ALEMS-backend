@@ -44,7 +44,7 @@ public class DtoValidationTests
         {
             Email    = "alice@example.com",
             Username = "alice",
-            Role     = "Student"
+            Role     = "User"
         };
 
         Validate(dto).Should().BeEmpty(
@@ -62,7 +62,7 @@ public class DtoValidationTests
         {
             Email    = "",          // empty → treated as missing by [Required]
             Username = "alice",
-            Role     = "Student"
+            Role     = "User"
         };
 
         var errors = Validate(dto);
@@ -78,7 +78,7 @@ public class DtoValidationTests
         {
             Email    = "not-an-email",
             Username = "alice",
-            Role     = "Student"
+            Role     = "User"
         };
 
         var errors = Validate(dto);
@@ -95,7 +95,7 @@ public class DtoValidationTests
         {
             Email    = new string('a', 250) + "@b.com",   // 256 chars total
             Username = "alice",
-            Role     = "Student"
+            Role     = "User"
         };
 
         var errors = Validate(dto);
@@ -116,7 +116,7 @@ public class DtoValidationTests
         {
             Email    = "alice@example.com",
             Username = "",
-            Role     = "Student"
+            Role     = "User"
         };
 
         var errors = Validate(dto);
@@ -132,7 +132,7 @@ public class DtoValidationTests
         {
             Email    = "alice@example.com",
             Username = "a",             // MinimumLength = 2
-            Role     = "Student"
+            Role     = "User"
         };
 
         var errors = Validate(dto);
@@ -149,7 +149,7 @@ public class DtoValidationTests
         {
             Email    = "alice@example.com",
             Username = new string('x', 101),    // MaxLength = 100
-            Role     = "Student"
+            Role     = "User"
         };
 
         var errors = Validate(dto);
@@ -197,13 +197,12 @@ public class DtoValidationTests
 
         errors.Should().Contain(r =>
             r.MemberNames.Contains("Role") &&
-            r.ErrorMessage == "Role must be 'Student', 'Admin', or 'Instructor'.");
+            r.ErrorMessage == "Role must be 'User' or 'Admin'.");
     }
 
     [Theory(DisplayName = "TC-UV-10 — CreateUserDto: each valid role value passes regex")]
-    [InlineData("Student")]
+    [InlineData("User")]
     [InlineData("Admin")]
-    [InlineData("Instructor")]
     public void CreateUserDto_ValidRole_NoRoleError(string validRole)
     {
         var dto = new CreateUserDto
@@ -227,7 +226,7 @@ public class DtoValidationTests
     {
         var dto = new UpdateUserDto
         {
-            Role     = "Instructor",
+            Role     = "User",
             IsActive = true
         };
 

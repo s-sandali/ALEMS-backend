@@ -18,11 +18,16 @@ namespace backend.Controllers;
 public class UserSyncController : ControllerBase
 {
     private readonly IUserService _userService;
+    private readonly IClerkService _clerkService;
     private readonly ILogger<UserSyncController> _logger;
 
-    public UserSyncController(IUserService userService, ILogger<UserSyncController> logger)
+    public UserSyncController(
+        IUserService userService,
+        IClerkService clerkService,
+        ILogger<UserSyncController> logger)
     {
         _userService = userService;
+        _clerkService = clerkService;
         _logger = logger;
     }
 
@@ -68,10 +73,26 @@ public class UserSyncController : ControllerBase
             // Fall back to email prefix if username claim is absent
             username ??= email?.Split('@')[0] ?? "unknown";
 
+            // "role_missing" is injected by the JWT middleware when public_metadata.role
+            // is absent. Use this marker (not the role value itself) to decide whether
+            // to write the default role to Clerk — the role value is always "User" after
+            // the middleware fallback, so checking it directly would never trigger the PATCH.
+            var roleMissing = User.HasClaim("role_missing", "true");
+
             var (dto, isNewUser) = await _userService.SyncUserAsync(
                 clerkUserId,
                 email ?? string.Empty,
                 username);
+
+            // If public_metadata.role was absent, write "User" to Clerk now so every
+            // subsequent token will contain the claim automatically.
+            if (roleMissing)
+            {
+                await _clerkService.SetUserRoleAsync(clerkUserId, "User");
+                _logger.LogInformation(
+                    "POST /api/users/sync — Default role 'User' written to Clerk for ClerkId={ClerkId}",
+                    clerkUserId);
+            }
 
             if (isNewUser)
             {

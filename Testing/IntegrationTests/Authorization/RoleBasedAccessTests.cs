@@ -11,7 +11,7 @@ namespace IntegrationTests.Authorization;
 ///
 /// Protected endpoint: GET /api/users  [Authorize(Roles = "Admin")]
 ///
-/// TC-01  Student role → HTTP 403 Forbidden  (authenticated, wrong role)
+/// TC-01  User role → HTTP 403 Forbidden  (authenticated, wrong role)
 /// TC-02  Admin role   → HTTP 200 OK         (authenticated, correct role)
 /// </summary>
 public class RoleBasedAccessTests : IClassFixture<CustomWebApplicationFactory>
@@ -23,19 +23,19 @@ public class RoleBasedAccessTests : IClassFixture<CustomWebApplicationFactory>
         _factory = factory;
     }
 
-    // ── TC-01 — Student → 403 ────────────────────────────────────────────
+    // ── TC-01 — User → 403 ────────────────────────────────────────────
 
-    [Fact(DisplayName = "TC-01 — Student role: Admin endpoint returns HTTP 403 Forbidden")]
-    public async Task AdminEndpoint_WithStudentRole_Returns403()
+    [Fact(DisplayName = "TC-01 — User role: Admin endpoint returns HTTP 403 Forbidden")]
+    public async Task AdminEndpoint_WithUserRole_Returns403()
     {
         var client = _factory.CreateClient();
         client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", TestAuthHandler.StudentToken);
+            new AuthenticationHeaderValue("Bearer", TestAuthHandler.UserToken);
 
         var response = await client.GetAsync("/api/users");
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
-            because: "a Student must not access an Admin-only endpoint");
+            because: "a User must not access an Admin-only endpoint");
     }
 
     // ── TC-02 — Admin → 200 ──────────────────────────────────────────────

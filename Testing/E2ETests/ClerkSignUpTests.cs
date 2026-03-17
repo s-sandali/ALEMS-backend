@@ -229,9 +229,9 @@ public class ClerkSignUpTests : IDisposable
         Assert.True(await reader.ReadAsync(),
             $"Expected user with email '{_testEmail}' to exist in the Users table.");
 
-        // Assert: Default role should be "Student" as defined in the User model
+        // Assert: Default role should be "User" as defined in the User model
         var role = reader.GetString("Role");
-        Assert.Equal("Student", role);
+        Assert.Equal("User", role);
 
         // Assert: New users should be active by default (IsActive = true)
         var isActive = reader.GetBoolean("IsActive");
