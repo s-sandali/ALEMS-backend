@@ -78,15 +78,15 @@ public class SimulationController : ControllerBase
     }
 
     /// <summary>
-    /// POST /api/simulation/validate-step
-    /// Validates a learner's action against the next correct algorithm move.
+    /// POST /api/simulation/start
+    /// Starts a stateful practice-mode session for the requested algorithm and input array.
     /// </summary>
-    [HttpPost("validate-step")]
-    [ProducesResponseType(typeof(backend.Models.Simulations.SimulationValidationResponse), StatusCodes.Status200OK)]
+    [HttpPost("start")]
+    [ProducesResponseType(typeof(backend.Models.Simulations.SimulationSession), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(object), StatusCodes.Status501NotImplemented)]
     [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
-    public async Task<IActionResult> ValidateStep([FromBody] ValidateSimulationStepRequestDto dto)
+    public async Task<IActionResult> Start([FromBody] StartSimulationSessionRequestDto dto)
     {
         try
         {
@@ -95,25 +95,75 @@ public class SimulationController : ControllerBase
                 ModelState.AddModelError(nameof(dto.Algorithm), "Algorithm is required.");
             }
 
-            if (dto.CurrentArray is null || dto.CurrentArray.Length == 0)
+            if (dto.Array is null || dto.Array.Length == 0)
             {
-                ModelState.AddModelError(nameof(dto.CurrentArray), "CurrentArray must contain at least one value.");
+                ModelState.AddModelError(nameof(dto.Array), "Array must contain at least one value.");
             }
 
-            if (dto.UserAction is null)
+            if (!ModelState.IsValid)
             {
-                ModelState.AddModelError(nameof(dto.UserAction), "UserAction is required.");
+                return ValidationProblem(ModelState);
+            }
+
+            var session = await _simulationService.StartSessionAsync(dto.Algorithm, dto.Array!);
+            return Ok(session);
+        }
+        catch (NotSupportedException ex)
+        {
+            _logger.LogWarning(ex, "Unsupported simulation algorithm requested for session start: {Algorithm}", dto.Algorithm);
+            return StatusCode(StatusCodes.Status501NotImplemented, new
+            {
+                status = "error",
+                message = ex.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unhandled error in POST /api/simulation/start");
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                status = "error",
+                message = "An unexpected error occurred while starting the simulation session.",
+                detail = ex.Message
+            });
+        }
+    }
+
+    /// <summary>
+    /// POST /api/simulation/validate-step
+    /// Validates a learner's action against the next correct algorithm move.
+    /// </summary>
+    [HttpPost("validate-step")]
+    [ProducesResponseType(typeof(backend.Models.Simulations.SimulationValidationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status501NotImplemented)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> ValidateStep([FromBody] ValidateSimulationStepRequestDto dto)
+    {
+        try
+        {
+            var userAction = dto.ResolvedAction;
+
+            if (string.IsNullOrWhiteSpace(dto.SessionId))
+            {
+                ModelState.AddModelError(nameof(dto.SessionId), "SessionId is required.");
+            }
+
+            if (userAction is null)
+            {
+                ModelState.AddModelError(nameof(dto.Action), "Action is required.");
             }
             else
             {
-                if (string.IsNullOrWhiteSpace(dto.UserAction.Type))
+                if (string.IsNullOrWhiteSpace(userAction.Type))
                 {
-                    ModelState.AddModelError($"{nameof(dto.UserAction)}.{nameof(dto.UserAction.Type)}", "Action type is required.");
+                    ModelState.AddModelError($"{nameof(dto.Action)}.{nameof(SimulationUserActionDto.Type)}", "Action type is required.");
                 }
 
-                if (dto.UserAction.Indices is null || dto.UserAction.Indices.Length < 2)
+                if (userAction.Indices is null || userAction.Indices.Length < 2)
                 {
-                    ModelState.AddModelError($"{nameof(dto.UserAction)}.{nameof(dto.UserAction.Indices)}", "At least two indices are required.");
+                    ModelState.AddModelError($"{nameof(dto.Action)}.{nameof(SimulationUserActionDto.Indices)}", "At least two indices are required.");
                 }
             }
 
@@ -122,18 +172,26 @@ public class SimulationController : ControllerBase
                 return ValidationProblem(ModelState);
             }
 
-            var userAction = dto.UserAction!;
+            var validatedAction = userAction!;
             var response = await _simulationService.ValidateStepAsync(
-                dto.Algorithm,
-                dto.CurrentArray!,
-                userAction.Type,
-                userAction.Indices!);
+                dto.SessionId,
+                validatedAction.Type,
+                validatedAction.Indices!);
 
             return Ok(response);
         }
+        catch (KeyNotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Simulation session not found: {SessionId}", dto.SessionId);
+            return NotFound(new
+            {
+                status = "error",
+                message = ex.Message
+            });
+        }
         catch (NotSupportedException ex)
         {
-            _logger.LogWarning(ex, "Unsupported simulation algorithm requested for validation: {Algorithm}", dto.Algorithm);
+            _logger.LogWarning(ex, "Unsupported simulation step validation requested for session: {SessionId}", dto.SessionId);
             return StatusCode(StatusCodes.Status501NotImplemented, new
             {
                 status = "error",
