@@ -30,7 +30,8 @@ public interface IUserService
 
     /// <summary>
     /// Updates a user's role and active status.
-    /// Returns the updated DTO, or null if the user was not found.
+    /// Returns the updated DTO.
+    /// Throws <see cref="KeyNotFoundException"/> if the user ID does not exist.
     /// </summary>
     Task<UserResponseDto?> UpdateUserAsync(int id, string role, bool isActive);
 

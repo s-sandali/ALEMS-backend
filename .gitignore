@@ -48,6 +48,7 @@ artifacts/
 *.dmp
 
 ## Secrets & environment
+
 appsettings.Production.json
 appsettings.Staging.json
 .env

@@ -1,4 +1,5 @@
 using backend.Data;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers;
@@ -10,6 +11,8 @@ namespace backend.Controllers;
 /// </summary>
 [ApiController]
 [Route("api")]
+[AllowAnonymous]           // public — no JWT required
+[Produces("application/json")]
 public class HealthController : ControllerBase
 {
     private readonly DatabaseHelper _db;
@@ -25,7 +28,13 @@ public class HealthController : ControllerBase
     /// GET /api/health
     /// Checks application liveness and database connectivity.
     /// </summary>
+    /// <remarks>
+    /// Always returns <b>200 OK</b>. Parse the <c>status</c> field in the body
+    /// (<c>Healthy</c> | <c>Degraded</c>) to determine the actual state.
+    /// </remarks>
+    /// <response code="200">Application is running; body contains db connectivity status.</response>
     [HttpGet("health")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetHealth()
     {
         var dbStatus = "Connected";
@@ -33,10 +42,9 @@ public class HealthController : ControllerBase
 
         try
         {
-            // Attempt a lightweight database connection + query
-            await using var connection = await _db.OpenConnectionAsync();
-            await using var cmd = new MySql.Data.MySqlClient.MySqlCommand("SELECT 1", connection);
-            await cmd.ExecuteScalarAsync();
+            // Delegate the ping to DatabaseHelper.PingAsync() —
+            // virtual so test doubles can override without a real MySQL server.
+            await _db.PingAsync();
 
             _logger.LogInformation("Health check: Database connected successfully");
         }
