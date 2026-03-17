@@ -117,11 +117,24 @@ builder.Services.AddSwaggerGen(options =>
 
 // ── Clerk JWT Authentication ───────────────────────────────────────
 // Priority: Environment variable → appsettings.json
+var isTestEnvironment = builder.Environment.IsEnvironment("Test");
+
 var clerkAuthority = Environment.GetEnvironmentVariable("CLERK_AUTHORITY")
-    ?? builder.Configuration["Clerk:Authority"]
-    ?? throw new InvalidOperationException(
-        "Clerk authority is not configured. Set the CLERK_AUTHORITY environment variable " +
-        "or Clerk:Authority in appsettings.json.");
+    ?? builder.Configuration["Clerk:Authority"];
+
+if (string.IsNullOrWhiteSpace(clerkAuthority))
+{
+    if (isTestEnvironment)
+    {
+        clerkAuthority = "https://test.clerk.local";
+    }
+    else
+    {
+        throw new InvalidOperationException(
+            "Clerk authority is not configured. Set the CLERK_AUTHORITY environment variable " +
+            "or Clerk:Authority in appsettings.json.");
+    }
+}
 
 var clerkAudience = Environment.GetEnvironmentVariable("CLERK_AUDIENCE")
     ?? builder.Configuration["Clerk:Audience"];  // optional — null disables audience check
@@ -240,10 +253,21 @@ builder.Services.AddScoped<IAlgorithmService, AlgorithmService>();
 // ── Clerk Backend API Client ───────────────────────────────────────
 // Used to set public_metadata.role on first sign-up via PATCH /v1/users/{id}/metadata.
 var clerkSecretKey = Environment.GetEnvironmentVariable("CLERK_SECRET_KEY")
-    ?? builder.Configuration["Clerk:SecretKey"]
-    ?? throw new InvalidOperationException(
-        "Clerk secret key not configured. Set the CLERK_SECRET_KEY environment variable " +
-        "or Clerk:SecretKey in appsettings.json.");
+    ?? builder.Configuration["Clerk:SecretKey"];
+
+if (string.IsNullOrWhiteSpace(clerkSecretKey))
+{
+    if (isTestEnvironment)
+    {
+        clerkSecretKey = "sk_test_dummy_value_for_test_environment";
+    }
+    else
+    {
+        throw new InvalidOperationException(
+            "Clerk secret key not configured. Set the CLERK_SECRET_KEY environment variable " +
+            "or Clerk:SecretKey in appsettings.json.");
+    }
+}
 
 builder.Services.AddHttpClient<IClerkService, ClerkService>(client =>
 {
