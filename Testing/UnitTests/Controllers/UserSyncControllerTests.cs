@@ -34,7 +34,7 @@ public class UserSyncControllerTests
         ClerkUserId = "clerk_001",
         Email       = "alice@example.com",
         Username    = "alice",
-        Role        = "Student",
+        Role        = "User",
         XpTotal     = 0,
         IsActive    = true,
         CreatedAt   = DateTime.UtcNow,

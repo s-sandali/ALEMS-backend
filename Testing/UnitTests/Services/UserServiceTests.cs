@@ -44,7 +44,7 @@ public class UserServiceTests
         ClerkUserId = "clerk_001",
         Email       = "alice@example.com",
         Username    = "alice",
-        Role        = "Student",
+        Role        = "User",
         XpTotal     = 100,
         IsActive    = true,
         CreatedAt   = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
@@ -86,7 +86,7 @@ public class UserServiceTests
         repo.Verify(r => r.CreateAsync(It.Is<User>(u =>
             u.ClerkUserId == "clerk_001" &&
             u.Email == "alice@example.com" &&
-            u.Role == "Student")), Times.Once);
+            u.Role == "User")), Times.Once);
     }
 
     // -----------------------------------------------------------------------
@@ -99,7 +99,7 @@ public class UserServiceTests
         var repo = new Mock<IUserRepository>();
         repo.Setup(r => r.GetByEmailAsync("alice@example.com")).ReturnsAsync(SampleUser());
 
-        var result = await BuildSut(repo).CreateUserAsync("alice@example.com", "alice", "Student");
+        var result = await BuildSut(repo).CreateUserAsync("alice@example.com", "alice", "User");
 
         result.Should().BeNull();
         repo.Verify(r => r.CreateAsync(It.IsAny<User>()), Times.Never);
@@ -112,11 +112,11 @@ public class UserServiceTests
         repo.Setup(r => r.GetByEmailAsync("alice@example.com")).ReturnsAsync((User?)null);
         repo.Setup(r => r.CreateAsync(It.IsAny<User>())).ReturnsAsync(SampleUser());
 
-        var result = await BuildSut(repo).CreateUserAsync("alice@example.com", "alice", "Student");
+        var result = await BuildSut(repo).CreateUserAsync("alice@example.com", "alice", "User");
 
         result.Should().NotBeNull();
         result!.Email.Should().Be("alice@example.com");
-        result.Role.Should().Be("Student");
+        result.Role.Should().Be("User");
     }
 
     // -----------------------------------------------------------------------
