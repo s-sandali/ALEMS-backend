@@ -13,7 +13,12 @@ public interface ISimulationService
     Task<SimulationResponse> RunAsync(string algorithm, int[] array);
 
     /// <summary>
-    /// Validates whether a learner action is correct for the current algorithm state.
+    /// Starts a stateful practice-mode simulation session.
     /// </summary>
-    Task<SimulationValidationResponse> ValidateStepAsync(string algorithm, int[] currentArray, string actionType, int[] indices);
+    Task<SimulationSession> StartSessionAsync(string algorithm, int[] array);
+
+    /// <summary>
+    /// Validates whether a learner action is correct for the current practice session.
+    /// </summary>
+    Task<SimulationValidationResponse> ValidateStepAsync(string sessionId, string actionType, int[] indices);
 }
