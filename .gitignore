@@ -7,6 +7,8 @@
 # Build output
 [Bb]in/
 [Oo]bj/
+[Bb]in-verify/
+[Oo]bj-verify/
 
 # NuGet
 *.nupkg
