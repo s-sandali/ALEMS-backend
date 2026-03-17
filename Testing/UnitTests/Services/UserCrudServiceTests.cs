@@ -41,7 +41,7 @@ public class UserCrudServiceTests
         ClerkUserId = string.Empty,
         Email       = email,
         Username    = "alice",
-        Role        = "Student",
+        Role        = "User",
         XpTotal     = 0,
         IsActive    = true,
         CreatedAt   = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
@@ -77,7 +77,7 @@ public class UserCrudServiceTests
             .ReturnsAsync(SampleUser());
 
         // Act
-        var result = await sut.CreateUserAsync("alice@example.com", "alice", "Student");
+        var result = await sut.CreateUserAsync("alice@example.com", "alice", "User");
 
         // Assert
         result.Should().NotBeNull("a valid e-mail should produce a new user record");
@@ -85,14 +85,14 @@ public class UserCrudServiceTests
         result!.UserId.Should().Be(1);
         result.Email.Should().Be("alice@example.com");
         result.Username.Should().Be("alice");
-        result.Role.Should().Be("Student");
+        result.Role.Should().Be("User");
         result.IsActive.Should().BeTrue();
 
         // Repository must be asked to insert exactly one record matching the input
         repoMock.Verify(r => r.CreateAsync(It.Is<User>(u =>
             u.Email    == "alice@example.com" &&
             u.Username == "alice"             &&
-            u.Role     == "Student")),
+            u.Role     == "User")),
             Times.Once);
     }
 
@@ -112,7 +112,7 @@ public class UserCrudServiceTests
             .ReturnsAsync(SampleUser());
 
         // Act
-        var result = await sut.CreateUserAsync("alice@example.com", "alice2", "Student");
+        var result = await sut.CreateUserAsync("alice@example.com", "alice2", "User");
 
         // Assert
         result.Should().BeNull("duplicate e-mail addresses must be rejected at the service layer");
@@ -177,7 +177,7 @@ public class UserCrudServiceTests
         result!.UserId.Should().Be(1);
         result.Email.Should().Be("alice@example.com");
         result.Username.Should().Be("alice");
-        result.Role.Should().Be("Student");
+        result.Role.Should().Be("User");
     }
 
     // -----------------------------------------------------------------------

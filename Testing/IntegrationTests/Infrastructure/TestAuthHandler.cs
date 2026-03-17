@@ -11,7 +11,7 @@ namespace IntegrationTests.Infrastructure;
 ///
 /// Token map:
 ///   "test-admin-token"   → authenticated, Role = Admin
-///   "test-student-token" → authenticated, Role = Student
+///   "test-student-token" → authenticated, Role = User
 ///   "test-valid-token"   → authenticated, no role claim
 ///   anything else        → 401 Unauthorized
 /// </summary>
@@ -19,7 +19,7 @@ public sealed class TestAuthHandler : AuthenticationHandler<AuthenticationScheme
 {
     public const string SchemeName    = "TestAuth";
     public const string AdminToken    = "test-admin-token";
-    public const string StudentToken  = "test-student-token";
+    public const string UserToken  = "test-student-token";
     public const string ValidToken    = "test-valid-token";
 
     public TestAuthHandler(
@@ -38,13 +38,13 @@ public sealed class TestAuthHandler : AuthenticationHandler<AuthenticationScheme
 
         var token = raw["Bearer ".Length..].Trim();
 
-        if (token != AdminToken && token != StudentToken && token != ValidToken)
+        if (token != AdminToken && token != UserToken && token != ValidToken)
             return Task.FromResult(AuthenticateResult.Fail("Token is invalid."));
 
         string? role = token switch
         {
             AdminToken   => "Admin",
-            StudentToken => "Student",
+            UserToken => "User",
             _            => null
         };
 

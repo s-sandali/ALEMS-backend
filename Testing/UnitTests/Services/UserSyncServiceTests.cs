@@ -52,7 +52,7 @@ public class UserSyncServiceTests
         ClerkUserId = clerkUserId,
         Email       = "testuser@example.com",
         Username    = "testuser",
-        Role        = "Student",
+        Role        = "User",
         XpTotal     = 0,
         IsActive    = true,
         CreatedAt   = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
@@ -91,7 +91,7 @@ public class UserSyncServiceTests
         dto.ClerkUserId.Should().Be("clerk_test_001");
         dto.Email.Should().Be("testuser@example.com");
         dto.Username.Should().Be("testuser");
-        dto.Role.Should().Be("Student");
+        dto.Role.Should().Be("User");
         dto.UserId.Should().Be(42);
 
         // Verify the repository was asked to create exactly one user
@@ -99,7 +99,7 @@ public class UserSyncServiceTests
             u.ClerkUserId == "clerk_test_001" &&
             u.Email       == "testuser@example.com" &&
             u.Username    == "testuser" &&
-            u.Role        == "Student")),
+            u.Role        == "User")),
             Times.Once);
     }
 
