@@ -161,9 +161,18 @@ public class SimulationController : ControllerBase
                     ModelState.AddModelError($"{nameof(dto.Action)}.{nameof(SimulationUserActionDto.Type)}", "Action type is required.");
                 }
 
-                if (userAction.Indices is null || userAction.Indices.Length < 2)
+                var normalizedType = userAction.Type.Trim().ToLowerInvariant();
+                var requiredIndices = normalizedType is "midpoint" or "midpoint_pick" or "pick_midpoint"
+                    ? 1
+                    : 2;
+
+                if (userAction.Indices is null || userAction.Indices.Length < requiredIndices)
                 {
-                    ModelState.AddModelError($"{nameof(dto.Action)}.{nameof(SimulationUserActionDto.Indices)}", "At least two indices are required.");
+                    ModelState.AddModelError(
+                        $"{nameof(dto.Action)}.{nameof(SimulationUserActionDto.Indices)}",
+                        requiredIndices == 1
+                            ? "At least one index is required for midpoint selection."
+                            : "At least two indices are required.");
                 }
             }
 
