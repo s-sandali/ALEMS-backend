@@ -65,4 +65,95 @@ public class SimulationServicePracticeSessionTests
         updatedSession.Should().NotBeNull();
         updatedSession!.CurrentStepIndex.Should().Be(session.CurrentStepIndex);
     }
+
+    [Fact]
+    public async Task StartSessionAsync_BinarySearchSessionStartsAtMidpointPickStep()
+    {
+        var store = new InMemorySimulationSessionStore();
+        var sut = new SimulationService(
+            [new FakeSimulationEngine("binary_search", BuildBinarySearchSteps())],
+            store,
+            NullLogger<SimulationService>.Instance);
+
+        var session = await sut.StartSessionAsync("binary_search", [7, 11, 15, 21, 29]);
+
+        session.Steps[session.CurrentStepIndex].ActionLabel.Should().Be("midpoint_pick");
+        session.Steps[session.CurrentStepIndex].ActiveIndices.Should().Equal([2]);
+    }
+
+    [Fact]
+    public async Task ValidateStepAsync_BinaryMidpointAlias_AdvancesAndExposesTerminalLabel()
+    {
+        var store = new InMemorySimulationSessionStore();
+        var sut = new SimulationService(
+            [new FakeSimulationEngine("binary_search", BuildBinarySearchSteps())],
+            store,
+            NullLogger<SimulationService>.Instance);
+        var session = await sut.StartSessionAsync("binary_search", [7, 11, 15, 21, 29]);
+
+        var response = await sut.ValidateStepAsync(session.SessionId, "midpoint", [2]);
+
+        response.Correct.Should().BeTrue();
+        response.NextExpectedAction.Should().Be("target_found");
+        response.SuggestedIndices.Should().BeEmpty();
+    }
+
+    private static List<backend.Models.Simulations.SimulationStep> BuildBinarySearchSteps() =>
+    [
+        new()
+        {
+            StepNumber = 1,
+            ArrayState = [7, 11, 15, 21, 29],
+            ActiveIndices = [],
+            LineNumber = 1,
+            ActionLabel = "start"
+        },
+        new()
+        {
+            StepNumber = 2,
+            ArrayState = [7, 11, 15, 21, 29],
+            ActiveIndices = [2],
+            LineNumber = 3,
+            ActionLabel = "midpoint_pick"
+        },
+        new()
+        {
+            StepNumber = 3,
+            ArrayState = [7, 11, 15, 21, 29],
+            ActiveIndices = [],
+            LineNumber = 4,
+            ActionLabel = "target_found"
+        }
+    ];
+
+    private sealed class FakeSimulationEngine : IAlgorithmSimulationEngine
+    {
+        private readonly string _algorithm;
+        private readonly List<backend.Models.Simulations.SimulationStep> _steps;
+
+        public FakeSimulationEngine(string algorithm, List<backend.Models.Simulations.SimulationStep> steps)
+        {
+            _algorithm = algorithm;
+            _steps = steps;
+        }
+
+        public bool CanHandle(string algorithm) => algorithm == _algorithm;
+
+        public backend.Models.Simulations.SimulationResponse Run(int[] array)
+        {
+            return new backend.Models.Simulations.SimulationResponse
+            {
+                AlgorithmName = "Binary Search",
+                Steps = _steps.Select(step => new backend.Models.Simulations.SimulationStep
+                {
+                    StepNumber = step.StepNumber,
+                    ArrayState = step.ArrayState.ToArray(),
+                    ActiveIndices = step.ActiveIndices.ToArray(),
+                    LineNumber = step.LineNumber,
+                    ActionLabel = step.ActionLabel
+                }).ToList(),
+                TotalSteps = _steps.Count
+            };
+        }
+    }
 }
