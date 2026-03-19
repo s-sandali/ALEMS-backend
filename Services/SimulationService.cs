@@ -252,7 +252,20 @@ public class SimulationService : ISimulationService
                 ArrayState = step.ArrayState.ToArray(),
                 ActiveIndices = step.ActiveIndices.ToArray(),
                 LineNumber = step.LineNumber,
-                ActionLabel = step.ActionLabel
+                ActionLabel = step.ActionLabel,
+                Search = step.Search is null
+                    ? null
+                    : new SearchStepModel
+                    {
+                        LowIndex = step.Search.LowIndex,
+                        HighIndex = step.Search.HighIndex,
+                        MidpointIndex = step.Search.MidpointIndex,
+                        State = step.Search.State,
+                        DiscardedSide = step.Search.DiscardedSide,
+                        DiscardStartIndex = step.Search.DiscardStartIndex,
+                        DiscardEndIndex = step.Search.DiscardEndIndex,
+                        DiscardedIndices = step.Search.DiscardedIndices.ToArray()
+                    }
             }).ToList()
         };
     }
