@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace backend.Models.Simulations;
 
 /// <summary>
@@ -14,4 +16,7 @@ public class SimulationStep
     public int LineNumber { get; set; }
 
     public string ActionLabel { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SearchStepModel? Search { get; set; }
 }
