@@ -100,7 +100,7 @@ public class InputValidationTests : IClassFixture<CustomWebApplicationFactory>
     [Fact(DisplayName = "TC-IV-02 — POST /api/users: missing email field returns 400")]
     public async Task CreateUser_MissingEmail_Returns400()
     {
-        var payload = new { username = "alice", role = "Student" };
+        var payload = new { username = "alice", role = "User" };
         var response = await _client.PostAsJsonAsync("/api/users", payload);
 
         await AssertValidationBadRequestAsync(response);
@@ -117,7 +117,7 @@ public class InputValidationTests : IClassFixture<CustomWebApplicationFactory>
     {
         var response = await _client.PostAsync(
             "/api/users",
-            Json("""{ "email": "not-an-email", "username": "alice", "role": "Student" }"""));
+            Json("""{ "email": "not-an-email", "username": "alice", "role": "User" }"""));
 
         await AssertValidationBadRequestAsync(response);
 
@@ -134,7 +134,7 @@ public class InputValidationTests : IClassFixture<CustomWebApplicationFactory>
     {
         var response = await _client.PostAsync(
             "/api/users",
-            Json("""{ "email": "alice@example.com", "role": "Student" }"""));
+            Json("""{ "email": "alice@example.com", "role": "User" }"""));
 
         await AssertValidationBadRequestAsync(response);
 
@@ -150,7 +150,7 @@ public class InputValidationTests : IClassFixture<CustomWebApplicationFactory>
     {
         var response = await _client.PostAsync(
             "/api/users",
-            Json("""{ "email": "alice@example.com", "username": "a", "role": "Student" }"""));
+            Json("""{ "email": "alice@example.com", "username": "a", "role": "User" }"""));
 
         await AssertValidationBadRequestAsync(response);
 
@@ -176,13 +176,13 @@ public class InputValidationTests : IClassFixture<CustomWebApplicationFactory>
         errorsEl.TryGetProperty("Role", out var roleErrors).Should().BeTrue();
         roleErrors.EnumerateArray()
             .Select(e => e.GetString())
-            .Should().Contain("Role must be 'Student', 'Admin', or 'Instructor'.");
+            .Should().Contain("Role must be 'User' or 'Admin'.");
     }
 
-    [Fact(DisplayName = "TC-IV-07 — POST /api/users: omitted role uses default 'Student' and passes validation")]
+    [Fact(DisplayName = "TC-IV-07 — POST /api/users: omitted role uses default 'User' and passes validation")]
     public async Task CreateUser_OmittedRole_PassesValidation()
     {
-        // Role defaults to "Student" in CreateUserDto — a valid value.
+        // Role defaults to "User" in CreateUserDto — a valid value.
         // Validation must NOT reject this request; it should reach the service layer.
         var response = await _client.PostAsync(
             "/api/users",
@@ -198,7 +198,7 @@ public class InputValidationTests : IClassFixture<CustomWebApplicationFactory>
                .GetProperty("message")
                .GetString()
                .Should().NotBe("Validation Failed",
-                   because: "the default role 'Student' is valid and must not trigger model validation errors");
+                   because: "the default role 'User' is valid and must not trigger model validation errors");
         }
     }
 
@@ -242,7 +242,7 @@ public class InputValidationTests : IClassFixture<CustomWebApplicationFactory>
         errorsEl.TryGetProperty("Role", out var roleErrors).Should().BeTrue();
         roleErrors.EnumerateArray()
             .Select(e => e.GetString())
-            .Should().Contain("Role must be 'Student', 'Admin', or 'Instructor'.");
+            .Should().Contain("Role must be 'User' or 'Admin'.");
     }
 
     [Fact(DisplayName = "TC-IV-11 — PUT /api/users/1: missing isActive field returns 400")]
@@ -266,7 +266,7 @@ public class InputValidationTests : IClassFixture<CustomWebApplicationFactory>
     {
         var response = await _client.PutAsync(
             "/api/users/1",
-            Json("""{ "role": "Instructor", "isActive": false }"""));
+            Json("""{ "role": "User", "isActive": false }"""));
 
         // Model validation passed if the response is NOT a 400 caused by
         // "Validation failed." (the service stub may return null → controller

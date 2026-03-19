@@ -1,8 +1,9 @@
 using System.Security.Claims;
 using System.Text.Json;
-using backend.Data;
+using backend.Data; // retained — DatabaseHelper is still used by UserRepository/UserService
 using backend.Repositories;
 using backend.Services;
+using backend.Services.Simulations;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
@@ -117,11 +118,24 @@ builder.Services.AddSwaggerGen(options =>
 
 // ── Clerk JWT Authentication ───────────────────────────────────────
 // Priority: Environment variable → appsettings.json
+var isTestEnvironment = builder.Environment.IsEnvironment("Test");
+
 var clerkAuthority = Environment.GetEnvironmentVariable("CLERK_AUTHORITY")
-    ?? builder.Configuration["Clerk:Authority"]
-    ?? throw new InvalidOperationException(
-        "Clerk authority is not configured. Set the CLERK_AUTHORITY environment variable " +
-        "or Clerk:Authority in appsettings.json.");
+    ?? builder.Configuration["Clerk:Authority"];
+
+if (string.IsNullOrWhiteSpace(clerkAuthority))
+{
+    if (isTestEnvironment)
+    {
+        clerkAuthority = "https://test.clerk.local";
+    }
+    else
+    {
+        throw new InvalidOperationException(
+            "Clerk authority is not configured. Set the CLERK_AUTHORITY environment variable " +
+            "or Clerk:Authority in appsettings.json.");
+    }
+}
 
 var clerkAudience = Environment.GetEnvironmentVariable("CLERK_AUDIENCE")
     ?? builder.Configuration["Clerk:Audience"];  // optional — null disables audience check
@@ -154,7 +168,13 @@ builder.Services
             ValidateIssuerSigningKey = true,
 
             // Allow a small clock skew (default is 5 min, tighten to 30 sec)
-            ClockSkew = TimeSpan.FromSeconds(30)
+            ClockSkew = TimeSpan.FromSeconds(30),
+
+            // Map the JWT "role" claim to ClaimTypes.Role so that
+            // [Authorize(Roles = "Admin")] resolves directly from the token.
+            // Clerk emits the role under the literal key "role" (not the long
+            // Microsoft schema URI), so we must override the default mapping.
+            RoleClaimType = "role"
         };
 
         // Structured 401 error responses
@@ -171,32 +191,37 @@ builder.Services
 
                 return Task.CompletedTask;
             },
-            OnTokenValidated = async context =>
+            OnTokenValidated = context =>
             {
+                // Role is now carried in the JWT itself via Clerk public_metadata.
+                // No database call is needed — validate presence and default if absent.
                 var principal = context.Principal;
-                if (principal == null) return;
-                
-                var clerkUserId = principal.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier) 
-                                  ?? principal.FindFirstValue("sub");
-                
-                if (string.IsNullOrEmpty(clerkUserId)) return;
+                if (principal == null) return Task.CompletedTask;
 
-                // Look up the user's role in the MySQL database
-                var dbHelper = context.HttpContext.RequestServices.GetRequiredService<DatabaseHelper>();
-                await using var connection = await dbHelper.OpenConnectionAsync();
-                
-                const string sql = "SELECT Role FROM Users WHERE ClerkUserId = @ClerkId LIMIT 1";
-                await using var cmd = new MySql.Data.MySqlClient.MySqlCommand(sql, connection);
-                cmd.Parameters.AddWithValue("@ClerkId", clerkUserId);
-                
-                var role = await cmd.ExecuteScalarAsync() as string;
-                
-                if (!string.IsNullOrEmpty(role))
+                var role = principal.FindFirstValue("role");
+
+                if (string.IsNullOrWhiteSpace(role))
                 {
-                    // Add the Role claim so [Authorize(Roles = "Admin")] works correctly
-                    var identity = (System.Security.Claims.ClaimsIdentity)principal.Identity!;
-                    identity.AddClaim(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, role));
+                    // Log a warning: user has no role in public_metadata yet.
+                    // This happens before the first /api/users/sync call sets it.
+                    var logger = context.HttpContext.RequestServices
+                        .GetRequiredService<ILoggerFactory>()
+                        .CreateLogger("JwtAuthentication");
+
+                    var sub = principal.FindFirstValue("sub") ?? "unknown";
+                    logger.LogWarning(
+                        "JWT for sub={Sub} has no 'role' claim — defaulting to 'User'. " +
+                        "Ensure public_metadata.role is set in Clerk.", sub);
+
+                    // Inject a default "User" role so the principal is never role-less.
+                    // Also add a marker so UserSyncController knows the role came from
+                    // this fallback (not from Clerk public_metadata) and must be persisted.
+                    var identity = (ClaimsIdentity)principal.Identity!;
+                    identity.AddClaim(new Claim("role", "User"));
+                    identity.AddClaim(new Claim("role_missing", "true"));
                 }
+
+                return Task.CompletedTask;
             },
             OnChallenge = context =>
             {
@@ -223,22 +248,47 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<DatabaseHelper>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IAlgorithmRepository, AlgorithmRepository>();
+builder.Services.AddScoped<IAlgorithmService, AlgorithmService>();
+builder.Services.AddScoped<ISimulationService, SimulationService>();
+builder.Services.AddScoped<IAlgorithmSimulationEngine, BubbleSortSimulationEngine>();
+builder.Services.AddSingleton<ISimulationSessionStore, InMemorySimulationSessionStore>();
+
+// ── Clerk Backend API Client ───────────────────────────────────────
+// Used to set public_metadata.role on first sign-up via PATCH /v1/users/{id}/metadata.
+var clerkSecretKey = Environment.GetEnvironmentVariable("CLERK_SECRET_KEY")
+    ?? builder.Configuration["Clerk:SecretKey"];
+
+if (string.IsNullOrWhiteSpace(clerkSecretKey))
+{
+    if (isTestEnvironment)
+    {
+        clerkSecretKey = "sk_test_dummy_value_for_test_environment";
+    }
+    else
+    {
+        throw new InvalidOperationException(
+            "Clerk secret key not configured. Set the CLERK_SECRET_KEY environment variable " +
+            "or Clerk:SecretKey in appsettings.json.");
+    }
+}
+
+builder.Services.AddHttpClient<IClerkService, ClerkService>(client =>
+{
+    client.BaseAddress = new Uri("https://api.clerk.com");
+    client.DefaultRequestHeaders.Authorization =
+        new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", clerkSecretKey);
+});
 
 var app = builder.Build();
 
 // ── Middleware Pipeline ────────────────────────────────────────────
-if (app.Environment.IsDevelopment())
+app.UseSwagger();
+app.UseSwaggerUI(options =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(ui =>
-    {
-        ui.SwaggerEndpoint("/swagger/v1/swagger.json", "BigO API v1");
-        ui.RoutePrefix       = "swagger";           // served at /swagger
-        ui.DocumentTitle     = "BigO API – Swagger UI";
-        ui.DisplayRequestDuration();                 // shows ms per call
-        ui.EnableDeepLinking();                      // bookmarkable operations
-    });
-}
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "ALEMS API v1");
+    options.RoutePrefix = "swagger";
+});
 
 app.UseHttpsRedirection();
 
@@ -258,7 +308,7 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-app.Run();
+await app.RunAsync();
 
 }
 catch (Exception ex)
@@ -267,8 +317,11 @@ catch (Exception ex)
 }
 finally
 {
-    Log.CloseAndFlush();
+    await Log.CloseAndFlushAsync();
 }
 
 // Expose Program to the integration-test project (WebApplicationFactory<Program>)
-public partial class Program { }
+public partial class Program
+{
+    protected Program() { }
+}

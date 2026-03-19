@@ -47,7 +47,7 @@ public class UserControllerTests
         ClerkUserId = "clerk_001",
         Email       = "alice@example.com",
         Username    = "alice",
-        Role        = "Student",
+        Role        = "User",
         XpTotal     = 0,
         IsActive    = true,
         CreatedAt   = DateTime.UtcNow,
@@ -72,10 +72,10 @@ public class UserControllerTests
     public async Task CreateUser_ValidInput_Returns201()
     {
         var svc = new Mock<IUserService>();
-        svc.Setup(s => s.CreateUserAsync("alice@example.com", "alice", "Student"))
+        svc.Setup(s => s.CreateUserAsync("alice@example.com", "alice", "User"))
            .ReturnsAsync(SampleDto());
 
-        var dto = new CreateUserDto { Email = "alice@example.com", Username = "alice", Role = "Student" };
+        var dto = new CreateUserDto { Email = "alice@example.com", Username = "alice", Role = "User" };
         var result = await BuildController(svc).CreateUser(dto) as ObjectResult;
 
         result!.StatusCode.Should().Be(StatusCodes.Status201Created);
@@ -88,7 +88,7 @@ public class UserControllerTests
         svc.Setup(s => s.CreateUserAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
            .ReturnsAsync((UserResponseDto?)null);
 
-        var dto = new CreateUserDto { Email = "alice@example.com", Username = "alice", Role = "Student" };
+        var dto = new CreateUserDto { Email = "alice@example.com", Username = "alice", Role = "User" };
         var result = await BuildController(svc).CreateUser(dto) as ObjectResult;
 
         result!.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
@@ -101,7 +101,7 @@ public class UserControllerTests
         svc.Setup(s => s.CreateUserAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
            .ThrowsAsync(new Exception("DB error"));
 
-        var dto = new CreateUserDto { Email = "alice@example.com", Username = "alice", Role = "Student" };
+        var dto = new CreateUserDto { Email = "alice@example.com", Username = "alice", Role = "User" };
         var result = await BuildController(svc).CreateUser(dto) as ObjectResult;
 
         result!.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
@@ -264,7 +264,7 @@ public class UserControllerTests
         // Simulate a model binding error as if [ApiController] were absent
         ctrl.ModelState.AddModelError("Email", "Email is required.");
 
-        var dto    = new CreateUserDto { Email = "", Username = "alice", Role = "Student" };
+        var dto    = new CreateUserDto { Email = "", Username = "alice", Role = "User" };
         var result = await ctrl.CreateUser(dto) as ObjectResult;
 
         result!.StatusCode.Should().Be(StatusCodes.Status400BadRequest,

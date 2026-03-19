@@ -17,7 +17,7 @@ public class CreateUserDto
     public string Username { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Role is required.")]
-    [RegularExpression("^(Student|Admin|Instructor)$",
-        ErrorMessage = "Role must be 'Student', 'Admin', or 'Instructor'.")]
-    public string Role { get; set; } = "Student";
+    [RegularExpression("^(User|Admin)$",
+        ErrorMessage = "Role must be 'User' or 'Admin'.")]
+    public string Role { get; set; } = "User";
 }

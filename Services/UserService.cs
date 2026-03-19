@@ -37,7 +37,7 @@ public class UserService : IUserService
             ClerkUserId = clerkUserId,
             Email = email,
             Username = username,
-            Role = "Student",
+            Role = "User",
             XpTotal = 0,
             IsActive = true
         };
