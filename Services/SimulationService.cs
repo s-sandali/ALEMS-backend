@@ -8,8 +8,23 @@ namespace backend.Services;
 /// </summary>
 public class SimulationService : ISimulationService
 {
-    private static readonly HashSet<string> InteractiveActionLabels = ["swap"];
-    private static readonly HashSet<string> TerminalActionLabels = ["complete", "early_exit"];
+    private static readonly HashSet<string> InteractiveActionLabels =
+    [
+        "swap",
+        "midpoint_pick",
+        "pick_midpoint",
+        "midpoint"
+    ];
+
+    private static readonly HashSet<string> TerminalActionLabels =
+    [
+        "complete",
+        "early_exit",
+        "target_found",
+        "found",
+        "target_not_found",
+        "not_found"
+    ];
 
     private readonly IEnumerable<IAlgorithmSimulationEngine> _engines;
     private readonly ISimulationSessionStore _sessionStore;
@@ -62,18 +77,20 @@ public class SimulationService : ISimulationService
         {
             var expectedIndex = NormalizeSessionIndex(session);
             var expectedStep = session.Steps[expectedIndex];
-            var normalizedAction = actionType.Trim().ToLowerInvariant();
+            var expectedActionLabel = expectedStep.ActionLabel.Trim().ToLowerInvariant();
+            var normalizedAction = NormalizeActionLabel(actionType);
             var currentArrayState = GetCurrentArrayState(session, expectedIndex);
 
-            if (TerminalActionLabels.Contains(expectedStep.ActionLabel))
+            if (TerminalActionLabels.Contains(expectedActionLabel))
             {
+                var terminalAction = NormalizeActionLabel(expectedActionLabel);
                 return Task.FromResult(new SimulationValidationResponse
                 {
                     SessionId = session.SessionId,
                     Correct = false,
                     NewArrayState = currentArrayState,
                     NextState = currentArrayState,
-                    NextExpectedAction = "complete",
+                    NextExpectedAction = terminalAction,
                     Message = "Practice complete.",
                     Hint = "No more actions are needed.",
                     SuggestedIndices = [],
@@ -81,7 +98,7 @@ public class SimulationService : ISimulationService
                 });
             }
 
-            var expectedAction = NormalizeActionLabel(expectedStep.ActionLabel);
+            var expectedAction = NormalizeActionLabel(expectedActionLabel);
             var expectedIndices = expectedStep.ActiveIndices.ToArray();
             var isCorrectAction =
                 normalizedAction == expectedAction &&
@@ -109,10 +126,9 @@ public class SimulationService : ISimulationService
             _sessionStore.Save(session);
 
             var nextStep = session.Steps[session.CurrentStepIndex];
-            var nextExpectedAction = TerminalActionLabels.Contains(nextStep.ActionLabel)
-                ? "complete"
-                : NormalizeActionLabel(nextStep.ActionLabel);
-            var nextSuggestedIndices = TerminalActionLabels.Contains(nextStep.ActionLabel)
+            var nextActionLabel = nextStep.ActionLabel.Trim().ToLowerInvariant();
+            var nextExpectedAction = NormalizeActionLabel(nextActionLabel);
+            var nextSuggestedIndices = TerminalActionLabels.Contains(nextActionLabel)
                 ? []
                 : nextStep.ActiveIndices.ToArray();
 
@@ -167,9 +183,16 @@ public class SimulationService : ISimulationService
         return actionLabel.Trim().ToLowerInvariant() switch
         {
             "swap" => "swap",
+            "pick_midpoint" => "midpoint_pick",
+            "midpoint" => "midpoint_pick",
+            "midpoint_pick" => "midpoint_pick",
+            "found" => "target_found",
+            "target_found" => "target_found",
+            "not_found" => "target_not_found",
+            "target_not_found" => "target_not_found",
             "complete" => "complete",
             "early_exit" => "complete",
-            _ => "complete"
+            _ => actionLabel.Trim().ToLowerInvariant()
         };
     }
 
@@ -207,6 +230,11 @@ public class SimulationService : ISimulationService
         if (nextExpectedAction == "swap" && indices.Length >= 2)
         {
             return $"Try swapping index {indices[0]} and {indices[1]}.";
+        }
+
+        if (nextExpectedAction == "midpoint_pick" && indices.Length >= 1)
+        {
+            return $"Pick the midpoint at index {indices[0]}.";
         }
 
         return "No more actions are needed.";
