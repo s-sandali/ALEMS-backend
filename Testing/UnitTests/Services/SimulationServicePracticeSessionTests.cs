@@ -98,6 +98,25 @@ public class SimulationServicePracticeSessionTests
         response.SuggestedIndices.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task StartSessionAsync_ClonesSearchMetadataForBinarySearchSteps()
+    {
+        var store = new InMemorySimulationSessionStore();
+        var steps = BuildBinarySearchStepsWithSearch();
+        var sut = new SimulationService(
+            [new FakeSimulationEngine("binary_search", steps)],
+            store,
+            NullLogger<SimulationService>.Instance);
+
+        var session = await sut.StartSessionAsync("binary_search", [7, 11, 15, 21, 29]);
+
+        session.Steps.Should().NotBeEmpty();
+        session.Steps[0].Search.Should().NotBeNull();
+        session.Steps[0].Search!.LowIndex.Should().Be(0);
+        session.Steps[0].Search.HighIndex.Should().Be(4);
+        session.Steps[0].Search.State.Should().Be("start");
+    }
+
     private static List<backend.Models.Simulations.SimulationStep> BuildBinarySearchSteps() =>
     [
         new()
@@ -126,6 +145,26 @@ public class SimulationServicePracticeSessionTests
         }
     ];
 
+    private static List<backend.Models.Simulations.SimulationStep> BuildBinarySearchStepsWithSearch() =>
+    [
+        new()
+        {
+            StepNumber = 1,
+            ArrayState = [7, 11, 15, 21, 29],
+            ActiveIndices = [],
+            LineNumber = 1,
+            ActionLabel = "start",
+            Search = new backend.Models.Simulations.SearchStepModel
+            {
+                LowIndex = 0,
+                HighIndex = 4,
+                MidpointIndex = null,
+                State = "start",
+                DiscardedIndices = []
+            }
+        }
+    ];
+
     private sealed class FakeSimulationEngine : IAlgorithmSimulationEngine
     {
         private readonly string _algorithm;
@@ -150,7 +189,20 @@ public class SimulationServicePracticeSessionTests
                     ArrayState = step.ArrayState.ToArray(),
                     ActiveIndices = step.ActiveIndices.ToArray(),
                     LineNumber = step.LineNumber,
-                    ActionLabel = step.ActionLabel
+                    ActionLabel = step.ActionLabel,
+                    Search = step.Search is null
+                        ? null
+                        : new backend.Models.Simulations.SearchStepModel
+                        {
+                            LowIndex = step.Search.LowIndex,
+                            HighIndex = step.Search.HighIndex,
+                            MidpointIndex = step.Search.MidpointIndex,
+                            State = step.Search.State,
+                            DiscardedSide = step.Search.DiscardedSide,
+                            DiscardStartIndex = step.Search.DiscardStartIndex,
+                            DiscardEndIndex = step.Search.DiscardEndIndex,
+                            DiscardedIndices = step.Search.DiscardedIndices.ToArray()
+                        }
                 }).ToList(),
                 TotalSteps = _steps.Count
             };
