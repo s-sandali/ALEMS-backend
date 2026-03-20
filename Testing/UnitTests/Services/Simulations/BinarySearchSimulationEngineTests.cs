@@ -34,4 +34,28 @@ public class BinarySearchSimulationEngineTests
         foundStep.Search!.State.Should().Be("found");
         foundStep.Search.MidpointIndex.Should().Be(foundStep.ActiveIndices.First());
     }
+
+    [Fact]
+    public void Run_UT_SYNC_01_AllStepsHaveNonZeroLineNumber()
+    {
+        var sut = new BinarySearchSimulationEngine();
+
+        var response = sut.Run([3, 7, 12, 19]);
+
+        response.Steps.Should().NotBeEmpty();
+        response.Steps.Should().OnlyContain(step => step.LineNumber > 0);
+    }
+
+    [Theory]
+    [InlineData(new int[] { 3, 7, 12, 19 })]
+    [InlineData(new int[] { })]
+    public void Run_UT_SYNC_02_AllStepLineNumbersStayWithinBinarySearchPseudocodeRange(int[] input)
+    {
+        var sut = new BinarySearchSimulationEngine();
+
+        var response = sut.Run(input);
+
+        response.Steps.Should().NotBeEmpty();
+        response.Steps.Should().OnlyContain(step => step.LineNumber >= 1 && step.LineNumber <= 8);
+    }
 }

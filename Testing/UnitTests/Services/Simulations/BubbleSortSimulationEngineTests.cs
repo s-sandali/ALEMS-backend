@@ -18,4 +18,22 @@ public class BubbleSortSimulationEngineTests
         response.Steps.Last().LineNumber.Should().Be(6);
         response.Steps.Last().ActionLabel.Should().Be("complete");
     }
+
+    [Fact]
+    public void Run_UT_SYNC_01_AllStepsHaveNonZeroLineNumber()
+    {
+        var response = _sut.Run([5, 1, 4, 2, 8]);
+
+        response.Steps.Should().NotBeEmpty();
+        response.Steps.Should().OnlyContain(step => step.LineNumber > 0);
+    }
+
+    [Fact]
+    public void Run_UT_SYNC_02_AllStepLineNumbersStayWithinBubbleSortPseudocodeRange()
+    {
+        var response = _sut.Run([5, 1, 4, 2, 8]);
+
+        response.Steps.Should().NotBeEmpty();
+        response.Steps.Should().OnlyContain(step => step.LineNumber >= 1 && step.LineNumber <= 6);
+    }
 }
