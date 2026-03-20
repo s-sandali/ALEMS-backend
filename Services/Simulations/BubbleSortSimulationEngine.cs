@@ -10,7 +10,7 @@ public class BubbleSortSimulationEngine : IAlgorithmSimulationEngine
     public bool CanHandle(string algorithm) =>
         algorithm == "bubble_sort" || algorithm == "bubble-sort";
 
-    public SimulationResponse Run(int[] array)
+    public SimulationResponse Run(int[] array, int? targetValue = null)
     {
         var steps = new List<SimulationStep>();
         var stepNumber = 1;

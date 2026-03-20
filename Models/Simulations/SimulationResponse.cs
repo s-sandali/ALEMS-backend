@@ -10,4 +10,6 @@ public class SimulationResponse
     public List<SimulationStep> Steps { get; set; } = [];
 
     public int TotalSteps { get; set; }
+
+    public int? TargetValue { get; set; }
 }

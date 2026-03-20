@@ -53,7 +53,7 @@ public class SimulationController : ControllerBase
                 return ValidationProblem(ModelState);
             }
 
-            var response = await _simulationService.RunAsync(dto.Algorithm, dto.Array!);
+            var response = await _simulationService.RunAsync(dto.Algorithm, dto.Array!, dto.Target);
             return Ok(response);
         }
         catch (NotSupportedException ex)
@@ -105,7 +105,7 @@ public class SimulationController : ControllerBase
                 return ValidationProblem(ModelState);
             }
 
-            var session = await _simulationService.StartSessionAsync(dto.Algorithm, dto.Array!);
+            var session = await _simulationService.StartSessionAsync(dto.Algorithm, dto.Array!, dto.Target);
             return Ok(session);
         }
         catch (NotSupportedException ex)
@@ -162,11 +162,15 @@ public class SimulationController : ControllerBase
                 }
 
                 var normalizedType = userAction.Type.Trim().ToLowerInvariant();
-                var requiredIndices = normalizedType is "midpoint" or "midpoint_pick" or "pick_midpoint"
-                    ? 1
-                    : 2;
+                var isDecisionType = normalizedType is "left" or "right" or "found"
+                    or "go_left" or "go_right"
+                    or "discard_left" or "discard_right"
+                    or "target_found";
+                var requiredIndices = isDecisionType
+                    ? 0
+                    : (normalizedType is "midpoint" or "midpoint_pick" or "pick_midpoint" ? 1 : 2);
 
-                if (userAction.Indices is null || userAction.Indices.Length < requiredIndices)
+                if (requiredIndices > 0 && (userAction.Indices is null || userAction.Indices.Length < requiredIndices))
                 {
                     ModelState.AddModelError(
                         $"{nameof(dto.Action)}.{nameof(SimulationUserActionDto.Indices)}",
@@ -185,7 +189,7 @@ public class SimulationController : ControllerBase
             var response = await _simulationService.ValidateStepAsync(
                 dto.SessionId,
                 validatedAction.Type,
-                validatedAction.Indices!);
+                validatedAction.Indices ?? Array.Empty<int>());
 
             return Ok(response);
         }
