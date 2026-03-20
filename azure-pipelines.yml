@@ -1,0 +1,26 @@
+trigger: none
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+  - checkout: self
+
+  - script: |
+      curl -sSfL https://raw.githubusercontent.com/gitleaks/gitleaks/master/install.sh | sh -s -- -b /usr/local/bin
+      gitleaks version
+    displayName: 'Install Gitleaks'
+
+  - script: |
+      gitleaks detect --source . --verbose --redact --report-path gitleaks-report.json --exit-code 1
+    displayName: 'Run Secret Scanning'
+
+  - publish: gitleaks-report.json
+    artifact: SecretScanReport
+    condition: always()
