@@ -10,7 +10,7 @@ public class BinarySearchSimulationEngine : IAlgorithmSimulationEngine
     public bool CanHandle(string algorithm) =>
         algorithm == "binary_search" || algorithm == "binary-search";
 
-    public SimulationResponse Run(int[] array)
+    public SimulationResponse Run(int[] array, int? targetValue = null)
     {
         var values = array
             .OrderBy(value => value)
@@ -34,11 +34,12 @@ public class BinarySearchSimulationEngine : IAlgorithmSimulationEngine
             {
                 AlgorithmName = "Binary Search",
                 Steps = steps,
-                TotalSteps = steps.Count
+                TotalSteps = steps.Count,
+                TargetValue = targetValue
             };
         }
 
-        var target = values[^1];
+        var target = targetValue ?? values[^1];
         var low = 0;
         var high = values.Length - 1;
 
@@ -139,7 +140,8 @@ public class BinarySearchSimulationEngine : IAlgorithmSimulationEngine
         {
             AlgorithmName = "Binary Search",
             Steps = steps,
-            TotalSteps = steps.Count
+            TotalSteps = steps.Count,
+            TargetValue = target
         };
     }
 
