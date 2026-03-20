@@ -26,6 +26,14 @@ public class SimulationService : ISimulationService
         "not_found"
     ];
 
+    private static readonly HashSet<string> DecisionActionLabels =
+    [
+        "discard_left",
+        "discard_right",
+        "target_found",
+        "found"
+    ];
+
     private readonly IEnumerable<IAlgorithmSimulationEngine> _engines;
     private readonly ISimulationSessionStore _sessionStore;
     private readonly ILogger<SimulationService> _logger;
@@ -41,22 +49,23 @@ public class SimulationService : ISimulationService
     }
 
     /// <inheritdoc />
-    public Task<SimulationResponse> RunAsync(string algorithm, int[] array)
+    public Task<SimulationResponse> RunAsync(string algorithm, int[] array, int? targetValue)
     {
         var engine = ResolveEngine(algorithm);
         var clonedInput = array.ToArray();
-        return Task.FromResult(engine.Run(clonedInput));
+        return Task.FromResult(engine.Run(clonedInput, targetValue));
     }
 
     /// <inheritdoc />
-    public Task<SimulationSession> StartSessionAsync(string algorithm, int[] array)
+    public Task<SimulationSession> StartSessionAsync(string algorithm, int[] array, int? targetValue)
     {
-        var simulation = ResolveEngine(algorithm).Run(array.ToArray());
+        var simulation = ResolveEngine(algorithm).Run(array.ToArray(), targetValue);
         var session = new SimulationSession
         {
             SessionId = Guid.NewGuid().ToString("N"),
             Steps = simulation.Steps,
-            CurrentStepIndex = FindNextActionableStepIndex(simulation.Steps, 0)
+            CurrentStepIndex = FindNextActionableStepIndex(simulation.Steps, 0),
+            TargetValue = simulation.TargetValue
         };
 
         _sessionStore.Save(session);
@@ -94,6 +103,74 @@ public class SimulationService : ISimulationService
                     Message = "Practice complete.",
                     Hint = "No more actions are needed.",
                     SuggestedIndices = [],
+                    CurrentStepIndex = session.CurrentStepIndex
+                });
+            }
+
+            if (IsDecisionAction(normalizedAction))
+            {
+                var decisionStepIndex = FindExpectedDecisionStepIndex(session.Steps, expectedIndex);
+                if (decisionStepIndex is null)
+                {
+                    return Task.FromResult(new SimulationValidationResponse
+                    {
+                        SessionId = session.SessionId,
+                        Correct = false,
+                        NewArrayState = currentArrayState,
+                        NextState = currentArrayState,
+                        NextExpectedAction = normalizedAction,
+                        Message = "No decision is expected at this step.",
+                        Hint = "Wait for the midpoint before choosing a direction.",
+                        SuggestedIndices = [],
+                        CurrentStepIndex = session.CurrentStepIndex
+                    });
+                }
+
+                var decisionStep = session.Steps[decisionStepIndex.Value];
+                var expectedDecision = NormalizeActionLabel(decisionStep.ActionLabel);
+                var isCorrectDecision = normalizedAction == expectedDecision;
+
+                if (!isCorrectDecision)
+                {
+                    return Task.FromResult(new SimulationValidationResponse
+                    {
+                        SessionId = session.SessionId,
+                        Correct = false,
+                        NewArrayState = currentArrayState,
+                        NextState = currentArrayState,
+                        NextExpectedAction = expectedDecision,
+                        Message = "Incorrect decision.",
+                        Hint = BuildHint(expectedDecision, decisionStep.ActiveIndices.ToArray()),
+                        SuggestedIndices = decisionStep.ActiveIndices.ToArray(),
+                        CurrentStepIndex = session.CurrentStepIndex
+                    });
+                }
+
+                var decisionArrayState = decisionStep.ArrayState.ToArray();
+                session.CurrentStepIndex = FindNextActionableStepIndex(session.Steps, decisionStepIndex.Value + 1);
+                _sessionStore.Save(session);
+
+                var decisionNextStep = session.Steps[session.CurrentStepIndex];
+                var decisionNextActionLabel = decisionNextStep.ActionLabel.Trim().ToLowerInvariant();
+                var decisionNextExpectedAction = NormalizeActionLabel(decisionNextActionLabel);
+                var decisionNextSuggestedIndices = TerminalActionLabels.Contains(decisionNextActionLabel)
+                    ? []
+                    : decisionNextStep.ActiveIndices.ToArray();
+
+                return Task.FromResult(new SimulationValidationResponse
+                {
+                    SessionId = session.SessionId,
+                    Correct = true,
+                    NewArrayState = decisionArrayState,
+                    NextState = decisionArrayState,
+                    NextExpectedAction = decisionNextExpectedAction,
+                    Message = normalizedAction == "target_found"
+                        ? "Target found."
+                        : "Correct decision.",
+                    Hint = decisionNextExpectedAction == "complete"
+                        ? "No more actions are needed."
+                        : BuildHint(decisionNextExpectedAction, decisionNextSuggestedIndices),
+                    SuggestedIndices = decisionNextSuggestedIndices,
                     CurrentStepIndex = session.CurrentStepIndex
                 });
             }
@@ -186,6 +263,12 @@ public class SimulationService : ISimulationService
             "pick_midpoint" => "midpoint_pick",
             "midpoint" => "midpoint_pick",
             "midpoint_pick" => "midpoint_pick",
+            "left" => "discard_left",
+            "go_left" => "discard_left",
+            "discard_left" => "discard_left",
+            "right" => "discard_right",
+            "go_right" => "discard_right",
+            "discard_right" => "discard_right",
             "found" => "target_found",
             "target_found" => "target_found",
             "not_found" => "target_not_found",
@@ -194,6 +277,25 @@ public class SimulationService : ISimulationService
             "early_exit" => "complete",
             _ => actionLabel.Trim().ToLowerInvariant()
         };
+    }
+
+    private static bool IsDecisionAction(string actionLabel)
+    {
+        return DecisionActionLabels.Contains(actionLabel);
+    }
+
+    private static int? FindExpectedDecisionStepIndex(IReadOnlyList<SimulationStep> steps, int startIndex)
+    {
+        for (var index = Math.Max(startIndex, 0); index < steps.Count; index++)
+        {
+            var normalized = NormalizeActionLabel(steps[index].ActionLabel);
+            if (DecisionActionLabels.Contains(normalized))
+            {
+                return index;
+            }
+        }
+
+        return null;
     }
 
     private static int[] GetCurrentArrayState(SimulationSession session, int expectedIndex)
@@ -227,6 +329,21 @@ public class SimulationService : ISimulationService
 
     private static string BuildHint(string nextExpectedAction, int[] indices)
     {
+        if (nextExpectedAction == "discard_left")
+        {
+            return "Discard the left half and continue with the right side.";
+        }
+
+        if (nextExpectedAction == "discard_right")
+        {
+            return "Discard the right half and continue with the left side.";
+        }
+
+        if (nextExpectedAction == "target_found")
+        {
+            return "The target matches the midpoint.";
+        }
+
         if (nextExpectedAction == "swap" && indices.Length >= 2)
         {
             return $"Try swapping index {indices[0]} and {indices[1]}.";
@@ -246,6 +363,7 @@ public class SimulationService : ISimulationService
         {
             SessionId = session.SessionId,
             CurrentStepIndex = session.CurrentStepIndex,
+            TargetValue = session.TargetValue,
             Steps = session.Steps.Select(step => new SimulationStep
             {
                 StepNumber = step.StepNumber,
