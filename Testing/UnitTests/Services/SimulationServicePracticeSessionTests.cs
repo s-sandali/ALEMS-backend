@@ -20,7 +20,7 @@ public class SimulationServicePracticeSessionTests
         var store = new InMemorySimulationSessionStore();
         var sut = BuildSut(store);
 
-        var session = await sut.StartSessionAsync("bubble_sort", [5, 3, 4, 1]);
+        var session = await sut.StartSessionAsync("bubble_sort", [5, 3, 4, 1], null);
 
         session.SessionId.Should().NotBeNullOrWhiteSpace();
         session.Steps[session.CurrentStepIndex].ActionLabel.Should().Be("swap");
@@ -32,7 +32,7 @@ public class SimulationServicePracticeSessionTests
     {
         var store = new InMemorySimulationSessionStore();
         var sut = BuildSut(store);
-        var session = await sut.StartSessionAsync("bubble_sort", [5, 3, 4, 1]);
+        var session = await sut.StartSessionAsync("bubble_sort", [5, 3, 4, 1], null);
 
         var response = await sut.ValidateStepAsync(session.SessionId, "swap", [0, 1]);
 
@@ -52,7 +52,7 @@ public class SimulationServicePracticeSessionTests
     {
         var store = new InMemorySimulationSessionStore();
         var sut = BuildSut(store);
-        var session = await sut.StartSessionAsync("bubble_sort", [5, 3, 4, 1]);
+        var session = await sut.StartSessionAsync("bubble_sort", [5, 3, 4, 1], null);
 
         var response = await sut.ValidateStepAsync(session.SessionId, "swap", [1, 2]);
 
@@ -75,7 +75,7 @@ public class SimulationServicePracticeSessionTests
             store,
             NullLogger<SimulationService>.Instance);
 
-        var session = await sut.StartSessionAsync("binary_search", [7, 11, 15, 21, 29]);
+        var session = await sut.StartSessionAsync("binary_search", [7, 11, 15, 21, 29], null);
 
         session.Steps[session.CurrentStepIndex].ActionLabel.Should().Be("midpoint_pick");
         session.Steps[session.CurrentStepIndex].ActiveIndices.Should().Equal([2]);
@@ -89,7 +89,7 @@ public class SimulationServicePracticeSessionTests
             [new FakeSimulationEngine("binary_search", BuildBinarySearchSteps())],
             store,
             NullLogger<SimulationService>.Instance);
-        var session = await sut.StartSessionAsync("binary_search", [7, 11, 15, 21, 29]);
+        var session = await sut.StartSessionAsync("binary_search", [7, 11, 15, 21, 29], null);
 
         var response = await sut.ValidateStepAsync(session.SessionId, "midpoint", [2]);
 
@@ -108,7 +108,7 @@ public class SimulationServicePracticeSessionTests
             store,
             NullLogger<SimulationService>.Instance);
 
-        var session = await sut.StartSessionAsync("binary_search", [7, 11, 15, 21, 29]);
+        var session = await sut.StartSessionAsync("binary_search", [7, 11, 15, 21, 29], null);
 
         session.Steps.Should().NotBeEmpty();
         session.Steps[0].Search.Should().NotBeNull();
@@ -178,7 +178,7 @@ public class SimulationServicePracticeSessionTests
 
         public bool CanHandle(string algorithm) => algorithm == _algorithm;
 
-        public backend.Models.Simulations.SimulationResponse Run(int[] array)
+        public backend.Models.Simulations.SimulationResponse Run(int[] array, int? targetValue = null)
         {
             return new backend.Models.Simulations.SimulationResponse
             {
@@ -204,7 +204,8 @@ public class SimulationServicePracticeSessionTests
                             DiscardedIndices = step.Search.DiscardedIndices.ToArray()
                         }
                 }).ToList(),
-                TotalSteps = _steps.Count
+                TotalSteps = _steps.Count,
+                TargetValue = targetValue
             };
         }
     }
