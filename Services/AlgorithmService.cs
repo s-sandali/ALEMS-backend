@@ -11,11 +11,27 @@ public class AlgorithmService : IAlgorithmService
 {
     private readonly IAlgorithmRepository _algorithmRepository;
     private readonly ILogger<AlgorithmService> _logger;
+    private readonly HashSet<string> _quizReadyAlgorithmKeys;
+    private static readonly string[] DefaultQuizReadyAlgorithms = ["bubble_sort", "binary_search"];
 
-    public AlgorithmService(IAlgorithmRepository algorithmRepository, ILogger<AlgorithmService> logger)
+    public AlgorithmService(
+        IAlgorithmRepository algorithmRepository,
+        ILogger<AlgorithmService> logger,
+        IConfiguration configuration)
     {
         _algorithmRepository = algorithmRepository;
         _logger = logger;
+        _quizReadyAlgorithmKeys = configuration
+            .GetSection("Quiz:ReadyAlgorithms")
+            .Get<string[]>()?
+            .Select(value => value.Trim().ToLowerInvariant())
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToHashSet() ?? DefaultQuizReadyAlgorithms.ToHashSet();
+
+        if (_quizReadyAlgorithmKeys.Count == 0)
+        {
+            _quizReadyAlgorithmKeys = DefaultQuizReadyAlgorithms.ToHashSet();
+        }
     }
 
     /// <inheritdoc />
@@ -42,8 +58,13 @@ public class AlgorithmService : IAlgorithmService
     /// <summary>
     /// Maps an <see cref="Algorithm"/> domain model to an <see cref="AlgorithmResponseDto"/>.
     /// </summary>
-    private static AlgorithmResponseDto MapToDto(Algorithm algorithm)
+    private AlgorithmResponseDto MapToDto(Algorithm algorithm)
     {
+        var algorithmKey = algorithm.Name
+            .Trim()
+            .ToLowerInvariant()
+            .Replace(" ", "_");
+
         return new AlgorithmResponseDto
         {
             AlgorithmId           = algorithm.AlgorithmId,
@@ -53,6 +74,7 @@ public class AlgorithmService : IAlgorithmService
             TimeComplexityBest    = algorithm.TimeComplexityBest,
             TimeComplexityAverage = algorithm.TimeComplexityAverage,
             TimeComplexityWorst   = algorithm.TimeComplexityWorst,
+            QuizAvailable         = _quizReadyAlgorithmKeys.Contains(algorithmKey),
             CreatedAt             = algorithm.CreatedAt
         };
     }
