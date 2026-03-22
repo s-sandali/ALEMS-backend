@@ -19,7 +19,7 @@ public class SimulationServiceRunTests
     {
         var sut = BuildSut();
 
-        var result = await sut.RunAsync("bubble_sort", [5, 1, 4, 2]);
+        var result = await sut.RunAsync("bubble_sort", [5, 1, 4, 2], null);
 
         result.AlgorithmName.Should().Be("Bubble Sort");
         result.TotalSteps.Should().Be(result.Steps.Count);
@@ -38,7 +38,7 @@ public class SimulationServiceRunTests
     {
         var sut = BuildSut();
 
-        var act = () => sut.RunAsync("unknown_algorithm", [3, 2, 1]);
+        var act = () => sut.RunAsync("unknown_algorithm", [3, 2, 1], null);
 
         await act.Should()
             .ThrowAsync<NotSupportedException>()
