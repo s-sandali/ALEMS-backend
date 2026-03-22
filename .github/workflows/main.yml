@@ -56,10 +56,20 @@ jobs:
         run: dotnet build BigO.sln --configuration Release --no-restore
 
       - name: Run Unit Tests
-        run: dotnet test Testing/UnitTests/UnitTests.csproj --configuration Release --no-build --verbosity normal
+        run: dotnet test Testing/UnitTests/UnitTests.csproj --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
 
       - name: Run Integration Tests
-        run: dotnet test Testing/IntegrationTests/IntegrationTests.csproj --configuration Release --no-build --verbosity normal
+        run: dotnet test Testing/IntegrationTests/IntegrationTests.csproj --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
+
+      - name: Upload Coverage Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverlet-coverage-report
+          path: |
+            Testing/UnitTests/TestResults/**/coverage.cobertura.xml
+            Testing/IntegrationTests/TestResults/**/coverage.cobertura.xml
+          if-no-files-found: warn
 
       # NOTE: E2E tests (Testing/E2ETests) are excluded from CI.
       # They require a visible Chrome browser and manual human interaction
