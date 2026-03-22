@@ -252,6 +252,7 @@ builder.Services.AddScoped<IAlgorithmRepository, AlgorithmRepository>();
 builder.Services.AddScoped<IAlgorithmService, AlgorithmService>();
 builder.Services.AddScoped<ISimulationService, SimulationService>();
 builder.Services.AddScoped<IAlgorithmSimulationEngine, BubbleSortSimulationEngine>();
+builder.Services.AddScoped<IAlgorithmSimulationEngine, BinarySearchSimulationEngine>();
 builder.Services.AddSingleton<ISimulationSessionStore, InMemorySimulationSessionStore>();
 
 // ── Clerk Backend API Client ───────────────────────────────────────

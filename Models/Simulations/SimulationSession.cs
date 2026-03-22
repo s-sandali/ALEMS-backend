@@ -10,4 +10,6 @@ public class SimulationSession
     public List<SimulationStep> Steps { get; set; } = [];
 
     public int CurrentStepIndex { get; set; }
+
+    public int? TargetValue { get; set; }
 }
