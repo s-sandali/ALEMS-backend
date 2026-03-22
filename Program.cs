@@ -3,7 +3,6 @@ using System.Text.Json;
 using backend.Data; // retained — DatabaseHelper is still used by UserRepository/UserService
 using backend.Repositories;
 using backend.Services;
-using backend.Services.Simulations;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
@@ -250,9 +249,6 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAlgorithmRepository, AlgorithmRepository>();
 builder.Services.AddScoped<IAlgorithmService, AlgorithmService>();
-builder.Services.AddScoped<ISimulationService, SimulationService>();
-builder.Services.AddScoped<IAlgorithmSimulationEngine, BubbleSortSimulationEngine>();
-builder.Services.AddSingleton<ISimulationSessionStore, InMemorySimulationSessionStore>();
 
 // ── Clerk Backend API Client ───────────────────────────────────────
 // Used to set public_metadata.role on first sign-up via PATCH /v1/users/{id}/metadata.
