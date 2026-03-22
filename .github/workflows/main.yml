@@ -16,6 +16,25 @@ on:
 jobs:
 
   # ─────────────────────────────────────────────
+  # SECRET SCAN JOB (Runs on PRs before merge)
+  # ─────────────────────────────────────────────
+  secret-scan:
+    name: Secret Scan (Gitleaks)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan for hardcoded secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─────────────────────────────────────────────
   # BUILD + TEST JOB (Runs on PRs and main push)
   # ─────────────────────────────────────────────
   build-and-test:
