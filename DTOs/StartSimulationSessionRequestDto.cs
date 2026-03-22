@@ -13,4 +13,6 @@ public class StartSimulationSessionRequestDto
     [Required]
     [MinLength(1)]
     public int[] Array { get; set; } = [];
+
+    public int? Target { get; set; }
 }

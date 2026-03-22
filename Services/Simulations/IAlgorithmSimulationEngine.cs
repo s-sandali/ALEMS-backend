@@ -15,5 +15,5 @@ public interface IAlgorithmSimulationEngine
     /// <summary>
     /// Executes the simulation and returns the full step trace.
     /// </summary>
-    SimulationResponse Run(int[] array);
+    SimulationResponse Run(int[] array, int? targetValue = null);
 }

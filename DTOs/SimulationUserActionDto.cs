@@ -10,7 +10,5 @@ public class SimulationUserActionDto
     [Required]
     public string Type { get; set; } = string.Empty;
 
-    [Required]
-    [MinLength(2)]
     public int[] Indices { get; set; } = [];
 }
