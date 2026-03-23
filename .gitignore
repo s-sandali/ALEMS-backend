@@ -51,6 +51,11 @@ artifacts/
 # Crash dumps
 *.dmp
 
+# Coverage reports
+CoverageReport/
+coverage.cobertura.xml
+coverage*.xml
+
 ## Secrets & environment
 appsettings.Development.json
 appsettings.Production.json
