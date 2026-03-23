@@ -39,10 +39,14 @@ artifacts/
 *.trx
 *.coverage
 *.coveragexml
+CoverageReport/
+Testing/E2ETests/E2ETests.sln
 
 # Publish output
 [Pp]ublish/
 [Pp]ublish[Oo]utput/
+
+.claude/
 
 # Crash dumps
 *.dmp
