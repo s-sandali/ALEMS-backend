@@ -56,10 +56,10 @@ jobs:
         run: dotnet build BigO.sln --configuration Release --no-restore
 
       - name: Run Unit Tests
-        run: dotnet test Testing/UnitTests/UnitTests.csproj --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
+        run: dotnet test Testing/UnitTests/UnitTests.csproj --configuration Release --no-build --verbosity normal /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura /p:Threshold=70 /p:ThresholdType=line /p:ThresholdStat=total
 
       - name: Run Integration Tests
-        run: dotnet test Testing/IntegrationTests/IntegrationTests.csproj --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
+        run: dotnet test Testing/IntegrationTests/IntegrationTests.csproj --configuration Release --no-build --verbosity normal /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura /p:Threshold=70 /p:ThresholdType=line /p:ThresholdStat=total
 
       - name: Upload Coverage Report
         if: always()
