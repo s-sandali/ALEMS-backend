@@ -3,6 +3,7 @@ using System.Text.Json;
 using backend.Data; // retained — DatabaseHelper is still used by UserRepository/UserService
 using backend.Repositories;
 using backend.Services;
+using backend.Services.Simulations;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
