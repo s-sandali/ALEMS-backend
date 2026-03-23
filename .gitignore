@@ -7,10 +7,6 @@
 # Build output
 [Bb]in/
 [Oo]bj/
-[Bb]in-verify/
-[Oo]bj-verify/
-
-.claude/
 
 # NuGet
 *.nupkg
@@ -43,13 +39,22 @@ artifacts/
 *.trx
 *.coverage
 *.coveragexml
+CoverageReport/
+Testing/E2ETests/E2ETests.sln
 
 # Publish output
 [Pp]ublish/
 [Pp]ublish[Oo]utput/
 
+.claude/
+
 # Crash dumps
 *.dmp
+
+# Coverage reports
+CoverageReport/
+coverage.cobertura.xml
+coverage*.xml
 
 ## Secrets & environment
 appsettings.Development.json
