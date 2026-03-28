@@ -34,9 +34,23 @@ public class QuizService : IQuizService
     }
 
     /// <inheritdoc />
+    public async Task<IEnumerable<QuizResponseDto>> GetActiveQuizzesAsync()
+    {
+        var quizzes = await _quizRepository.GetActiveAsync();
+        return quizzes.Select(MapToDto);
+    }
+
+    /// <inheritdoc />
     public async Task<QuizResponseDto?> GetQuizByIdAsync(int id)
     {
         var quiz = await _quizRepository.GetByIdAsync(id);
+        return quiz is not null ? MapToDto(quiz) : null;
+    }
+
+    /// <inheritdoc />
+    public async Task<QuizResponseDto?> GetActiveQuizByIdAsync(int id)
+    {
+        var quiz = await _quizRepository.GetActiveByIdAsync(id);
         return quiz is not null ? MapToDto(quiz) : null;
     }
 

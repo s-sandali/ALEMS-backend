@@ -13,9 +13,20 @@ public interface IQuizRepository
     Task<IEnumerable<Quiz>> GetAllAsync();
 
     /// <summary>
+    /// Retrieves only active quizzes (is_active = true).
+    /// </summary>
+    Task<IEnumerable<Quiz>> GetActiveAsync();
+
+    /// <summary>
     /// Retrieves a single quiz by its ID, or null if not found.
     /// </summary>
     Task<Quiz?> GetByIdAsync(int id);
+
+    /// <summary>
+    /// Retrieves a single quiz by ID only if it is active (is_active = true).
+    /// Returns null if not found or inactive.
+    /// </summary>
+    Task<Quiz?> GetActiveByIdAsync(int id);
 
     /// <summary>
     /// Inserts a new quiz and returns the created record with the generated ID.

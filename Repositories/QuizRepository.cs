@@ -18,6 +18,27 @@ public class QuizRepository : IQuizRepository
     }
 
     /// <inheritdoc />
+    public async Task<IEnumerable<Quiz>> GetActiveAsync()
+    {
+        const string sql = @"
+            SELECT quiz_id, algorithm_id, created_by, title, description,
+                   time_limit_mins, pass_score, is_active, created_at, updated_at
+            FROM quizzes
+            WHERE is_active = TRUE
+            ORDER BY created_at DESC;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+        await using var reader = (MySqlDataReader)await cmd.ExecuteReaderAsync();
+
+        var quizzes = new List<Quiz>();
+        while (await reader.ReadAsync())
+            quizzes.Add(MapQuiz(reader));
+
+        return quizzes;
+    }
+
+    /// <inheritdoc />
     public async Task<IEnumerable<Quiz>> GetAllAsync()
     {
         const string sql = @"
@@ -45,6 +66,28 @@ public class QuizRepository : IQuizRepository
                    time_limit_mins, pass_score, is_active, created_at, updated_at
             FROM quizzes
             WHERE quiz_id = @QuizId
+            LIMIT 1;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@QuizId", id);
+
+        await using var reader = (MySqlDataReader)await cmd.ExecuteReaderAsync();
+
+        if (!await reader.ReadAsync())
+            return null;
+
+        return MapQuiz(reader);
+    }
+
+    /// <inheritdoc />
+    public async Task<Quiz?> GetActiveByIdAsync(int id)
+    {
+        const string sql = @"
+            SELECT quiz_id, algorithm_id, created_by, title, description,
+                   time_limit_mins, pass_score, is_active, created_at, updated_at
+            FROM quizzes
+            WHERE quiz_id = @QuizId AND is_active = TRUE
             LIMIT 1;";
 
         await using var connection = await _db.OpenConnectionAsync();

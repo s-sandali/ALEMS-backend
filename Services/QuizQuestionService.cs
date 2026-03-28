@@ -35,6 +35,22 @@ public class QuizQuestionService : IQuizQuestionService
     }
 
     /// <inheritdoc />
+    public async Task<IEnumerable<StudentQuizQuestionResponseDto>> GetActiveQuestionsForStudentAsync(int quizId)
+    {
+        // Quiz must exist AND be active — inactive quizzes are invisible to students
+        var quiz = await _quizRepository.GetActiveByIdAsync(quizId);
+        if (quiz is null)
+        {
+            _logger.LogWarning(
+                "GetActiveQuestionsForStudent: quiz not found or inactive — QuizId={QuizId}", quizId);
+            throw new KeyNotFoundException($"Quiz with ID {quizId} does not exist.");
+        }
+
+        var questions = await _questionRepository.GetByQuizIdAsync(quizId);
+        return questions.Select(MapToStudentDto);
+    }
+
+    /// <inheritdoc />
     public async Task<QuizQuestionResponseDto?> GetByIdAsync(int questionId)
     {
         var question = await _questionRepository.GetByIdAsync(questionId);
@@ -133,5 +149,22 @@ public class QuizQuestionService : IQuizQuestionService
         OrderIndex   = q.OrderIndex,
         IsActive     = q.IsActive,
         CreatedAt    = q.CreatedAt
+    };
+
+    /// <summary>
+    /// Maps to the student-safe DTO — <c>CorrectOption</c> and <c>Explanation</c>
+    /// are intentionally excluded to prevent cheating.
+    /// </summary>
+    private static StudentQuizQuestionResponseDto MapToStudentDto(QuizQuestion q) => new()
+    {
+        QuestionId   = q.QuestionId,
+        QuestionType = q.QuestionType,
+        QuestionText = q.QuestionText,
+        OptionA      = q.OptionA,
+        OptionB      = q.OptionB,
+        OptionC      = q.OptionC,
+        OptionD      = q.OptionD,
+        Difficulty   = q.Difficulty,
+        OrderIndex   = q.OrderIndex
     };
 }
