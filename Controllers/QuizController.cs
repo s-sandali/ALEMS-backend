@@ -11,6 +11,14 @@ namespace backend.Controllers;
 /// </summary>
 /// <remarks>
 /// All endpoints require a valid Clerk JWT with the <b>Admin</b> role.
+///
+/// **Validation** is enforced by Data Annotations on each request DTO.
+/// Invalid payloads are rejected with <c>400 Validation Failed</c> before
+/// the action body runs (via <c>InvalidModelStateResponseFactory</c>).
+///
+/// **Unexpected errors** bubble to <c>GlobalExceptionMiddleware</c> which
+/// returns <c>{ statusCode, message, traceId }</c> — raw exception details
+/// are never exposed to the client.
 /// </remarks>
 [ApiController]
 [Route("api/quizzes")]
@@ -28,7 +36,7 @@ public class QuizController : ControllerBase
     }
 
     /// <summary>
-    /// GET /api/quizzes — Retrieve all quizzes.
+    /// GET /api/quizzes — Retrieve all quizzes (active and inactive).
     /// </summary>
     /// <response code="200">List of all quizzes.</response>
     /// <response code="500">Unexpected server error.</response>
@@ -37,25 +45,12 @@ public class QuizController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetAllQuizzes()
     {
-        try
+        var quizzes = await _quizService.GetAllQuizzesAsync();
+        return Ok(new
         {
-            var quizzes = await _quizService.GetAllQuizzesAsync();
-            return Ok(new
-            {
-                status = "success",
-                data   = quizzes
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unhandled error in GET /api/quizzes");
-            return StatusCode(StatusCodes.Status500InternalServerError, new
-            {
-                status  = "error",
-                message = "An unexpected error occurred while retrieving quizzes.",
-                detail  = ex.Message
-            });
-        }
+            status = "success",
+            data   = quizzes
+        });
     }
 
     /// <summary>
@@ -65,40 +60,27 @@ public class QuizController : ControllerBase
     /// <response code="200">Quiz found.</response>
     /// <response code="404">No quiz with the supplied ID.</response>
     /// <response code="500">Unexpected server error.</response>
-    [HttpGet("{id}")]
+    [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetQuizById(int id)
     {
-        try
+        var quiz = await _quizService.GetQuizByIdAsync(id);
+        if (quiz is null)
         {
-            var quiz = await _quizService.GetQuizByIdAsync(id);
-            if (quiz is null)
-            {
-                return NotFound(new
-                {
-                    status  = "error",
-                    message = $"Quiz with ID {id} not found."
-                });
-            }
-
-            return Ok(new
-            {
-                status = "success",
-                data   = quiz
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unhandled error in GET /api/quizzes/{id}", id);
-            return StatusCode(StatusCodes.Status500InternalServerError, new
+            return NotFound(new
             {
                 status  = "error",
-                message = "An unexpected error occurred while retrieving the quiz.",
-                detail  = ex.Message
+                message = $"Quiz with ID {id} not found."
             });
         }
+
+        return Ok(new
+        {
+            status = "success",
+            data   = quiz
+        });
     }
 
     /// <summary>
@@ -106,44 +88,35 @@ public class QuizController : ControllerBase
     /// </summary>
     /// <remarks>
     /// The <c>created_by</c> field is resolved automatically from the caller's Clerk JWT.
+    ///
+    /// **Validated fields**: <c>algorithmId</c> (required, &gt;0), <c>title</c> (3–255 chars),
+    /// <c>description</c> (max 2000), <c>timeLimitMins</c> (1–300), <c>passScore</c> (0–100).
     /// </remarks>
     /// <response code="201">Quiz created successfully.</response>
     /// <response code="400">Validation failed or referenced algorithm does not exist.</response>
+    /// <response code="404">Authenticated user has no local account (sync required).</response>
     /// <response code="500">Unexpected server error.</response>
     [HttpPost]
     [ProducesResponseType(typeof(object), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> CreateQuiz([FromBody] CreateQuizDto dto)
     {
+        var clerkUserId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                          ?? User.FindFirstValue("sub");
+
+        if (string.IsNullOrWhiteSpace(clerkUserId))
+        {
+            return Unauthorized(new
+            {
+                status  = "error",
+                message = "Invalid token: missing user identifier."
+            });
+        }
+
         try
         {
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(new
-                {
-                    status  = "error",
-                    message = "Validation failed.",
-                    errors  = ModelState
-                        .Where(e => e.Value?.Errors.Count > 0)
-                        .ToDictionary(
-                            e => e.Key,
-                            e => e.Value!.Errors.Select(err => err.ErrorMessage).ToArray())
-                });
-            }
-
-            var clerkUserId = User.FindFirstValue(ClaimTypes.NameIdentifier)
-                              ?? User.FindFirstValue("sub");
-
-            if (string.IsNullOrWhiteSpace(clerkUserId))
-            {
-                return Unauthorized(new
-                {
-                    status  = "error",
-                    message = "Invalid token: missing user identifier."
-                });
-            }
-
             var result = await _quizService.CreateQuizAsync(dto, clerkUserId);
 
             _logger.LogInformation("POST /api/quizzes — created QuizId={QuizId}", result.QuizId);
@@ -170,16 +143,8 @@ public class QuizController : ControllerBase
                 message = knfe.Message
             });
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unhandled error in POST /api/quizzes");
-            return StatusCode(StatusCodes.Status500InternalServerError, new
-            {
-                status  = "error",
-                message = "An unexpected error occurred while creating the quiz.",
-                detail  = ex.Message
-            });
-        }
+        // All other exceptions bubble to GlobalExceptionMiddleware
+        // → { statusCode: 500, message: "...", traceId: "..." }
     }
 
     /// <summary>
@@ -191,7 +156,7 @@ public class QuizController : ControllerBase
     /// <response code="400">Validation failed.</response>
     /// <response code="404">No quiz with the supplied ID.</response>
     /// <response code="500">Unexpected server error.</response>
-    [HttpPut("{id}")]
+    [HttpPut("{id:int}")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
@@ -200,20 +165,6 @@ public class QuizController : ControllerBase
     {
         try
         {
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(new
-                {
-                    status  = "error",
-                    message = "Validation failed.",
-                    errors  = ModelState
-                        .Where(e => e.Value?.Errors.Count > 0)
-                        .ToDictionary(
-                            e => e.Key,
-                            e => e.Value!.Errors.Select(err => err.ErrorMessage).ToArray())
-                });
-            }
-
             var result = await _quizService.UpdateQuizAsync(id, dto);
 
             _logger.LogInformation("PUT /api/quizzes/{Id} — updated", id);
@@ -232,16 +183,7 @@ public class QuizController : ControllerBase
                 message = knfe.Message
             });
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unhandled error in PUT /api/quizzes/{id}", id);
-            return StatusCode(StatusCodes.Status500InternalServerError, new
-            {
-                status  = "error",
-                message = "An unexpected error occurred while updating the quiz.",
-                detail  = ex.Message
-            });
-        }
+        // All other exceptions bubble to GlobalExceptionMiddleware
     }
 
     /// <summary>
@@ -251,36 +193,24 @@ public class QuizController : ControllerBase
     /// <response code="204">Quiz soft-deleted successfully.</response>
     /// <response code="404">No quiz with the supplied ID.</response>
     /// <response code="500">Unexpected server error.</response>
-    [HttpDelete("{id}")]
+    [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> DeleteQuiz(int id)
     {
-        try
-        {
-            var success = await _quizService.DeleteQuizAsync(id);
+        var success = await _quizService.DeleteQuizAsync(id);
 
-            if (!success)
-            {
-                return NotFound(new
-                {
-                    status  = "error",
-                    message = $"Quiz with ID {id} not found."
-                });
-            }
-
-            return NoContent(); // 204
-        }
-        catch (Exception ex)
+        if (!success)
         {
-            _logger.LogError(ex, "Unhandled error in DELETE /api/quizzes/{id}", id);
-            return StatusCode(StatusCodes.Status500InternalServerError, new
+            return NotFound(new
             {
                 status  = "error",
-                message = "An unexpected error occurred while deleting the quiz.",
-                detail  = ex.Message
+                message = $"Quiz with ID {id} not found."
             });
         }
+
+        return NoContent(); // 204
+        // All other exceptions bubble to GlobalExceptionMiddleware
     }
 }
