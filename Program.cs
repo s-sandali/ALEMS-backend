@@ -294,6 +294,26 @@ builder.Services.AddHttpClient<IClerkService, ClerkService>(client =>
         new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", clerkSecretKey);
 });
 
+// ── Judge0 Code Execution Client (self-hosted) ─────────────────────
+// Self-hosted Judge0 has no auth by default.
+// Set JUDGE0_AUTH_TOKEN (or Judge0:AuthToken in config) only if your
+// instance was started with the JUDGE0_AUTHN_HEADER option enabled.
+var judge0BaseUrl = builder.Configuration["Judge0:BaseUrl"]
+    ?? throw new InvalidOperationException(
+        "Judge0 base URL not configured. Set Judge0:BaseUrl in appsettings.json.");
+
+var judge0AuthToken = Environment.GetEnvironmentVariable("JUDGE0_AUTH_TOKEN")
+    ?? builder.Configuration["Judge0:AuthToken"];
+
+builder.Services.AddHttpClient<ICodeExecutionService, CodeExecutionService>(client =>
+{
+    client.BaseAddress = new Uri(judge0BaseUrl);
+    // Only add the auth header when a token is actually configured
+    if (!string.IsNullOrWhiteSpace(judge0AuthToken))
+        client.DefaultRequestHeaders.Add("X-Auth-Token", judge0AuthToken);
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
+
 var app = builder.Build();
 
 // ── Middleware Pipeline ────────────────────────────────────────────
