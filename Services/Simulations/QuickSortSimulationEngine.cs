@@ -7,8 +7,16 @@ namespace backend.Services.Simulations;
 /// </summary>
 public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
 {
-    public bool CanHandle(string algorithm) =>
-        algorithm == "quick_sort" || algorithm == "quick-sort";
+    public bool CanHandle(string algorithm)
+    {
+        if (string.IsNullOrWhiteSpace(algorithm))
+        {
+            return false;
+        }
+
+        var normalized = algorithm.Trim().ToLowerInvariant();
+        return normalized is "quick_sort" or "quick-sort";
+    }
 
     public SimulationResponse Run(int[] array, int? targetValue = null)
     {

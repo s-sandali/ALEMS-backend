@@ -8,6 +8,16 @@ namespace backend.Services;
 /// </summary>
 public class SimulationService : ISimulationService
 {
+    private static readonly HashSet<string> SupportedAlgorithms =
+    [
+        "bubble_sort",
+        "bubble-sort",
+        "binary_search",
+        "binary-search",
+        "quick_sort",
+        "quick-sort"
+    ];
+
     private static readonly HashSet<string> InteractiveActionLabels =
     [
         "swap",
@@ -230,11 +240,24 @@ public class SimulationService : ISimulationService
 
     private IAlgorithmSimulationEngine ResolveEngine(string algorithm)
     {
+        if (string.IsNullOrWhiteSpace(algorithm))
+        {
+            _logger.LogWarning("Simulation requested with empty algorithm name");
+            throw new NotSupportedException("Algorithm is required.");
+        }
+
         var normalizedAlgorithm = algorithm.Trim().ToLowerInvariant();
+
+        if (!SupportedAlgorithms.Contains(normalizedAlgorithm))
+        {
+            _logger.LogWarning("Simulation requested for unsupported algorithm {Algorithm}", algorithm);
+            throw new NotSupportedException($"Algorithm '{algorithm}' is not supported.");
+        }
+
         var engine = _engines.FirstOrDefault(e => e.CanHandle(normalizedAlgorithm));
         if (engine is null)
         {
-            _logger.LogWarning("Simulation requested for unsupported algorithm {Algorithm}", algorithm);
+            _logger.LogWarning("No engine registered for algorithm {Algorithm}", algorithm);
             throw new NotSupportedException($"Algorithm '{algorithm}' is not supported.");
         }
 
