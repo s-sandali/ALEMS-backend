@@ -10,8 +10,16 @@ public interface IQuizQuestionService
     /// <summary>
     /// Returns all active questions for the given quiz, ordered by order_index.
     /// Throws <see cref="KeyNotFoundException"/> if the quiz does not exist.
+    /// Admin use only — response includes <c>CorrectOption</c>.
     /// </summary>
     Task<IEnumerable<QuizQuestionResponseDto>> GetByQuizIdAsync(int quizId);
+
+    /// <summary>
+    /// Returns all active questions for a quiz for student consumption.
+    /// <b>Does not include <c>CorrectOption</c> or <c>Explanation</c>.</b>
+    /// Throws <see cref="KeyNotFoundException"/> if the quiz does not exist or is inactive.
+    /// </summary>
+    Task<IEnumerable<StudentQuizQuestionResponseDto>> GetActiveQuestionsForStudentAsync(int quizId);
 
     /// <summary>
     /// Returns a single question by ID, or null if not found.
