@@ -48,6 +48,15 @@ public class SimulationController : ControllerBase
                 ModelState.AddModelError(nameof(dto.Array), "Array must contain at least one value.");
             }
 
+            if (!string.IsNullOrWhiteSpace(dto.Algorithm))
+            {
+                var normalizedAlgorithm = dto.Algorithm.Trim().ToLowerInvariant();
+                if (normalizedAlgorithm is "binary_search" or "binary-search" && dto.Target is null)
+                {
+                    ModelState.AddModelError(nameof(dto.Target), "Target is required for binary search.");
+                }
+            }
+
             if (!ModelState.IsValid)
             {
                 return ValidationProblem(ModelState);
