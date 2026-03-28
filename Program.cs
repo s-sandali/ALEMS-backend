@@ -261,6 +261,8 @@ builder.Services.AddScoped<IQuizRepository, QuizRepository>();
 builder.Services.AddScoped<IQuizService, QuizService>();
 builder.Services.AddScoped<IQuizQuestionRepository, QuizQuestionRepository>();
 builder.Services.AddScoped<IQuizQuestionService, QuizQuestionService>();
+builder.Services.AddScoped<ICodingQuestionRepository, CodingQuestionRepository>();
+builder.Services.AddScoped<ICodingQuestionService, CodingQuestionService>();
 builder.Services.AddScoped<ISimulationService, SimulationService>();
 builder.Services.AddScoped<IAlgorithmSimulationEngine, BubbleSortSimulationEngine>();
 builder.Services.AddScoped<IAlgorithmSimulationEngine, BinarySearchSimulationEngine>();
