@@ -151,6 +151,13 @@ builder.Services
         // Clerk publishes its JWKS at {Authority}/.well-known/jwks.json
         options.Authority = clerkAuthority;
 
+        // Disable the default inbound claim type map so JWT claim names (e.g. "role",
+        // "sub", "email") are preserved as-is in the ClaimsPrincipal instead of being
+        // remapped to long Microsoft schema URIs. Without this, the "role" claim gets
+        // stored as ClaimTypes.Role (long URI) while RoleClaimType = "role" (short),
+        // causing [Authorize(Roles = "Admin")] to always fail with 403.
+        options.MapInboundClaims = false;
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             // Issuer — must match Clerk authority
