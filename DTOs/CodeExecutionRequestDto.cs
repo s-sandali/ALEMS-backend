@@ -16,4 +16,9 @@ public class CodeExecutionRequestDto
 
     /// <summary>Standard input to pass to the program (optional).</summary>
     public string? Stdin { get; set; }
+
+    /// <summary>
+    /// Expected stdout for judged submissions. When omitted, code is only executed.
+    /// </summary>
+    public string? ExpectedOutput { get; set; }
 }
