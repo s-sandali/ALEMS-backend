@@ -32,9 +32,16 @@ public class CodeExecutionService : ICodeExecutionService
     private static readonly HashSet<int> _supportedIds =
         _languages.Select(l => l.LanguageId).ToHashSet();
 
-    private static readonly JsonSerializerOptions _jsonOptions = new()
+    // Used for deserializing Judge0 responses (case-insensitive to be lenient).
+    private static readonly JsonSerializerOptions _readOptions = new()
     {
         PropertyNameCaseInsensitive = true
+    };
+
+    // Used for serializing Judge0 requests — no naming policy so [JsonPropertyName] wins.
+    private static readonly JsonSerializerOptions _writeOptions = new()
+    {
+        PropertyNamingPolicy = null
     };
 
     public CodeExecutionService(HttpClient http, ILogger<CodeExecutionService> logger)
@@ -56,19 +63,29 @@ public class CodeExecutionService : ICodeExecutionService
                 $"Language ID {request.LanguageId} is not supported. " +
                 $"Supported IDs: {string.Join(", ", _supportedIds)}.");
 
-        var body = new
+        var body = new Judge0SubmissionRequest
         {
-            source_code = request.SourceCode,
-            language_id = request.LanguageId,
-            stdin       = request.Stdin ?? string.Empty
+            SourceCode     = request.SourceCode,
+            LanguageId     = request.LanguageId,
+            Stdin          = request.Stdin ?? string.Empty,
+            ExpectedOutput = string.IsNullOrWhiteSpace(request.ExpectedOutput)
+                ? null
+                : request.ExpectedOutput
         };
+
+        var serialized = JsonSerializer.Serialize(body, _writeOptions);
+        _logger.LogInformation(
+            "Judge0 payload: LanguageId={LanguageId} SourceLen={Len} Json={Json}",
+            request.LanguageId, request.SourceCode?.Length ?? -1, serialized);
+
+        using var content = new StringContent(serialized, System.Text.Encoding.UTF8, "application/json");
 
         HttpResponseMessage response;
         try
         {
-            response = await _http.PostAsJsonAsync(
+            response = await _http.PostAsync(
                 "submissions?base64_encoded=false&wait=true&fields=stdout,stderr,compile_output,status,time,memory",
-                body,
+                content,
                 ct);
         }
         catch (TaskCanceledException ex) when (!ct.IsCancellationRequested)
@@ -85,13 +102,15 @@ public class CodeExecutionService : ICodeExecutionService
 
         if (!response.IsSuccessStatusCode)
         {
+            var errorBody = await response.Content.ReadAsStringAsync(ct);
             _logger.LogError(
-                "Judge0 returned unexpected status {Status}", (int)response.StatusCode);
-            throw new Judge0UnavailableException($"HTTP {(int)response.StatusCode}.");
+                "Judge0 returned {Status}: {Body}", (int)response.StatusCode, errorBody);
+            throw new Judge0UnavailableException(
+                $"Judge0 rejected the submission (HTTP {(int)response.StatusCode}): {errorBody}");
         }
 
         var raw = await response.Content.ReadFromJsonAsync<Judge0SubmissionResponse>(
-            _jsonOptions, ct);
+            _readOptions, ct);
 
         if (raw is null)
             throw new Judge0UnavailableException("Empty response from Judge0.");
