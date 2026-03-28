@@ -153,6 +153,23 @@ public class UserRepository : IUserRepository
     }
 
     /// <inheritdoc />
+    public async Task<bool> LinkClerkUserIdAsync(int userId, string clerkUserId)
+    {
+        const string sql = @"
+            UPDATE Users
+            SET ClerkUserId = @ClerkUserId
+            WHERE Id = @Id;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@ClerkUserId", clerkUserId);
+        cmd.Parameters.AddWithValue("@Id", userId);
+
+        var rowsAffected = await cmd.ExecuteNonQueryAsync();
+        return rowsAffected > 0;
+    }
+
+    /// <inheritdoc />
     public async Task<bool> DeleteAsync(int id)
     {
         const string sql = @"
