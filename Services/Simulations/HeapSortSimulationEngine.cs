@@ -73,7 +73,7 @@ public class HeapSortSimulationEngine : IAlgorithmSimulationEngine
                 compareLine: PseudocodeLine.HeapifyCompare,
                 swapLine: PseudocodeLine.HeapifySwap,
                 compareLabel: "heapify_compare",
-                swapLabel: "heapify_swap");
+                swapLabel: "swap");
         }
 
         AddStep(steps, ref stepNumber, values, [], PseudocodeLine.HeapifyPhaseComplete, "heapify_phase_complete");
@@ -92,7 +92,7 @@ public class HeapSortSimulationEngine : IAlgorithmSimulationEngine
         for (var end = values.Length - 1; end > 0; end--)
         {
             (values[0], values[end]) = (values[end], values[0]);
-            AddStep(steps, ref stepNumber, values, [0, end], PseudocodeLine.ExtractRootSwap, "extract_swap_root");
+            AddStep(steps, ref stepNumber, values, [0, end], PseudocodeLine.ExtractRootSwap, "swap");
 
             SiftDown(
                 values,
@@ -103,7 +103,7 @@ public class HeapSortSimulationEngine : IAlgorithmSimulationEngine
                 compareLine: PseudocodeLine.ExtractSiftCompare,
                 swapLine: PseudocodeLine.ExtractSiftSwap,
                 compareLabel: "extract_heapify_compare",
-                swapLabel: "extract_heapify_swap");
+                swapLabel: "swap");
         }
 
         AddStep(steps, ref stepNumber, values, [], PseudocodeLine.ExtractionPhaseComplete, "extraction_phase_complete");
