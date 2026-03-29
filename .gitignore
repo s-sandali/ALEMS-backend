@@ -48,7 +48,7 @@ Testing/E2ETests/E2ETests.sln
 [Pp]ublish[Oo]utput/
 
 .claude/
-
+bin-verify/
 # Crash dumps
 *.dmp
 

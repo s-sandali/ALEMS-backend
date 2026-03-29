@@ -100,7 +100,7 @@ public class BubbleSortSimulationIntegrationTests : IClassFixture<CustomWebAppli
     {
         var response = await _client.PostAsJsonAsync("/api/simulation/run", new
         {
-            algorithm = "quick_sort",
+            algorithm = "linear_search",
             array = new[] { 3, 1, 2 }
         });
 
@@ -166,7 +166,7 @@ public class BubbleSortSimulationIntegrationTests : IClassFixture<CustomWebAppli
     {
         var response = await _client.PostAsJsonAsync("/api/simulation/start", new
         {
-            algorithm = "merge_sort",
+            algorithm = "linear_search",
             array = new[] { 3, 2, 1 }
         });
 
