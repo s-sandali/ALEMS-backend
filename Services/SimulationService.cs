@@ -406,6 +406,21 @@ public class SimulationService : ISimulationService
                         DiscardStartIndex = step.Search.DiscardStartIndex,
                         DiscardEndIndex = step.Search.DiscardEndIndex,
                         DiscardedIndices = step.Search.DiscardedIndices.ToArray()
+                    },
+                Heap = step.Heap is null
+                    ? null
+                    : new HeapStepModel
+                    {
+                        Phase = step.Heap.Phase,
+                        HeapBoundaryEnd = step.Heap.HeapBoundaryEnd,
+                        HeapIndex = step.Heap.HeapIndex,
+                        ParentIndex = step.Heap.ParentIndex,
+                        LeftChildIndex = step.Heap.LeftChildIndex,
+                        RightChildIndex = step.Heap.RightChildIndex,
+                        ComparedParentIndex = step.Heap.ComparedParentIndex,
+                        ComparedChildIndex = step.Heap.ComparedChildIndex,
+                        ComparedIndices = step.Heap.ComparedIndices.ToArray(),
+                        ParentChildComparison = step.Heap.ParentChildComparison
                     }
             }).ToList()
         };

@@ -151,6 +151,13 @@ builder.Services
         // Clerk publishes its JWKS at {Authority}/.well-known/jwks.json
         options.Authority = clerkAuthority;
 
+        // Disable the default inbound claim type map so JWT claim names (e.g. "role",
+        // "sub", "email") are preserved as-is in the ClaimsPrincipal instead of being
+        // remapped to long Microsoft schema URIs. Without this, the "role" claim gets
+        // stored as ClaimTypes.Role (long URI) while RoleClaimType = "role" (short),
+        // causing [Authorize(Roles = "Admin")] to always fail with 403.
+        options.MapInboundClaims = false;
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             // Issuer — must match Clerk authority
@@ -250,6 +257,12 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAlgorithmRepository, AlgorithmRepository>();
 builder.Services.AddScoped<IAlgorithmService, AlgorithmService>();
+builder.Services.AddScoped<IQuizRepository, QuizRepository>();
+builder.Services.AddScoped<IQuizService, QuizService>();
+builder.Services.AddScoped<IQuizQuestionRepository, QuizQuestionRepository>();
+builder.Services.AddScoped<IQuizQuestionService, QuizQuestionService>();
+builder.Services.AddScoped<ICodingQuestionRepository, CodingQuestionRepository>();
+builder.Services.AddScoped<ICodingQuestionService, CodingQuestionService>();
 builder.Services.AddScoped<ISimulationService, SimulationService>();
 builder.Services.AddScoped<IAlgorithmSimulationEngine, BubbleSortSimulationEngine>();
 builder.Services.AddScoped<IAlgorithmSimulationEngine, BinarySearchSimulationEngine>();
@@ -281,6 +294,26 @@ builder.Services.AddHttpClient<IClerkService, ClerkService>(client =>
     client.BaseAddress = new Uri("https://api.clerk.com");
     client.DefaultRequestHeaders.Authorization =
         new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", clerkSecretKey);
+});
+
+// ── Judge0 Code Execution Client (self-hosted) ─────────────────────
+// Self-hosted Judge0 has no auth by default.
+// Set JUDGE0_AUTH_TOKEN (or Judge0:AuthToken in config) only if your
+// instance was started with the JUDGE0_AUTHN_HEADER option enabled.
+var judge0BaseUrl = builder.Configuration["Judge0:BaseUrl"]
+    ?? throw new InvalidOperationException(
+        "Judge0 base URL not configured. Set Judge0:BaseUrl in appsettings.json.");
+
+var judge0AuthToken = Environment.GetEnvironmentVariable("JUDGE0_AUTH_TOKEN")
+    ?? builder.Configuration["Judge0:AuthToken"];
+
+builder.Services.AddHttpClient<ICodeExecutionService, CodeExecutionService>(client =>
+{
+    client.BaseAddress = new Uri(judge0BaseUrl);
+    // Only add the auth header when a token is actually configured
+    if (!string.IsNullOrWhiteSpace(judge0AuthToken))
+        client.DefaultRequestHeaders.Add("X-Auth-Token", judge0AuthToken);
+    client.Timeout = TimeSpan.FromSeconds(15);
 });
 
 var app = builder.Build();
