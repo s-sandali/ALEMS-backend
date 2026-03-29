@@ -21,7 +21,8 @@ public class HeapSortSimulationEngine : IAlgorithmSimulationEngine
         public const int ExtractRootSwap = 7;
         public const int ExtractSiftCompare = 8;
         public const int ExtractSiftSwap = 9;
-        public const int Complete = 10;
+        public const int ExtractionPhaseComplete = 10;
+        public const int Complete = 11;
     }
 
     public bool CanHandle(string algorithm)
@@ -84,7 +85,7 @@ public class HeapSortSimulationEngine : IAlgorithmSimulationEngine
 
         if (values.Length <= 1)
         {
-            AddStep(steps, ref stepNumber, values, [], PseudocodeLine.Complete, "extraction_phase_complete");
+            AddStep(steps, ref stepNumber, values, [], PseudocodeLine.ExtractionPhaseComplete, "extraction_phase_complete");
             return;
         }
 
@@ -105,7 +106,7 @@ public class HeapSortSimulationEngine : IAlgorithmSimulationEngine
                 swapLabel: "extract_heapify_swap");
         }
 
-        AddStep(steps, ref stepNumber, values, [], PseudocodeLine.Complete, "extraction_phase_complete");
+        AddStep(steps, ref stepNumber, values, [], PseudocodeLine.ExtractionPhaseComplete, "extraction_phase_complete");
     }
 
     private static void SiftDown(
