@@ -19,4 +19,7 @@ public class SimulationStep
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SearchStepModel? Search { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public HeapStepModel? Heap { get; set; }
 }
