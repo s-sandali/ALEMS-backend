@@ -22,4 +22,7 @@ public class SimulationStep
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public HeapStepModel? Heap { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BubbleStepModel? Bubble { get; set; }
 }
