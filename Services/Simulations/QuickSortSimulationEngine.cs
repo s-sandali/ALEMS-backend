@@ -41,7 +41,7 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
     /// <summary>
     /// Recursively sorts the array using Quick Sort algorithm.
     /// </summary>
-    private void QuickSortRecursive(
+    private static void QuickSortRecursive(
         int[] array,
         int low,
         int high,
@@ -51,7 +51,7 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
         if (low < high)
         {
             // Mark the current partition range
-            var activeIndices = BuildindicesList(low, high);
+            var activeIndices = BuildIndicesList(low, high);
             AddStep(steps, ref stepNumber, array, activeIndices, 2, "partition_start");
 
             // Partition and get pivot index
@@ -63,17 +63,17 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
             // Recursively sort left partition
             if (low < pivotIndex - 1)
             {
-                AddStep(steps, ref stepNumber, array, BuildindicesList(low, pivotIndex - 1), 9, "sort_left_start");
+                AddStep(steps, ref stepNumber, array, BuildIndicesList(low, pivotIndex - 1), 9, "sort_left_start");
                 QuickSortRecursive(array, low, pivotIndex - 1, steps, ref stepNumber);
-                AddStep(steps, ref stepNumber, array, BuildindicesList(low, pivotIndex - 1), 10, "sort_left_complete");
+                AddStep(steps, ref stepNumber, array, BuildIndicesList(low, pivotIndex - 1), 10, "sort_left_complete");
             }
 
             // Recursively sort right partition
             if (pivotIndex + 1 < high)
             {
-                AddStep(steps, ref stepNumber, array, BuildindicesList(pivotIndex + 1, high), 9, "sort_right_start");
+                AddStep(steps, ref stepNumber, array, BuildIndicesList(pivotIndex + 1, high), 9, "sort_right_start");
                 QuickSortRecursive(array, pivotIndex + 1, high, steps, ref stepNumber);
-                AddStep(steps, ref stepNumber, array, BuildindicesList(pivotIndex + 1, high), 10, "sort_right_complete");
+                AddStep(steps, ref stepNumber, array, BuildIndicesList(pivotIndex + 1, high), 10, "sort_right_complete");
             }
         }
     }
@@ -81,7 +81,7 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
     /// <summary>
     /// Partitions the array around a pivot element using the Hoare partition scheme.
     /// </summary>
-    private int Partition(
+    private static int Partition(
         int[] array,
         int low,
         int high,
@@ -124,7 +124,7 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
     /// <summary>
     /// Helper method to build array of indices from low to high.
     /// </summary>
-    private int[] BuildindicesList(int low, int high)
+    private static int[] BuildIndicesList(int low, int high)
     {
         var indices = new List<int>();
         for (var i = low; i <= high; i++)
