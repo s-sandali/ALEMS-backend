@@ -24,4 +24,10 @@ public class HeapStepModel
     public int[] ComparedIndices { get; set; } = [];
 
     public string? ParentChildComparison { get; set; }
+
+    public int? ExtractedValue { get; set; }
+
+    public int? ExtractedFromIndex { get; set; }
+
+    public int? SortedTargetIndex { get; set; }
 }
