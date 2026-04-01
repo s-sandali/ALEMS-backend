@@ -78,6 +78,7 @@ public class QuizQuestionService : IQuizQuestionService
             OptionD      = dto.OptionD,
             CorrectOption = dto.CorrectOption,
             Difficulty   = dto.Difficulty,
+            XpReward     = XpRules.GetQuizXpReward(dto.Difficulty),
             Explanation  = dto.Explanation,
             OrderIndex   = dto.OrderIndex,
             IsActive     = true
@@ -109,6 +110,7 @@ public class QuizQuestionService : IQuizQuestionService
         existing.OptionD      = dto.OptionD;
         existing.CorrectOption = dto.CorrectOption;
         existing.Difficulty   = dto.Difficulty;
+        existing.XpReward     = XpRules.GetQuizXpReward(dto.Difficulty);
         existing.Explanation  = dto.Explanation;
         existing.OrderIndex   = dto.OrderIndex;
         existing.IsActive     = dto.IsActive;
