@@ -37,8 +37,7 @@ jobs:
             --configuration Release \
             --no-build \
             --logger "console;verbosity=detailed" \
-            --collect:"XPlat Code Coverage" \
-            --settings coverlet.runsettings
+            --collect:"XPlat Code Coverage"
         env:
           DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: false
 
@@ -49,8 +48,7 @@ jobs:
             --configuration Release \
             --no-build \
             --logger "console;verbosity=detailed" \
-            --collect:"XPlat Code Coverage" \
-            --settings coverlet.runsettings
+            --collect:"XPlat Code Coverage"
         env:
           DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: false
 
