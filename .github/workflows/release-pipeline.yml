@@ -32,34 +32,53 @@ jobs:
 
       - name: Run Unit Tests
         continue-on-error: false
-        run: dotnet test Testing/UnitTests/UnitTests.csproj --configuration Release --no-build --logger "console;verbosity=detailed"
+        run: |
+          dotnet test Testing/UnitTests/UnitTests.csproj \
+            --configuration Release \
+            --no-build \
+            --logger "console;verbosity=detailed" \
+            --collect:"XPlat Code Coverage" \
+            --settings coverlet.runsettings
+        env:
+          DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: false
 
       - name: Run Integration Tests
         continue-on-error: false
-        run: dotnet test Testing/IntegrationTests/IntegrationTests.csproj --configuration Release --no-build --logger "console;verbosity=detailed"
+        run: |
+          dotnet test Testing/IntegrationTests/IntegrationTests.csproj \
+            --configuration Release \
+            --no-build \
+            --logger "console;verbosity=detailed" \
+            --collect:"XPlat Code Coverage" \
+            --settings coverlet.runsettings
+        env:
+          DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: false
 
       - name: Extract code coverage
         id: coverage
         continue-on-error: true
         run: |
-          # Find coverage file
-          COVERAGE_FILE=$(find TestResults -name "coverage.cobertura.xml" 2>/dev/null | head -1)
+          # Find all coverage reports from coverlet collector
+          COVERAGE_FILES=$(find TestResults -name "coverage.cobertura.xml" 2>/dev/null | head -1)
           
-          if [ -z "$COVERAGE_FILE" ]; then
-            echo "⚠️ No coverage file found. Setting default coverage to 0%"
+          if [ -z "$COVERAGE_FILES" ]; then
+            echo "⚠️ No coverage files found. Setting default coverage to 0%"
             echo "coverage=0" >> $GITHUB_OUTPUT
             exit 0
           fi
           
-          echo "📊 Found coverage file: $COVERAGE_FILE"
-          COVERAGE=$(grep -oPm1 "(?<=<coverage line-rate=\")[^\"]+" "$COVERAGE_FILE" | head -1)
+          echo "📊 Found coverage file: $COVERAGE_FILES"
+          
+          # Extract line-rate from cobertura report (range 0-1, convert to 0-100)
+          COVERAGE=$(grep -oP 'line-rate="\K[0-9.]+' "$COVERAGE_FILES" | head -1)
           
           if [ -z "$COVERAGE" ]; then
-            echo "⚠️ Could not parse coverage value. Setting to 0%"
+            echo "⚠️ Could not parse coverage value"
             echo "coverage=0" >> $GITHUB_OUTPUT
             exit 0
           fi
           
+          # Convert decimal to percentage
           PERCENT=$(echo "$COVERAGE * 100" | bc | cut -d'.' -f1)
           echo "✅ Coverage is $PERCENT%"
           echo "coverage=$PERCENT" >> $GITHUB_OUTPUT
@@ -82,27 +101,18 @@ jobs:
 
   deploy:
     needs: build
-    if: failure()
+    if: success() && needs.build.result == 'success'
     runs-on: ubuntu-latest
     steps:
-      - name: Check Build Status
-        run: |
-          if [ "${{ needs.build.result }}" != "success" ]; then
-            echo "❌ Build job failed. Skipping deployment."
-            exit 1
-          fi
-
-      - name: Checkout code
-        run: echo "✅ Code checkout skipped (build already validated)"
-
       - name: Deploy Application
         continue-on-error: false
         run: |
           echo "🚀 Starting application deployment..."
-          echo "Release tag: ${{ github.ref_name }}"
-          # Your deployment command here
+          echo "Release: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          # Your deployment command here (e.g., Azure App Service deploy)
 
-      - name: Wait for Deployment
+      - name: Wait for Deployment Stabilization
         run: |
           echo "⏳ Waiting 30 seconds for deployment to stabilize..."
           sleep 30
@@ -110,41 +120,42 @@ jobs:
       - name: Post-Deployment Health Check
         id: health-check
         run: |
-          max_attempts=30
+          max_attempts=15
           attempt=1
           health_status="FAILED"
           deployment_url="${{ secrets.DEPLOYMENT_URL }}"
           
           if [ -z "$deployment_url" ]; then
-            echo "⚠️ DEPLOYMENT_URL secret not set. Skipping health check."
+            echo "⚠️ DEPLOYMENT_URL secret not configured. Skipping health check."
+            echo "ℹ️ To enable: Settings → Secrets → New secret (DEPLOYMENT_URL)"
             echo "health_status=SKIPPED" >> $GITHUB_OUTPUT
             exit 0
           fi
           
           health_endpoint="$deployment_url/api/health"
-          echo "🔍 Starting health checks: $health_endpoint"
+          echo "🔍 Starting health checks: $health_endpoint (max $max_attempts attempts)"
           
           while [ $attempt -le $max_attempts ]; do
-            echo "[Attempt $attempt/$max_attempts] Polling health endpoint..."
+            echo "[Attempt $attempt/$max_attempts] Polling endpoint..."
             
-            response=$(curl -s -w "\n%{http_code}" "$health_endpoint" 2>&1)
+            response=$(curl -s -w "\n%{http_code}" --connect-timeout 5 "$health_endpoint" 2>&1)
             http_code=$(echo "$response" | tail -n1)
             body=$(echo "$response" | head -n-1)
             
-            echo "  HTTP: $http_code | Response: $body"
+            echo "  Response: HTTP $http_code"
             
             if [ "$http_code" = "200" ]; then
-              echo "✅ SUCCESS: Health check passed - Service is healthy"
+              echo "✅ Health check PASSED"
               health_status="SUCCESS"
               break
             fi
             
             if [ $attempt -eq $max_attempts ]; then
-              echo "❌ FAILURE: Max attempts ($max_attempts) reached. Service health check failed."
+              echo "❌ Health check FAILED after $max_attempts attempts"
               break
             fi
             
-            echo "  Retrying in 10 seconds..."
+            echo "  Waiting 10s before retry..."
             sleep 10
             attempt=$((attempt + 1))
           done
