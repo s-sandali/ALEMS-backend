@@ -174,3 +174,69 @@ jobs:
           echo "Release: ${{ github.ref_name }}"
           echo "Health Check: ${{ steps.health-check.outputs.health_status }}"
           echo "Job Status: ${{ job.status }}"
+
+  notify-slack-failure:
+    needs: build
+    if: failure() && needs.build.result == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Slack - Build Failed
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "🚨 ALEMS Build Pipeline Failed",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "❌ Build Failed - ${{ github.ref_name }}",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Repository*\n${{ github.repository }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch*\n${{ github.ref_name }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Commit*\n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Triggered by*\n${{ github.actor }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Possible Causes:*\n❌ Dotnet restore failed (dependency issue)\n❌ Build compilation error (code won't compile)\n❌ Unit tests failing\n❌ Integration tests failing\n❌ Coverage below threshold"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Workflow Run"
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
