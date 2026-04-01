@@ -31,9 +31,9 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
             [],
             1,
             "start",
-            BuildQuickSortMeta("start"));
+            BuildQuickSortMeta("start", recursionDepth: 0));
 
-        QuickSortRecursive(workingArray, 0, workingArray.Length - 1, steps, ref stepNumber);
+        QuickSortRecursive(workingArray, 0, workingArray.Length - 1, steps, ref stepNumber, depth: 0);
 
         AddStep(
             steps,
@@ -42,7 +42,7 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
             [],
             11,
             "complete",
-            BuildQuickSortMeta("complete"));
+            BuildQuickSortMeta("complete", recursionDepth: 0));
 
         return new SimulationResponse
         {
@@ -60,12 +60,13 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
         int low,
         int high,
         List<SimulationStep> steps,
-        ref int stepNumber)
+        ref int stepNumber,
+        int depth = 0)
     {
         if (low < high)
         {
-            // Mark the current partition range
             var activeIndices = BuildIndicesList(low, high);
+
             AddStep(
                 steps,
                 ref stepNumber,
@@ -73,12 +74,10 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
                 activeIndices,
                 2,
                 "partition_start",
-                BuildQuickSortMeta("partitionStart", range: [low, high]));
+                BuildQuickSortMeta("partitionStart", range: [low, high], recursionDepth: depth));
 
-            // Partition and get pivot index
-            var pivotIndex = Partition(array, low, high, steps, ref stepNumber);
+            var pivotIndex = Partition(array, low, high, steps, ref stepNumber, depth);
 
-            // Mark the pivot
             AddStep(
                 steps,
                 ref stepNumber,
@@ -86,9 +85,9 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
                 [pivotIndex],
                 3,
                 "pivot_positioned",
-                BuildQuickSortMeta("pivotPositioned", pivotIndex: pivotIndex, range: [low, high]));
+                BuildQuickSortMeta("pivotPositioned", pivotIndex: pivotIndex, range: [low, high], recursionDepth: depth));
 
-            // Recursively sort left partition
+            // Left recursion
             if (low < pivotIndex - 1)
             {
                 AddStep(
@@ -98,8 +97,10 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
                     BuildIndicesList(low, pivotIndex - 1),
                     9,
                     "sort_left_start",
-                    BuildQuickSortMeta("sortLeftStart", range: [low, pivotIndex - 1]));
-                QuickSortRecursive(array, low, pivotIndex - 1, steps, ref stepNumber);
+                    BuildQuickSortMeta("sortLeftStart", range: [low, pivotIndex - 1], recursionDepth: depth));
+
+                QuickSortRecursive(array, low, pivotIndex - 1, steps, ref stepNumber, depth + 1);
+
                 AddStep(
                     steps,
                     ref stepNumber,
@@ -107,10 +108,10 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
                     BuildIndicesList(low, pivotIndex - 1),
                     10,
                     "sort_left_complete",
-                    BuildQuickSortMeta("sortLeftComplete", range: [low, pivotIndex - 1]));
+                    BuildQuickSortMeta("sortLeftComplete", range: [low, pivotIndex - 1], recursionDepth: depth));
             }
 
-            // Recursively sort right partition
+            // Right recursion
             if (pivotIndex + 1 < high)
             {
                 AddStep(
@@ -120,8 +121,10 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
                     BuildIndicesList(pivotIndex + 1, high),
                     9,
                     "sort_right_start",
-                    BuildQuickSortMeta("sortRightStart", range: [pivotIndex + 1, high]));
-                QuickSortRecursive(array, pivotIndex + 1, high, steps, ref stepNumber);
+                    BuildQuickSortMeta("sortRightStart", range: [pivotIndex + 1, high], recursionDepth: depth));
+
+                QuickSortRecursive(array, pivotIndex + 1, high, steps, ref stepNumber, depth + 1);
+
                 AddStep(
                     steps,
                     ref stepNumber,
@@ -129,23 +132,24 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
                     BuildIndicesList(pivotIndex + 1, high),
                     10,
                     "sort_right_complete",
-                    BuildQuickSortMeta("sortRightComplete", range: [pivotIndex + 1, high]));
+                    BuildQuickSortMeta("sortRightComplete", range: [pivotIndex + 1, high], recursionDepth: depth));
             }
         }
     }
 
     /// <summary>
-    /// Partitions the array around a pivot element using the Hoare partition scheme.
+    /// Partitions the array around a pivot element using Lomuto partition scheme.
     /// </summary>
     private static int Partition(
         int[] array,
         int low,
         int high,
         List<SimulationStep> steps,
-        ref int stepNumber)
+        ref int stepNumber,
+        int depth = 0)
     {
-        // Select the rightmost element as pivot
         var pivot = array[high];
+
         AddStep(
             steps,
             ref stepNumber,
@@ -153,7 +157,7 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
             [high],
             4,
             "pivot_select",
-            BuildQuickSortMeta("pivotSelect", pivot: pivot, range: [low, high]));
+            BuildQuickSortMeta("pivotSelect", pivot: pivot, pivotIndex: high, range: [low, high], recursionDepth: depth));
 
         var i = low - 1;
 
@@ -166,7 +170,7 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
                 [j, high],
                 5,
                 "compare",
-                BuildQuickSortMeta("compare", pivot: pivot, range: [low, high]));
+                BuildQuickSortMeta("compare", pivot: pivot, pivotIndex: high, range: [low, high], recursionDepth: depth));
 
             if (array[j] < pivot)
             {
@@ -174,6 +178,7 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
                 if (i != j)
                 {
                     (array[i], array[j]) = (array[j], array[i]);
+
                     AddStep(
                         steps,
                         ref stepNumber,
@@ -181,15 +186,15 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
                         [i, j],
                         6,
                         "swap",
-                        BuildQuickSortMeta("swap", pivot: pivot, range: [low, high]));
+                        BuildQuickSortMeta("swap", pivot: pivot, range: [low, high], recursionDepth: depth));
                 }
             }
         }
 
-        // Place pivot in its correct position.
         if (i + 1 != high)
         {
             (array[i + 1], array[high]) = (array[high], array[i + 1]);
+
             AddStep(
                 steps,
                 ref stepNumber,
@@ -197,7 +202,7 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
                 [i + 1, high],
                 7,
                 "pivot_swap",
-                BuildQuickSortMeta("pivotSwap", pivot: pivot, range: [low, high]));
+                BuildQuickSortMeta("pivotSwap", pivot: pivot, range: [low, high], recursionDepth: depth));
         }
 
         AddStep(
@@ -207,7 +212,7 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
             [i + 1],
             8,
             "pivotPlaced",
-            BuildQuickSortMeta("pivotPlaced", pivot: pivot, pivotIndex: i + 1, range: [low, high]));
+            BuildQuickSortMeta("pivotPlaced", pivot: pivot, pivotIndex: i + 1, range: [low, high], recursionDepth: depth));
 
         return i + 1;
     }
@@ -249,14 +254,16 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
         string type,
         int? pivot = null,
         int? pivotIndex = null,
-        int[]? range = null)
+        int[]? range = null,
+        int? recursionDepth = null)
     {
         return new QuickSortStepModel
         {
             Type = type,
             Pivot = pivot,
             PivotIndex = pivotIndex,
-            Range = range ?? []
+            Range = range ?? [],
+            RecursionDepth = recursionDepth
         };
     }
 }

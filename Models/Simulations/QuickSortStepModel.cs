@@ -12,4 +12,6 @@ public class QuickSortStepModel
     public int? PivotIndex { get; set; }
 
     public int[] Range { get; set; } = [];
+
+    public int? RecursionDepth { get; set; }
 }
