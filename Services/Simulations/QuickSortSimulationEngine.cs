@@ -2,9 +2,6 @@ using backend.Models.Simulations;
 
 namespace backend.Services.Simulations;
 
-/// <summary>
-/// Generates step-by-step simulation output for Quick Sort using recursive approach.
-/// </summary>
 public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
 {
     public bool CanHandle(string algorithm)
@@ -26,14 +23,19 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
         var stack = new List<RecursionFrameModel>();
         var workingArray = array.ToArray();
 
-        AddStep(steps, ref stepNumber, workingArray, [], 1, "start", "start", stack);
+        AddStep(steps, ref stepNumber, workingArray, [], 1, "start",
+            BuildQuickSortMeta("start", recursionDepth: 0),
+            "start", stack);
 
         if (workingArray.Length > 0)
         {
-            QuickSortRecursive(workingArray, 0, workingArray.Length - 1, steps, ref stepNumber, stack, ref frameId, 0);
+            QuickSortRecursive(workingArray, 0, workingArray.Length - 1,
+                steps, ref stepNumber, stack, ref frameId, 0);
         }
 
-        AddStep(steps, ref stepNumber, workingArray, [], 11, "complete", "complete", stack);
+        AddStep(steps, ref stepNumber, workingArray, [], 11, "complete",
+            BuildQuickSortMeta("complete", recursionDepth: 0),
+            "complete", stack);
 
         return new SimulationResponse
         {
@@ -43,9 +45,6 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
         };
     }
 
-    /// <summary>
-    /// Recursively sorts the array using Quick Sort algorithm.
-    /// </summary>
     private static void QuickSortRecursive(
         int[] array,
         int low,
@@ -69,64 +68,92 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
         frameId++;
 
         stack.Add(frame);
-        AddStep(steps, ref stepNumber, array, [low, high], 2, "recursive_call", "call", stack);
+
+        AddStep(steps, ref stepNumber, array, [low, high], 2, "recursive_call",
+            BuildQuickSortMeta("call", range: [low, high], recursionDepth: depth),
+            "call", stack);
 
         if (low >= high)
         {
             frame.State = "return";
             frame.ReturnValue = "base_case";
-            AddStep(steps, ref stepNumber, array, [low], 3, "base_case", "return", stack);
+
+            AddStep(steps, ref stepNumber, array, [low], 3, "base_case",
+                BuildQuickSortMeta("baseCase", recursionDepth: depth),
+                "return", stack);
+
             stack.RemoveAt(stack.Count - 1);
             return;
         }
 
-        frame.State = "partition";
-        AddStep(steps, ref stepNumber, array, BuildIndicesList(low, high), 4, "partition_start", "partition", stack);
+        AddStep(steps, ref stepNumber, array, BuildIndicesList(low, high), 4, "partition_start",
+            BuildQuickSortMeta("partitionStart", range: [low, high], recursionDepth: depth),
+            "partition", stack);
 
-        var pivotIndex = Partition(array, low, high, steps, ref stepNumber, stack);
+        var pivotIndex = Partition(array, low, high, steps, ref stepNumber, stack, depth);
 
-        frame.State = "pivot_placed";
-        AddStep(steps, ref stepNumber, array, [pivotIndex], 5, "pivot_positioned", "pivotPlaced", stack);
+        AddStep(steps, ref stepNumber, array, [pivotIndex], 5, "pivot_positioned",
+            BuildQuickSortMeta("pivotPositioned", pivotIndex: pivotIndex, range: [low, high], recursionDepth: depth),
+            "pivotPlaced", stack);
 
         if (low < pivotIndex - 1)
         {
-            AddStep(steps, ref stepNumber, array, BuildIndicesList(low, pivotIndex - 1), 6, "sort_left_start", "call", stack);
+            AddStep(steps, ref stepNumber, array, BuildIndicesList(low, pivotIndex - 1), 6, "sort_left_start",
+                BuildQuickSortMeta("sortLeftStart", range: [low, pivotIndex - 1], recursionDepth: depth),
+                "call", stack);
+
             QuickSortRecursive(array, low, pivotIndex - 1, steps, ref stepNumber, stack, ref frameId, depth + 1);
-            AddStep(steps, ref stepNumber, array, BuildIndicesList(low, pivotIndex - 1), 7, "sort_left_complete", "return", stack);
+
+            AddStep(steps, ref stepNumber, array, BuildIndicesList(low, pivotIndex - 1), 7, "sort_left_complete",
+                BuildQuickSortMeta("sortLeftComplete", range: [low, pivotIndex - 1], recursionDepth: depth),
+                "return", stack);
         }
 
         if (pivotIndex + 1 < high)
         {
-            AddStep(steps, ref stepNumber, array, BuildIndicesList(pivotIndex + 1, high), 8, "sort_right_start", "call", stack);
+            AddStep(steps, ref stepNumber, array, BuildIndicesList(pivotIndex + 1, high), 8, "sort_right_start",
+                BuildQuickSortMeta("sortRightStart", range: [pivotIndex + 1, high], recursionDepth: depth),
+                "call", stack);
+
             QuickSortRecursive(array, pivotIndex + 1, high, steps, ref stepNumber, stack, ref frameId, depth + 1);
-            AddStep(steps, ref stepNumber, array, BuildIndicesList(pivotIndex + 1, high), 9, "sort_right_complete", "return", stack);
+
+            AddStep(steps, ref stepNumber, array, BuildIndicesList(pivotIndex + 1, high), 9, "sort_right_complete",
+                BuildQuickSortMeta("sortRightComplete", range: [pivotIndex + 1, high], recursionDepth: depth),
+                "return", stack);
         }
 
         frame.State = "return";
         frame.ReturnValue = $"pivot={pivotIndex}";
-        AddStep(steps, ref stepNumber, array, [low, high], 10, "return", "return", stack);
+
+        AddStep(steps, ref stepNumber, array, [low, high], 10, "return",
+            BuildQuickSortMeta("return", range: [low, high], recursionDepth: depth),
+            "return", stack);
+
         stack.RemoveAt(stack.Count - 1);
     }
 
-    /// <summary>
-    /// Partitions the array around a pivot element using the Lomuto partition scheme.
-    /// </summary>
     private static int Partition(
         int[] array,
         int low,
         int high,
         List<SimulationStep> steps,
         ref int stepNumber,
-        List<RecursionFrameModel> stack)
+        List<RecursionFrameModel> stack,
+        int depth)
     {
         var pivot = array[high];
-        AddStep(steps, ref stepNumber, array, [high], 11, "pivot_select", "pivotSelect", stack);
+
+        AddStep(steps, ref stepNumber, array, [high], 11, "pivot_select",
+            BuildQuickSortMeta("pivotSelect", pivot: pivot, pivotIndex: high, range: [low, high], recursionDepth: depth),
+            "pivotSelect", stack);
 
         var i = low - 1;
 
         for (var j = low; j < high; j++)
         {
-            AddStep(steps, ref stepNumber, array, [j, high], 12, "compare", "compare", stack);
+            AddStep(steps, ref stepNumber, array, [j, high], 12, "compare",
+                BuildQuickSortMeta("compare", pivot: pivot, pivotIndex: high, range: [low, high], recursionDepth: depth),
+                "compare", stack);
 
             if (array[j] < pivot)
             {
@@ -134,7 +161,10 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
                 if (i != j)
                 {
                     (array[i], array[j]) = (array[j], array[i]);
-                    AddStep(steps, ref stepNumber, array, [i, j], 13, "swap", "swap", stack);
+
+                    AddStep(steps, ref stepNumber, array, [i, j], 13, "swap",
+                        BuildQuickSortMeta("swap", pivot: pivot, range: [low, high], recursionDepth: depth),
+                        "swap", stack);
                 }
             }
         }
@@ -142,16 +172,19 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
         if (i + 1 != high)
         {
             (array[i + 1], array[high]) = (array[high], array[i + 1]);
-            AddStep(steps, ref stepNumber, array, [i + 1, high], 14, "pivot_swap", "swap", stack);
+
+            AddStep(steps, ref stepNumber, array, [i + 1, high], 14, "pivot_swap",
+                BuildQuickSortMeta("pivotSwap", pivot: pivot, range: [low, high], recursionDepth: depth),
+                "swap", stack);
         }
 
-        AddStep(steps, ref stepNumber, array, [i + 1], 15, "partition_complete", "return", stack);
+        AddStep(steps, ref stepNumber, array, [i + 1], 15, "pivotPlaced",
+            BuildQuickSortMeta("pivotPlaced", pivot: pivot, pivotIndex: i + 1, range: [low, high], recursionDepth: depth),
+            "return", stack);
+
         return i + 1;
     }
 
-    /// <summary>
-    /// Helper method to build array of indices from low to high.
-    /// </summary>
     private static int[] BuildIndicesList(int low, int high)
     {
         var indices = new List<int>();
@@ -159,7 +192,6 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
         {
             indices.Add(i);
         }
-
         return indices.ToArray();
     }
 
@@ -173,25 +205,7 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
             State = recursionEvent,
             Depth = currentFrame?.Depth ?? 0,
             CurrentFrameId = currentFrame?.Id,
-            Stack =
-            [
-                .. stack.Select(frame => new RecursionFrameModel
-                {
-                    Id = frame.Id,
-                    FunctionName = frame.FunctionName,
-                    Depth = frame.Depth,
-                    State = frame.State,
-                    LeftIndex = frame.LeftIndex,
-                    RightIndex = frame.RightIndex,
-                    MidpointIndex = frame.MidpointIndex,
-                    Arguments = new RecursionFrameArguments
-                    {
-                        Left = frame.Arguments.Left,
-                        Right = frame.Arguments.Right
-                    },
-                    ReturnValue = frame.ReturnValue
-                })
-            ]
+            Stack = [.. stack]
         };
     }
 
@@ -202,6 +216,7 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
         int[] activeIndices,
         int lineNumber,
         string actionLabel,
+        QuickSortStepModel? quickSort,
         string? recursionEvent,
         List<RecursionFrameModel> stack)
     {
@@ -212,7 +227,25 @@ public class QuickSortSimulationEngine : IAlgorithmSimulationEngine
             ActiveIndices = activeIndices,
             LineNumber = lineNumber,
             ActionLabel = actionLabel,
+            QuickSort = quickSort,
             Recursion = BuildRecursionModel(stack, recursionEvent)
         });
+    }
+
+    private static QuickSortStepModel BuildQuickSortMeta(
+        string type,
+        int? pivot = null,
+        int? pivotIndex = null,
+        int[]? range = null,
+        int? recursionDepth = null)
+    {
+        return new QuickSortStepModel
+        {
+            Type = type,
+            Pivot = pivot,
+            PivotIndex = pivotIndex,
+            Range = range ?? [],
+            RecursionDepth = recursionDepth
+        };
     }
 }
