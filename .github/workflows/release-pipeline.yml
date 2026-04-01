@@ -145,3 +145,23 @@ jobs:
             repo
             message
             commit
+            author
+
+  notify-build-failure:
+    if: failure()
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Team - Build Jobs Failed
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          title: '✗ Build Pipeline Failed'
+          text: 'Release ${{ github.ref_name }} failed during build or tests'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          mention: 'channel'
+          fields: |
+            repo
+            message
+            commit
+            author
