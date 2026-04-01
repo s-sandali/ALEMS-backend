@@ -8,15 +8,12 @@ namespace backend.Models.Simulations;
 public class RecursionStepModel
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Event { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? State { get; set; }
 
     public int Depth { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? CurrentFrameId { get; set; }
+    public int? CurrentFrameId { get; set; }
 
     public List<RecursionFrameModel> Stack { get; set; } = [];
 }
@@ -26,7 +23,7 @@ public class RecursionStepModel
 /// </summary>
 public class RecursionFrameModel
 {
-    public string Id { get; set; } = string.Empty;
+    public int Id { get; set; }
 
     public string FunctionName { get; set; } = string.Empty;
 
@@ -39,20 +36,5 @@ public class RecursionFrameModel
     public int RightIndex { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public int? MidpointIndex { get; set; }
-
-    public RecursionFrameArguments Arguments { get; set; } = new();
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ReturnValue { get; set; }
-}
-
-/// <summary>
-/// Function arguments captured for a recursion frame.
-/// </summary>
-public class RecursionFrameArguments
-{
-    public int Left { get; set; }
-
-    public int Right { get; set; }
 }
