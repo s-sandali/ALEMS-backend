@@ -107,4 +107,81 @@ public class QuizAttemptRepository : IQuizAttemptRepository
             throw;
         }
     }
+
+    /// <inheritdoc />
+    public async Task<QuizAttempt> SubmitAttemptTransactionalAsync(
+        QuizAttempt attempt,
+        IEnumerable<AttemptAnswer> answers,
+        int xpToAward)
+    {
+        var answerList = answers.ToList();
+
+        const string insertAttemptSql = @"
+            INSERT INTO quiz_attempts
+                (user_id, quiz_id, score, total_questions, xp_earned, passed, started_at, completed_at)
+            VALUES
+                (@UserId, @QuizId, @Score, @TotalQuestions, @XpEarned, @Passed, @StartedAt, @CompletedAt);
+            SELECT LAST_INSERT_ID();";
+
+        const string insertAnswerSql = @"
+            INSERT INTO attempt_answers
+                (attempt_id, question_id, selected_option, is_correct)
+            VALUES
+                (@AttemptId, @QuestionId, @SelectedOption, @IsCorrect);
+            SELECT LAST_INSERT_ID();";
+
+        const string awardXpSql = @"
+            UPDATE Users
+            SET XpTotal = XpTotal + @XpToAward
+            WHERE Id = @UserId;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
+
+        try
+        {
+            // 1. Insert attempt
+            await using var attemptCmd = new MySqlCommand(insertAttemptSql, connection, (MySqlTransaction)transaction);
+            attemptCmd.Parameters.AddWithValue("@UserId",         attempt.UserId);
+            attemptCmd.Parameters.AddWithValue("@QuizId",         attempt.QuizId);
+            attemptCmd.Parameters.AddWithValue("@Score",          attempt.Score);
+            attemptCmd.Parameters.AddWithValue("@TotalQuestions", attempt.TotalQuestions);
+            attemptCmd.Parameters.AddWithValue("@XpEarned",       attempt.XpEarned);
+            attemptCmd.Parameters.AddWithValue("@Passed",         attempt.Passed);
+            attemptCmd.Parameters.AddWithValue("@StartedAt",      attempt.StartedAt);
+            attemptCmd.Parameters.AddWithValue("@CompletedAt",    (object?)attempt.CompletedAt ?? DBNull.Value);
+
+            attempt.AttemptId = Convert.ToInt32(await attemptCmd.ExecuteScalarAsync());
+
+            // 2. Insert answers
+            foreach (var answer in answerList)
+            {
+                answer.AttemptId = attempt.AttemptId;
+                await using var answerCmd = new MySqlCommand(insertAnswerSql, connection, (MySqlTransaction)transaction);
+                answerCmd.Parameters.AddWithValue("@AttemptId",      answer.AttemptId);
+                answerCmd.Parameters.AddWithValue("@QuestionId",     answer.QuestionId);
+                answerCmd.Parameters.AddWithValue("@SelectedOption", answer.SelectedOption);
+                answerCmd.Parameters.AddWithValue("@IsCorrect",      answer.IsCorrect);
+
+                answer.AnswerId = Convert.ToInt32(await answerCmd.ExecuteScalarAsync());
+            }
+
+            // 3. Award XP to the user (only when there is XP to award)
+            if (xpToAward > 0)
+            {
+                await using var xpCmd = new MySqlCommand(awardXpSql, connection, (MySqlTransaction)transaction);
+                xpCmd.Parameters.AddWithValue("@XpToAward", xpToAward);
+                xpCmd.Parameters.AddWithValue("@UserId",    attempt.UserId);
+                await xpCmd.ExecuteNonQueryAsync();
+            }
+
+            await transaction.CommitAsync();
+            return attempt;
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
 }
