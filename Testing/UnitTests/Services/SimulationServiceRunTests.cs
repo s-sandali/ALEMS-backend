@@ -10,7 +10,7 @@ public class SimulationServiceRunTests
 {
     private static SimulationService BuildSut() =>
         new(
-            [new BubbleSortSimulationEngine()],
+            [new BubbleSortSimulationEngine(), new InsertionSortSimulationEngine()],
             new InMemorySimulationSessionStore(),
             NullLogger<SimulationService>.Instance);
 
@@ -43,5 +43,17 @@ public class SimulationServiceRunTests
         await act.Should()
             .ThrowAsync<NotSupportedException>()
             .WithMessage("*unknown_algorithm*");
+    }
+
+    [Fact(DisplayName = "UT-IS-03 - SimulationService: RunAsync routes insertion-sort to registered engine")]
+    public async Task RunAsync_InsertionSort_ReturnsInsertionSortTrace()
+    {
+        var sut = BuildSut();
+
+        var result = await sut.RunAsync("insertion-sort", [5, 2, 4, 6, 1, 3], null);
+
+        result.AlgorithmName.Should().Be("Insertion Sort");
+        result.Steps.Should().NotBeEmpty();
+        result.Steps[result.Steps.Count - 1].ArrayState.Should().Equal(1, 2, 3, 4, 5, 6);
     }
 }
