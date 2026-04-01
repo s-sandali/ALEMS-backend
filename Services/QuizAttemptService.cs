@@ -75,6 +75,10 @@ public class QuizAttemptService : IQuizAttemptService
         var passed = questions.Count > 0 &&
                      (gradingResult.CorrectCount * 100.0 / questions.Count) >= quiz.PassScore;
 
+        // XP is only awarded on the very first attempt — retries earn no additional XP.
+        var isFirstAttempt = !await _attemptRepository.HasExistingAttemptAsync(user.UserId, quizId);
+        var xpToAward      = isFirstAttempt ? gradingResult.XpEarned : 0;
+
         var now = DateTime.UtcNow;
         var attempt = await _attemptRepository.SubmitAttemptTransactionalAsync(
             new QuizAttempt
@@ -83,7 +87,7 @@ public class QuizAttemptService : IQuizAttemptService
                 QuizId         = quizId,
                 Score          = gradingResult.CorrectCount,
                 TotalQuestions = gradingResult.TotalQuestions,
-                XpEarned       = gradingResult.XpEarned,
+                XpEarned       = xpToAward,
                 Passed         = passed,
                 StartedAt      = now,
                 CompletedAt    = now
@@ -94,11 +98,13 @@ public class QuizAttemptService : IQuizAttemptService
                 SelectedOption = a.SelectedOption,
                 IsCorrect      = a.IsCorrect
             }),
-            gradingResult.XpEarned);
+            xpToAward);
 
-        gradingResult.AttemptId = attempt.AttemptId;
-        gradingResult.QuizId    = quizId;
-        gradingResult.Passed    = passed;
+        gradingResult.AttemptId      = attempt.AttemptId;
+        gradingResult.QuizId         = quizId;
+        gradingResult.Passed         = passed;
+        gradingResult.XpEarned       = xpToAward;
+        gradingResult.IsFirstAttempt = isFirstAttempt;
 
         _logger.LogInformation(
             "SubmitAttempt: AttemptId={AttemptId} QuizId={QuizId} UserId={UserId} Score={Score}% XP={Xp}",
