@@ -88,7 +88,7 @@ public class QuizAttemptService : IQuizAttemptService
         var gradingResult = await GradeAttemptAsync(questions, submittedAnswers);
 
         var now = DateTime.UtcNow;
-        var attempt = await _attemptRepository.CreateAttemptAsync(new QuizAttempt
+        var attempt = await _attemptRepository.CreateAttemptWithAnswersAndAwardXpAsync(new QuizAttempt
         {
             UserId = user.UserId,
             QuizId = quizId,
@@ -99,18 +99,15 @@ public class QuizAttemptService : IQuizAttemptService
                      (gradingResult.Score * 100.0 / questions.Count) >= quiz.PassScore,
             StartedAt = now,
             CompletedAt = now
-        });
-
-        var answers = gradingResult.Answers
+        },
+        gradingResult.Answers
             .Select(answer => new AttemptAnswer
             {
-                AttemptId = attempt.AttemptId,
                 QuestionId = answer.QuestionId,
                 SelectedOption = answer.SelectedOption,
                 IsCorrect = answer.IsCorrect
-            });
-
-        await _attemptRepository.CreateAnswersAsync(answers);
+            }),
+            gradingResult.XpEarned);
 
         _logger.LogInformation(
             "SubmitAttempt: AttemptId={AttemptId} recorded for QuizId={QuizId}, UserId={UserId}",
