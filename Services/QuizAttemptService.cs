@@ -101,16 +101,13 @@ public class QuizAttemptService : IQuizAttemptService
             CompletedAt = now
         });
 
-        var detailedResultsByQuestionId = gradingResult.DetailedResults
-            .ToDictionary(result => result.QuestionId, result => result.IsCorrect);
-
-        var answers = submittedAnswers
+        var answers = gradingResult.Answers
             .Select(answer => new AttemptAnswer
             {
                 AttemptId = attempt.AttemptId,
                 QuestionId = answer.QuestionId,
                 SelectedOption = answer.SelectedOption,
-                IsCorrect = detailedResultsByQuestionId[answer.QuestionId]
+                IsCorrect = answer.IsCorrect
             });
 
         await _attemptRepository.CreateAnswersAsync(answers);
@@ -136,7 +133,7 @@ public class QuizAttemptService : IQuizAttemptService
             answer => answer.SelectedOption,
             comparer: EqualityComparer<int>.Default);
 
-        var gradedQuestions = questions
+        var gradedAnswers = questions
             .Select(question =>
             {
                 var selectedOption = answersByQuestionId[question.QuestionId];
@@ -148,22 +145,26 @@ public class QuizAttemptService : IQuizAttemptService
                 return new
                 {
                     QuestionId = question.QuestionId,
+                    SelectedOption = selectedOption,
+                    CorrectOption = question.CorrectOption,
                     IsCorrect = isCorrect,
                     question.XpReward
                 };
             })
             .ToList();
 
-        var detailedResults = gradedQuestions
-            .Select(result => new QuizAttemptDetailedResultDto
+        var answerResults = gradedAnswers
+            .Select(result => new QuizAttemptAnswerResultDto
             {
                 QuestionId = result.QuestionId,
+                SelectedOption = result.SelectedOption,
+                CorrectOption = result.CorrectOption,
                 IsCorrect = result.IsCorrect
             })
             .ToList();
 
-        var score = gradedQuestions.Count(result => result.IsCorrect);
-        var xpEarned = gradedQuestions
+        var score = gradedAnswers.Count(result => result.IsCorrect);
+        var xpEarned = gradedAnswers
             .Where(result => result.IsCorrect)
             .Sum(result => result.XpReward);
 
@@ -172,7 +173,7 @@ public class QuizAttemptService : IQuizAttemptService
             Score = score,
             TotalQuestions = questions.Count,
             XpEarned = xpEarned,
-            DetailedResults = detailedResults
+            Answers = answerResults
         });
     }
 }
