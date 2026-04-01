@@ -85,7 +85,7 @@ public class QuizAttemptService : IQuizAttemptService
                 $"One or more submitted questions do not belong to quiz {quizId}.");
         }
 
-        var gradingResult = await GradeAttemptAsync(quiz, questions, submittedAnswers);
+        var gradingResult = await GradeAttemptAsync(questions, submittedAnswers);
 
         var now = DateTime.UtcNow;
         var attempt = await _attemptRepository.CreateAttemptAsync(new QuizAttempt
@@ -95,10 +95,14 @@ public class QuizAttemptService : IQuizAttemptService
             Score = gradingResult.Score,
             TotalQuestions = gradingResult.TotalQuestions,
             XpEarned = gradingResult.XpEarned,
-            Passed = gradingResult.Score >= quiz.PassScore,
+            Passed = questions.Count > 0 &&
+                     (gradingResult.Score * 100.0 / questions.Count) >= quiz.PassScore,
             StartedAt = now,
             CompletedAt = now
         });
+
+        var detailedResultsByQuestionId = gradingResult.DetailedResults
+            .ToDictionary(result => result.QuestionId, result => result.IsCorrect);
 
         var answers = submittedAnswers
             .Select(answer => new AttemptAnswer
@@ -106,8 +110,7 @@ public class QuizAttemptService : IQuizAttemptService
                 AttemptId = attempt.AttemptId,
                 QuestionId = answer.QuestionId,
                 SelectedOption = answer.SelectedOption,
-                // Grading hook is intentionally not implemented yet.
-                IsCorrect = false
+                IsCorrect = detailedResultsByQuestionId[answer.QuestionId]
             });
 
         await _attemptRepository.CreateAnswersAsync(answers);
@@ -122,19 +125,54 @@ public class QuizAttemptService : IQuizAttemptService
     }
 
     /// <summary>
-    /// Placeholder grading hook for the upcoming grading implementation.
+    /// Computes correctness, raw score, and total XP for a submitted attempt.
     /// </summary>
     private static Task<QuizAttemptResultDto> GradeAttemptAsync(
-        Quiz quiz,
         IReadOnlyCollection<QuizQuestion> questions,
         IReadOnlyCollection<QuizAttemptAnswerSubmissionDto> submittedAnswers)
     {
-        // TODO: Implement actual grading logic and XP calculation.
+        var answersByQuestionId = submittedAnswers.ToDictionary(
+            answer => answer.QuestionId,
+            answer => answer.SelectedOption,
+            comparer: EqualityComparer<int>.Default);
+
+        var gradedQuestions = questions
+            .Select(question =>
+            {
+                var selectedOption = answersByQuestionId[question.QuestionId];
+                var isCorrect = string.Equals(
+                    selectedOption,
+                    question.CorrectOption,
+                    StringComparison.OrdinalIgnoreCase);
+
+                return new
+                {
+                    QuestionId = question.QuestionId,
+                    IsCorrect = isCorrect,
+                    question.XpReward
+                };
+            })
+            .ToList();
+
+        var detailedResults = gradedQuestions
+            .Select(result => new QuizAttemptDetailedResultDto
+            {
+                QuestionId = result.QuestionId,
+                IsCorrect = result.IsCorrect
+            })
+            .ToList();
+
+        var score = gradedQuestions.Count(result => result.IsCorrect);
+        var xpEarned = gradedQuestions
+            .Where(result => result.IsCorrect)
+            .Sum(result => result.XpReward);
+
         return Task.FromResult(new QuizAttemptResultDto
         {
-            Score = 0,
+            Score = score,
             TotalQuestions = questions.Count,
-            XpEarned = 0
+            XpEarned = xpEarned,
+            DetailedResults = detailedResults
         });
     }
 }
