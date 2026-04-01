@@ -90,8 +90,8 @@ public class MergeSortSimulationEngine : IAlgorithmSimulationEngine
         };
         ctx.Stack.Add(frame);
 
-        AddStep(ctx, array, [left, right], Line.RecursiveCall, "recursive_call",
-            Meta("call", depth, left, right));
+        /* AddStep(ctx, array, [left, right], Line.RecursiveCall, "recursive_call",
+            Meta("call", depth, left, right)); */
 
         // Base case — sub-array of size 1
         if (left >= right)
@@ -99,8 +99,8 @@ public class MergeSortSimulationEngine : IAlgorithmSimulationEngine
             frame.State = "return";
             frame.ReturnValue = "base_case";
 
-            AddStep(ctx, array, [left], Line.BaseCase, "base_case",
-                Meta("base_case", depth, left, right));
+            /* AddStep(ctx, array, [left], Line.BaseCase, "base_case",
+                Meta("base_case", depth, left, right)); */
 
             ctx.Stack.RemoveAt(ctx.Stack.Count - 1);
             return;
@@ -113,22 +113,22 @@ public class MergeSortSimulationEngine : IAlgorithmSimulationEngine
             Meta("split", depth, left, right, mid: mid));
 
         // Recurse left
-        AddStep(ctx, array, Enumerable.Range(left, mid - left + 1).ToArray(), Line.SortLeft, "sort_left_start",
-            Meta("sort_left_start", depth, left, mid));
+        /* AddStep(ctx, array, Enumerable.Range(left, mid - left + 1).ToArray(), Line.SortLeft, "sort_left_start",
+            Meta("sort_left_start", depth, left, mid)); */
 
         MergeSortRecursive(array, left, mid, ctx, depth + 1);
 
-        AddStep(ctx, array, Enumerable.Range(left, mid - left + 1).ToArray(), Line.SortLeft, "sort_left_complete",
-            Meta("sort_left_complete", depth, left, mid));
+        /* AddStep(ctx, array, Enumerable.Range(left, mid - left + 1).ToArray(), Line.SortLeft, "sort_left_complete",
+            Meta("sort_left_complete", depth, left, mid)); */
 
         // Recurse right
-        AddStep(ctx, array, Enumerable.Range(mid + 1, right - mid).ToArray(), Line.SortRight, "sort_right_start",
-            Meta("sort_right_start", depth, mid + 1, right));
+        /* AddStep(ctx, array, Enumerable.Range(mid + 1, right - mid).ToArray(), Line.SortRight, "sort_right_start",
+            Meta("sort_right_start", depth, mid + 1, right)); */
 
         MergeSortRecursive(array, mid + 1, right, ctx, depth + 1);
 
-        AddStep(ctx, array, Enumerable.Range(mid + 1, right - mid).ToArray(), Line.SortRight, "sort_right_complete",
-            Meta("sort_right_complete", depth, mid + 1, right));
+        /* AddStep(ctx, array, Enumerable.Range(mid + 1, right - mid).ToArray(), Line.SortRight, "sort_right_complete",
+            Meta("sort_right_complete", depth, mid + 1, right)); */
 
         // Merge the two sorted halves
         Merge(array, left, mid, right, ctx, depth);
@@ -136,8 +136,8 @@ public class MergeSortSimulationEngine : IAlgorithmSimulationEngine
         frame.State = "return";
         frame.ReturnValue = $"sorted[{left}..{right}]";
 
-        AddStep(ctx, array, Enumerable.Range(left, right - left + 1).ToArray(), Line.Return, "return",
-            Meta("return", depth, left, right));
+        /* AddStep(ctx, array, Enumerable.Range(left, right - left + 1).ToArray(), Line.Return, "return",
+            Meta("return", depth, left, right)); */
 
         ctx.Stack.RemoveAt(ctx.Stack.Count - 1);
     }
@@ -151,8 +151,8 @@ public class MergeSortSimulationEngine : IAlgorithmSimulationEngine
         var rightPart = array[(mid + 1)..(right + 1)];
         var buffer    = leftPart.Concat(rightPart).ToArray();
 
-        AddStep(ctx, array, Enumerable.Range(left, right - left + 1).ToArray(), Line.MergeStart, "merge_start",
-            Meta("merge_start", depth, left, right, mid: mid, mergeBuffer: buffer));
+        /* AddStep(ctx, array, Enumerable.Range(left, right - left + 1).ToArray(), Line.MergeStart, "merge_start",
+            Meta("merge_start", depth, left, right, mid: mid, mergeBuffer: buffer)); */
 
         var i = 0;               // pointer into left half
         var j = 0;               // pointer into right half
@@ -210,8 +210,8 @@ public class MergeSortSimulationEngine : IAlgorithmSimulationEngine
             k++;
         }
 
-        AddStep(ctx, array, Enumerable.Range(left, right - left + 1).ToArray(), Line.MergeComplete, "merge_complete",
-            Meta("merge_complete", depth, left, right, mid: mid));
+        /* AddStep(ctx, array, Enumerable.Range(left, right - left + 1).ToArray(), Line.MergeComplete, "merge_complete",
+            Meta("merge_complete", depth, left, right, mid: mid)); */
     }
 
     // ── Helper builders ──────────────────────────────────────────────────────
