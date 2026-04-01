@@ -22,13 +22,28 @@ public class UserService : IUserService
     public async Task<(UserResponseDto Dto, bool IsNewUser)> SyncUserAsync(
         string clerkUserId, string email, string username)
     {
-        // Check if the user already exists
+        // Check if the user already exists by Clerk ID
         var existingUser = await _userRepository.GetByClerkUserIdAsync(clerkUserId);
 
         if (existingUser is not null)
         {
             _logger.LogInformation("User sync: existing user found — ClerkId={ClerkId}", clerkUserId);
             return (MapToDto(existingUser), false);
+        }
+
+        // Fallback: look up by email (handles Clerk ID changes or re-created accounts)
+        if (!string.IsNullOrEmpty(email))
+        {
+            var userByEmail = await _userRepository.GetByEmailAsync(email);
+            if (userByEmail is not null)
+            {
+                await _userRepository.LinkClerkUserIdAsync(userByEmail.UserId, clerkUserId);
+                userByEmail.ClerkUserId = clerkUserId;
+                _logger.LogInformation(
+                    "User sync: linked new ClerkId={ClerkId} to existing UserId={UserId} via email",
+                    clerkUserId, userByEmail.UserId);
+                return (MapToDto(userByEmail), false);
+            }
         }
 
         // Create a new user with defaults

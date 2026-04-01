@@ -42,4 +42,10 @@ public interface IUserRepository
     /// Returns true if successful, false if the user was not found.
     /// </summary>
     Task<bool> DeleteAsync(int id);
+
+    /// <summary>
+    /// Links a Clerk user ID to an existing user record (used after email-based fallback lookup).
+    /// Returns true if the row was updated, false if the user was not found.
+    /// </summary>
+    Task<bool> LinkClerkUserIdAsync(int userId, string clerkUserId);
 }

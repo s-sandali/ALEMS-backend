@@ -5,7 +5,7 @@
 **Algorithm Learning & Evaluation Management System**
 ASP.NET Web API (.NET 8) + MySQL + Clerk Authentication
 
----
+----
 
 ## 📌 Overview
 
@@ -82,12 +82,14 @@ The backend includes:
 * Unit Tests (xUnit)
 * Integration Tests
 * Selenium E2E Tests (via CI)
+* Secret Scanning on PRs (Gitleaks)
 * Code Coverage (Coverlet ≥ 70%)
 * Health Endpoint Monitoring
 
 CI pipeline blocks merges if:
 
 * Tests fail
+* Hardcoded credentials, API keys, or connection strings are detected
 * Coverage < 70% 
 
 ---
