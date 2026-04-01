@@ -23,6 +23,12 @@ public interface IQuizAttemptRepository
     Task<IEnumerable<AttemptAnswer>> CreateAnswersAsync(IEnumerable<AttemptAnswer> answers);
 
     /// <summary>
+    /// Returns true if the user has already submitted at least one attempt for this quiz.
+    /// Used to gate XP awards so only the first attempt earns XP.
+    /// </summary>
+    Task<bool> HasExistingAttemptAsync(int userId, int quizId);
+
+    /// <summary>
     /// Atomically inserts the attempt, all answers, and increments the user's XP total
     /// in a single database transaction. Returns the persisted attempt with its generated ID.
     /// </summary>
