@@ -15,7 +15,9 @@ public class SimulationService : ISimulationService
         "binary_search",
         "binary-search",
         "quick_sort",
-        "quick-sort"
+        "quick-sort",
+        "heap_sort",
+        "heap-sort"
     ];
 
     private static readonly HashSet<string> InteractiveActionLabels =
