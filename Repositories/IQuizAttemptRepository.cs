@@ -21,4 +21,12 @@ public interface IQuizAttemptRepository
     /// Inserts multiple answer rows for an existing quiz attempt.
     /// </summary>
     Task<IEnumerable<AttemptAnswer>> CreateAnswersAsync(IEnumerable<AttemptAnswer> answers);
+
+    /// <summary>
+    /// Persists the attempt, answers, and awarded XP in a single transaction.
+    /// </summary>
+    Task<QuizAttempt> CreateAttemptWithAnswersAndAwardXpAsync(
+        QuizAttempt attempt,
+        IEnumerable<AttemptAnswer> answers,
+        int xpEarned);
 }
