@@ -20,7 +20,6 @@ public class SimulationService : ISimulationService
 
     private static readonly HashSet<string> InteractiveActionLabels =
     [
-        "compare",
         "swap",
         "pivot_swap",
         "midpoint_pick",
@@ -270,14 +269,25 @@ public class SimulationService : ISimulationService
     {
         for (var index = Math.Max(startIndex, 0); index < steps.Count; index++)
         {
-            var actionLabel = steps[index].ActionLabel.Trim().ToLowerInvariant();
-            if (InteractiveActionLabels.Contains(actionLabel) || TerminalActionLabels.Contains(actionLabel))
+            if (IsInteractiveStep(steps[index]))
             {
                 return index;
             }
         }
 
         return Math.Max(steps.Count - 1, 0);
+    }
+
+    private static bool IsInteractiveStep(SimulationStep step)
+    {
+        var actionLabel = step.ActionLabel.Trim().ToLowerInvariant();
+
+        if (InteractiveActionLabels.Contains(actionLabel) || TerminalActionLabels.Contains(actionLabel))
+        {
+            return true;
+        }
+
+        return actionLabel == "compare" && step.QuickSort is not null;
     }
 
     private static string NormalizeActionLabel(string actionLabel)
