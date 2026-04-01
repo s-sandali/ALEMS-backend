@@ -109,6 +109,25 @@ public class QuizAttemptRepository : IQuizAttemptRepository
     }
 
     /// <inheritdoc />
+    public async Task<bool> HasExistingAttemptAsync(int userId, int quizId)
+    {
+        const string sql = @"
+            SELECT COUNT(1)
+            FROM quiz_attempts
+            WHERE user_id = @UserId
+              AND quiz_id  = @QuizId
+            LIMIT 1;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@UserId", userId);
+        cmd.Parameters.AddWithValue("@QuizId", quizId);
+
+        var count = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        return count > 0;
+    }
+
+    /// <inheritdoc />
     public async Task<QuizAttempt> SubmitAttemptTransactionalAsync(
         QuizAttempt attempt,
         IEnumerable<AttemptAnswer> answers,
