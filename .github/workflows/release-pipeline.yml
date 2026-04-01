@@ -25,10 +25,10 @@ jobs:
         run: dotnet --version
 
       - name: Restore dependencies
-        run: dotnet restore --verbosity detailed
+        run: dotnet restore BigO.sln --verbosity detailed
 
       - name: Build
-        run: dotnet build --configuration Release --no-restore --verbosity minimal
+        run: dotnet build BigO.sln --configuration Release --no-restore --verbosity minimal
 
       - name: Run Unit Tests
         continue-on-error: false
