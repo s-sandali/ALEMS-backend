@@ -17,7 +17,9 @@ public class SimulationService : ISimulationService
         "quick_sort",
         "quick-sort",
         "heap_sort",
-        "heap-sort"
+        "heap-sort",
+        "merge_sort",
+        "merge-sort"
     ];
 
     private static readonly HashSet<string> TerminalActionLabels =
@@ -486,7 +488,8 @@ public class SimulationService : ISimulationService
             Recursion = CloneRecursion(step.Recursion),
             Search = CloneSearch(step.Search),
             Heap = CloneHeap(step.Heap),
-            QuickSort = CloneQuickSort(step.QuickSort)
+            QuickSort = CloneQuickSort(step.QuickSort),
+            MergeSort = CloneMergeSort(step.MergeSort)
         };
     }
 
@@ -562,6 +565,22 @@ public class SimulationService : ISimulationService
                 PivotIndex = quickSort.PivotIndex,
                 Range = quickSort.Range.ToArray(),
                 RecursionDepth = quickSort.RecursionDepth
+            };
+    }
+
+    private static MergeSortStepModel? CloneMergeSort(MergeSortStepModel? mergeSort)
+    {
+        return mergeSort is null
+            ? null
+            : new MergeSortStepModel
+            {
+                Type           = mergeSort.Type,
+                Left           = mergeSort.Left,
+                Right          = mergeSort.Right,
+                Mid            = mergeSort.Mid,
+                RecursionDepth = mergeSort.RecursionDepth,
+                MergeBuffer    = mergeSort.MergeBuffer?.ToArray(),
+                PlaceIndex     = mergeSort.PlaceIndex
             };
     }
 }

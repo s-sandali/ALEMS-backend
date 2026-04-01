@@ -28,4 +28,7 @@ public class SimulationStep
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public QuickSortStepModel? QuickSort { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public MergeSortStepModel? MergeSort { get; set; }
 }

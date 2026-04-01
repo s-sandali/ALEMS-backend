@@ -268,6 +268,7 @@ builder.Services.AddScoped<IAlgorithmSimulationEngine, BubbleSortSimulationEngin
 builder.Services.AddScoped<IAlgorithmSimulationEngine, BinarySearchSimulationEngine>();
 builder.Services.AddScoped<IAlgorithmSimulationEngine, QuickSortSimulationEngine>();
 builder.Services.AddScoped<IAlgorithmSimulationEngine, HeapSortSimulationEngine>();
+builder.Services.AddScoped<IAlgorithmSimulationEngine, MergeSortSimulationEngine>();
 builder.Services.AddSingleton<ISimulationSessionStore, InMemorySimulationSessionStore>();
 
 // ── Clerk Backend API Client ───────────────────────────────────────
