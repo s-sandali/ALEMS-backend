@@ -46,4 +46,7 @@ public class SimulationStep
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public HeapStepModel? Heap { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public QuickSortStepModel? QuickSort { get; set; }
 }
