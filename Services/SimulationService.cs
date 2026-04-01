@@ -12,6 +12,8 @@ public class SimulationService : ISimulationService
     [
         "bubble_sort",
         "bubble-sort",
+        "insertion_sort",
+        "insertion-sort",
         "binary_search",
         "binary-search",
         "quick_sort",
@@ -21,6 +23,8 @@ public class SimulationService : ISimulationService
     private static readonly HashSet<string> InteractiveActionLabels =
     [
         "swap",
+        "shift",
+        "insert",
         "midpoint_pick",
         "pick_midpoint",
         "midpoint"
@@ -283,6 +287,8 @@ public class SimulationService : ISimulationService
         return actionLabel.Trim().ToLowerInvariant() switch
         {
             "swap" => "swap",
+            "shift" => "shift",
+            "insert" => "insert",
             "pick_midpoint" => "midpoint_pick",
             "midpoint" => "midpoint_pick",
             "midpoint_pick" => "midpoint_pick",
