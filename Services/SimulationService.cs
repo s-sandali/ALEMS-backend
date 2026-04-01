@@ -20,7 +20,9 @@ public class SimulationService : ISimulationService
 
     private static readonly HashSet<string> InteractiveActionLabels =
     [
+        "compare",
         "swap",
+        "pivot_swap",
         "midpoint_pick",
         "pick_midpoint",
         "midpoint"
@@ -282,7 +284,9 @@ public class SimulationService : ISimulationService
     {
         return actionLabel.Trim().ToLowerInvariant() switch
         {
+            "compare" => "compare",
             "swap" => "swap",
+            "pivot_swap" => "swap",
             "pick_midpoint" => "midpoint_pick",
             "midpoint" => "midpoint_pick",
             "midpoint_pick" => "midpoint_pick",
@@ -372,6 +376,11 @@ public class SimulationService : ISimulationService
             return $"Try swapping index {indices[0]} and {indices[1]}.";
         }
 
+        if (nextExpectedAction == "compare" && indices.Length >= 2)
+        {
+            return $"Compare index {indices[0]} against index {indices[1]}.";
+        }
+
         if (nextExpectedAction == "midpoint_pick" && indices.Length >= 1)
         {
             return $"Pick the midpoint at index {indices[0]}.";
@@ -394,6 +403,24 @@ public class SimulationService : ISimulationService
                 ActiveIndices = step.ActiveIndices.ToArray(),
                 LineNumber = step.LineNumber,
                 ActionLabel = step.ActionLabel,
+                Recursion = step.Recursion is null
+                    ? null
+                    : new RecursionStepModel
+                    {
+                        State = step.Recursion.State,
+                        Depth = step.Recursion.Depth,
+                        CurrentFrameId = step.Recursion.CurrentFrameId,
+                        Stack = step.Recursion.Stack.Select(frame => new RecursionFrameModel
+                        {
+                            Id = frame.Id,
+                            FunctionName = frame.FunctionName,
+                            Depth = frame.Depth,
+                            State = frame.State,
+                            LeftIndex = frame.LeftIndex,
+                            RightIndex = frame.RightIndex,
+                            ReturnValue = frame.ReturnValue
+                        }).ToList()
+                    },
                 Search = step.Search is null
                     ? null
                     : new SearchStepModel
@@ -424,6 +451,16 @@ public class SimulationService : ISimulationService
                         ExtractedValue = step.Heap.ExtractedValue,
                         ExtractedFromIndex = step.Heap.ExtractedFromIndex,
                         SortedTargetIndex = step.Heap.SortedTargetIndex
+                    },
+                QuickSort = step.QuickSort is null
+                    ? null
+                    : new QuickSortStepModel
+                    {
+                        Type = step.QuickSort.Type,
+                        Pivot = step.QuickSort.Pivot,
+                        PivotIndex = step.QuickSort.PivotIndex,
+                        Range = step.QuickSort.Range.ToArray(),
+                        RecursionDepth = step.QuickSort.RecursionDepth
                     }
             }).ToList()
         };
