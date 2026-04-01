@@ -420,7 +420,10 @@ public class SimulationService : ISimulationService
                         ComparedParentIndex = step.Heap.ComparedParentIndex,
                         ComparedChildIndex = step.Heap.ComparedChildIndex,
                         ComparedIndices = step.Heap.ComparedIndices.ToArray(),
-                        ParentChildComparison = step.Heap.ParentChildComparison
+                        ParentChildComparison = step.Heap.ParentChildComparison,
+                        ExtractedValue = step.Heap.ExtractedValue,
+                        ExtractedFromIndex = step.Heap.ExtractedFromIndex,
+                        SortedTargetIndex = step.Heap.SortedTargetIndex
                     }
             }).ToList()
         };

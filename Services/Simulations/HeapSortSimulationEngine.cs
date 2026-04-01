@@ -158,7 +158,10 @@ public class HeapSortSimulationEngine : IAlgorithmSimulationEngine
                     comparedParentIndex: 0,
                     comparedChildIndex: end,
                     comparedIndices: [0, end],
-                    parentChildComparison: "root_end_swap"));
+                    parentChildComparison: "root_end_swap",
+                    extractedValue: values[end],
+                    extractedFromIndex: 0,
+                    sortedTargetIndex: end));
 
             SiftDown(
                 values,
@@ -298,7 +301,10 @@ public class HeapSortSimulationEngine : IAlgorithmSimulationEngine
         int? comparedParentIndex = null,
         int? comparedChildIndex = null,
         int[]? comparedIndices = null,
-        string? parentChildComparison = null)
+        string? parentChildComparison = null,
+        int? extractedValue = null,
+        int? extractedFromIndex = null,
+        int? sortedTargetIndex = null)
     {
         return new HeapStepModel
         {
@@ -311,7 +317,10 @@ public class HeapSortSimulationEngine : IAlgorithmSimulationEngine
             ComparedParentIndex = comparedParentIndex,
             ComparedChildIndex = comparedChildIndex,
             ComparedIndices = comparedIndices ?? [],
-            ParentChildComparison = parentChildComparison
+            ParentChildComparison = parentChildComparison,
+            ExtractedValue = extractedValue,
+            ExtractedFromIndex = extractedFromIndex,
+            SortedTargetIndex = sortedTargetIndex
         };
     }
 
