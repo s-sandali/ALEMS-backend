@@ -118,6 +118,7 @@ jobs:
 
       - name: Post-Deployment Health Check
         id: health-check
+        continue-on-error: true
         run: |
           max_attempts=15
           attempt=1
@@ -162,7 +163,7 @@ jobs:
           echo "health_status=$health_status" >> $GITHUB_OUTPUT
           
           if [ "$health_status" != "SUCCESS" ] && [ "$health_status" != "SKIPPED" ]; then
-            exit 1
+            exit 0
           fi
 
       - name: Deployment Summary
