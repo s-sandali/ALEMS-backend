@@ -12,6 +12,8 @@ public class SimulationService : ISimulationService
     [
         "bubble_sort",
         "bubble-sort",
+        "insertion_sort",
+        "insertion-sort",
         "binary_search",
         "binary-search",
         "quick_sort",
@@ -424,6 +426,29 @@ public class SimulationService : ISimulationService
                         ExtractedValue = step.Heap.ExtractedValue,
                         ExtractedFromIndex = step.Heap.ExtractedFromIndex,
                         SortedTargetIndex = step.Heap.SortedTargetIndex
+                    },
+                QuickSort = step.QuickSort is null
+                    ? null
+                    : new QuickSortStepModel
+                    {
+                        Type = step.QuickSort.Type,
+                        Pivot = step.QuickSort.Pivot,
+                        PivotIndex = step.QuickSort.PivotIndex,
+                        Range = step.QuickSort.Range.ToArray(),
+                        RecursionDepth = step.QuickSort.RecursionDepth
+                    },
+                InsertionSort = step.InsertionSort is null
+                    ? null
+                    : new InsertionSortStepModel
+                    {
+                        Type = step.InsertionSort.Type,
+                        CurrentIndex = step.InsertionSort.CurrentIndex,
+                        Key = step.InsertionSort.Key,
+                        CompareIndex = step.InsertionSort.CompareIndex,
+                        ShiftFrom = step.InsertionSort.ShiftFrom,
+                        ShiftTo = step.InsertionSort.ShiftTo,
+                        InsertPosition = step.InsertionSort.InsertPosition,
+                        SortedBoundary = step.InsertionSort.SortedBoundary
                     }
             }).ToList()
         };
