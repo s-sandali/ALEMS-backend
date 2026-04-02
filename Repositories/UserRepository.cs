@@ -185,6 +185,23 @@ public class UserRepository : IUserRepository
         return rowsAffected > 0;
     }
 
+    /// <inheritdoc />
+    public async Task<bool> AddXpAsync(int userId, int xpEarned)
+    {
+        const string sql = @"
+            UPDATE Users
+            SET XpTotal = XpTotal + @XpEarned
+            WHERE Id = @Id;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@XpEarned", xpEarned);
+        cmd.Parameters.AddWithValue("@Id", userId);
+
+        var rowsAffected = await cmd.ExecuteNonQueryAsync();
+        return rowsAffected > 0;
+    }
+
     /// <summary>
     /// Maps the current row of a <see cref="MySqlDataReader"/> to a <see cref="User"/> object.
     /// Handles nullable clerk_user_id for admin-created users.
