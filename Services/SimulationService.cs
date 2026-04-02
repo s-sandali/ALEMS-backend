@@ -17,15 +17,11 @@ public class SimulationService : ISimulationService
         "binary_search",
         "binary-search",
         "quick_sort",
-        "quick-sort"
-    ];
-
-    private static readonly HashSet<string> InteractiveActionLabels =
-    [
-        "swap",
-        "midpoint_pick",
-        "pick_midpoint",
-        "midpoint"
+        "quick-sort",
+        "heap_sort",
+        "heap-sort",
+        "merge_sort",
+        "merge-sort"
     ];
 
     private static readonly HashSet<string> TerminalActionLabels =
@@ -45,6 +41,13 @@ public class SimulationService : ISimulationService
         "target_found",
         "found"
     ];
+
+    private enum InteractionProfile
+    {
+        Default,
+        BinarySearch,
+        QuickSort
+    }
 
     private readonly IEnumerable<IAlgorithmSimulationEngine> _engines;
     private readonly ISimulationSessionStore _sessionStore;
@@ -99,12 +102,12 @@ public class SimulationService : ISimulationService
             var expectedIndex = NormalizeSessionIndex(session);
             var expectedStep = session.Steps[expectedIndex];
             var expectedActionLabel = expectedStep.ActionLabel.Trim().ToLowerInvariant();
-            var normalizedAction = NormalizeActionLabel(actionType);
+            var normalizedAction = NormalizeActionLabel(actionType, expectedStep);
             var currentArrayState = GetCurrentArrayState(session, expectedIndex);
 
             if (TerminalActionLabels.Contains(expectedActionLabel))
             {
-                var terminalAction = NormalizeActionLabel(expectedActionLabel);
+                var terminalAction = NormalizeActionLabel(expectedActionLabel, expectedStep);
                 return Task.FromResult(new SimulationValidationResponse
                 {
                     SessionId = session.SessionId,
@@ -139,7 +142,7 @@ public class SimulationService : ISimulationService
                 }
 
                 var decisionStep = session.Steps[decisionStepIndex.Value];
-                var expectedDecision = NormalizeActionLabel(decisionStep.ActionLabel);
+                var expectedDecision = NormalizeActionLabel(decisionStep.ActionLabel, decisionStep);
                 var isCorrectDecision = normalizedAction == expectedDecision;
 
                 if (!isCorrectDecision)
@@ -164,7 +167,7 @@ public class SimulationService : ISimulationService
 
                 var decisionNextStep = session.Steps[session.CurrentStepIndex];
                 var decisionNextActionLabel = decisionNextStep.ActionLabel.Trim().ToLowerInvariant();
-                var decisionNextExpectedAction = NormalizeActionLabel(decisionNextActionLabel);
+                var decisionNextExpectedAction = NormalizeActionLabel(decisionNextActionLabel, decisionNextStep);
                 var decisionNextSuggestedIndices = TerminalActionLabels.Contains(decisionNextActionLabel)
                     ? []
                     : decisionNextStep.ActiveIndices.ToArray();
@@ -187,7 +190,7 @@ public class SimulationService : ISimulationService
                 });
             }
 
-            var expectedAction = NormalizeActionLabel(expectedActionLabel);
+            var expectedAction = NormalizeActionLabel(expectedActionLabel, expectedStep);
             var expectedIndices = expectedStep.ActiveIndices.ToArray();
             var isCorrectAction =
                 normalizedAction == expectedAction &&
@@ -216,7 +219,7 @@ public class SimulationService : ISimulationService
 
             var nextStep = session.Steps[session.CurrentStepIndex];
             var nextActionLabel = nextStep.ActionLabel.Trim().ToLowerInvariant();
-            var nextExpectedAction = NormalizeActionLabel(nextActionLabel);
+            var nextExpectedAction = NormalizeActionLabel(nextActionLabel, nextStep);
             var nextSuggestedIndices = TerminalActionLabels.Contains(nextActionLabel)
                 ? []
                 : nextStep.ActiveIndices.ToArray();
@@ -268,10 +271,11 @@ public class SimulationService : ISimulationService
 
     private static int FindNextActionableStepIndex(IReadOnlyList<SimulationStep> steps, int startIndex)
     {
+        var interactionProfile = DetermineInteractionProfile(steps);
+
         for (var index = Math.Max(startIndex, 0); index < steps.Count; index++)
         {
-            var actionLabel = steps[index].ActionLabel.Trim().ToLowerInvariant();
-            if (InteractiveActionLabels.Contains(actionLabel) || TerminalActionLabels.Contains(actionLabel))
+            if (IsInteractiveStep(steps[index], interactionProfile))
             {
                 return index;
             }
@@ -280,11 +284,47 @@ public class SimulationService : ISimulationService
         return Math.Max(steps.Count - 1, 0);
     }
 
-    private static string NormalizeActionLabel(string actionLabel)
+    private static bool IsInteractiveStep(SimulationStep step, InteractionProfile interactionProfile)
     {
-        return actionLabel.Trim().ToLowerInvariant() switch
+        var actionLabel = step.ActionLabel.Trim().ToLowerInvariant();
+
+        if (TerminalActionLabels.Contains(actionLabel))
         {
+            return true;
+        }
+
+        return interactionProfile switch
+        {
+            InteractionProfile.QuickSort => actionLabel is "compare" or "swap" or "pivot_swap",
+            InteractionProfile.BinarySearch => actionLabel is "midpoint_pick" or "pick_midpoint" or "midpoint",
+            _ => actionLabel == "swap"
+        };
+    }
+
+    private static InteractionProfile DetermineInteractionProfile(IReadOnlyList<SimulationStep> steps)
+    {
+        if (steps.Any(IsQuickSortStep))
+        {
+            return InteractionProfile.QuickSort;
+        }
+
+        if (steps.Any(IsBinarySearchStep))
+        {
+            return InteractionProfile.BinarySearch;
+        }
+
+        return InteractionProfile.Default;
+    }
+
+    private static string NormalizeActionLabel(string actionLabel, SimulationStep? stepContext = null)
+    {
+        var normalizedAction = actionLabel.Trim().ToLowerInvariant();
+
+        return normalizedAction switch
+        {
+            "compare" => "compare",
             "swap" => "swap",
+            "pivot_swap" when IsQuickSortStep(stepContext) => "swap",
             "pick_midpoint" => "midpoint_pick",
             "midpoint" => "midpoint_pick",
             "midpoint_pick" => "midpoint_pick",
@@ -300,7 +340,7 @@ public class SimulationService : ISimulationService
             "target_not_found" => "target_not_found",
             "complete" => "complete",
             "early_exit" => "complete",
-            _ => actionLabel.Trim().ToLowerInvariant()
+            _ => normalizedAction
         };
     }
 
@@ -313,7 +353,7 @@ public class SimulationService : ISimulationService
     {
         for (var index = Math.Max(startIndex, 0); index < steps.Count; index++)
         {
-            var normalized = NormalizeActionLabel(steps[index].ActionLabel);
+            var normalized = NormalizeActionLabel(steps[index].ActionLabel, steps[index]);
             if (DecisionActionLabels.Contains(normalized))
             {
                 return index;
@@ -372,6 +412,11 @@ public class SimulationService : ISimulationService
         if (nextExpectedAction == "swap" && indices.Length >= 2)
         {
             return $"Try swapping index {indices[0]} and {indices[1]}.";
+        }
+
+        if (nextExpectedAction == "compare" && indices.Length >= 2)
+        {
+            return $"Compare index {indices[0]} against index {indices[1]}.";
         }
 
         if (nextExpectedAction == "midpoint_pick" && indices.Length >= 1)
@@ -451,6 +496,155 @@ public class SimulationService : ISimulationService
                         SortedBoundary = step.InsertionSort.SortedBoundary
                     }
             }).ToList()
+            Steps = session.Steps.Select(CloneStep).ToList()
         };
+    }
+
+    private static bool IsQuickSortStep(SimulationStep? step)
+    {
+        if (step is null)
+        {
+            return false;
+        }
+
+        if (step.QuickSort is not null || step.Recursion is not null)
+        {
+            return true;
+        }
+
+        var actionLabel = step.ActionLabel.Trim().ToLowerInvariant();
+        return actionLabel is "pivot_swap"
+            or "pivot_select"
+            or "partition_start"
+            or "recursive_call"
+            or "base_case"
+            or "pivot_positioned"
+            or "sort_left_start"
+            or "sort_left_complete"
+            or "sort_right_start"
+            or "sort_right_complete";
+    }
+
+    private static bool IsBinarySearchStep(SimulationStep step)
+    {
+        if (step.Search is not null)
+        {
+            return true;
+        }
+
+        var actionLabel = step.ActionLabel.Trim().ToLowerInvariant();
+        return actionLabel is "midpoint_pick"
+            or "pick_midpoint"
+            or "midpoint"
+            or "discard_left"
+            or "discard_right";
+    }
+
+    private static SimulationStep CloneStep(SimulationStep step)
+    {
+        return new SimulationStep
+        {
+            StepNumber = step.StepNumber,
+            ArrayState = step.ArrayState.ToArray(),
+            ActiveIndices = step.ActiveIndices.ToArray(),
+            LineNumber = step.LineNumber,
+            ActionLabel = step.ActionLabel,
+            Recursion = CloneRecursion(step.Recursion),
+            Search = CloneSearch(step.Search),
+            Heap = CloneHeap(step.Heap),
+            QuickSort = CloneQuickSort(step.QuickSort),
+            MergeSort = CloneMergeSort(step.MergeSort)
+        };
+    }
+
+    private static RecursionStepModel? CloneRecursion(RecursionStepModel? recursion)
+    {
+        return recursion is null
+            ? null
+            : new RecursionStepModel
+            {
+                State = recursion.State,
+                Depth = recursion.Depth,
+                CurrentFrameId = recursion.CurrentFrameId,
+                Stack = recursion.Stack.Select(frame => new RecursionFrameModel
+                {
+                    Id = frame.Id,
+                    FunctionName = frame.FunctionName,
+                    Depth = frame.Depth,
+                    State = frame.State,
+                    LeftIndex = frame.LeftIndex,
+                    RightIndex = frame.RightIndex,
+                    ReturnValue = frame.ReturnValue
+                }).ToList()
+            };
+    }
+
+    private static SearchStepModel? CloneSearch(SearchStepModel? search)
+    {
+        return search is null
+            ? null
+            : new SearchStepModel
+            {
+                LowIndex = search.LowIndex,
+                HighIndex = search.HighIndex,
+                MidpointIndex = search.MidpointIndex,
+                State = search.State,
+                DiscardedSide = search.DiscardedSide,
+                DiscardStartIndex = search.DiscardStartIndex,
+                DiscardEndIndex = search.DiscardEndIndex,
+                DiscardedIndices = search.DiscardedIndices.ToArray()
+            };
+    }
+
+    private static HeapStepModel? CloneHeap(HeapStepModel? heap)
+    {
+        return heap is null
+            ? null
+            : new HeapStepModel
+            {
+                Phase = heap.Phase,
+                HeapBoundaryEnd = heap.HeapBoundaryEnd,
+                HeapIndex = heap.HeapIndex,
+                ParentIndex = heap.ParentIndex,
+                LeftChildIndex = heap.LeftChildIndex,
+                RightChildIndex = heap.RightChildIndex,
+                ComparedParentIndex = heap.ComparedParentIndex,
+                ComparedChildIndex = heap.ComparedChildIndex,
+                ComparedIndices = heap.ComparedIndices.ToArray(),
+                ParentChildComparison = heap.ParentChildComparison,
+                ExtractedValue = heap.ExtractedValue,
+                ExtractedFromIndex = heap.ExtractedFromIndex,
+                SortedTargetIndex = heap.SortedTargetIndex
+            };
+    }
+
+    private static QuickSortStepModel? CloneQuickSort(QuickSortStepModel? quickSort)
+    {
+        return quickSort is null
+            ? null
+            : new QuickSortStepModel
+            {
+                Type = quickSort.Type,
+                Pivot = quickSort.Pivot,
+                PivotIndex = quickSort.PivotIndex,
+                Range = quickSort.Range.ToArray(),
+                RecursionDepth = quickSort.RecursionDepth
+            };
+    }
+
+    private static MergeSortStepModel? CloneMergeSort(MergeSortStepModel? mergeSort)
+    {
+        return mergeSort is null
+            ? null
+            : new MergeSortStepModel
+            {
+                Type           = mergeSort.Type,
+                Left           = mergeSort.Left,
+                Right          = mergeSort.Right,
+                Mid            = mergeSort.Mid,
+                RecursionDepth = mergeSort.RecursionDepth,
+                MergeBuffer    = mergeSort.MergeBuffer?.ToArray(),
+                PlaceIndex     = mergeSort.PlaceIndex
+            };
     }
 }

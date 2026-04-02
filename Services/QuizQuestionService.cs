@@ -9,17 +9,20 @@ namespace backend.Services;
 /// </summary>
 public class QuizQuestionService : IQuizQuestionService
 {
-    private readonly IQuizQuestionRepository _questionRepository;
-    private readonly IQuizRepository         _quizRepository;
+    private readonly IQuizQuestionRepository     _questionRepository;
+    private readonly IQuizRepository             _quizRepository;
+    private readonly IXpService                  _xpService;
     private readonly ILogger<QuizQuestionService> _logger;
 
     public QuizQuestionService(
         IQuizQuestionRepository questionRepository,
         IQuizRepository quizRepository,
+        IXpService xpService,
         ILogger<QuizQuestionService> logger)
     {
         _questionRepository = questionRepository;
         _quizRepository     = quizRepository;
+        _xpService          = xpService;
         _logger             = logger;
     }
 
@@ -69,18 +72,19 @@ public class QuizQuestionService : IQuizQuestionService
 
         var question = new QuizQuestion
         {
-            QuizId       = quizId,
-            QuestionType = dto.QuestionType,
-            QuestionText = dto.QuestionText,
-            OptionA      = dto.OptionA,
-            OptionB      = dto.OptionB,
-            OptionC      = dto.OptionC,
-            OptionD      = dto.OptionD,
+            QuizId        = quizId,
+            QuestionType  = dto.QuestionType,
+            QuestionText  = dto.QuestionText,
+            OptionA       = dto.OptionA,
+            OptionB       = dto.OptionB,
+            OptionC       = dto.OptionC,
+            OptionD       = dto.OptionD,
             CorrectOption = dto.CorrectOption,
-            Difficulty   = dto.Difficulty,
-            Explanation  = dto.Explanation,
-            OrderIndex   = dto.OrderIndex,
-            IsActive     = true
+            Difficulty    = dto.Difficulty,
+            XpReward      = _xpService.CalculateXP("quiz", dto.Difficulty),
+            Explanation   = dto.Explanation,
+            OrderIndex    = dto.OrderIndex,
+            IsActive      = true
         };
 
         var created = await _questionRepository.CreateAsync(question);
@@ -101,17 +105,18 @@ public class QuizQuestionService : IQuizQuestionService
             throw new KeyNotFoundException($"Question with ID {questionId} was not found.");
         }
 
-        existing.QuestionType = dto.QuestionType;
-        existing.QuestionText = dto.QuestionText;
-        existing.OptionA      = dto.OptionA;
-        existing.OptionB      = dto.OptionB;
-        existing.OptionC      = dto.OptionC;
-        existing.OptionD      = dto.OptionD;
+        existing.QuestionType  = dto.QuestionType;
+        existing.QuestionText  = dto.QuestionText;
+        existing.OptionA       = dto.OptionA;
+        existing.OptionB       = dto.OptionB;
+        existing.OptionC       = dto.OptionC;
+        existing.OptionD       = dto.OptionD;
         existing.CorrectOption = dto.CorrectOption;
-        existing.Difficulty   = dto.Difficulty;
-        existing.Explanation  = dto.Explanation;
-        existing.OrderIndex   = dto.OrderIndex;
-        existing.IsActive     = dto.IsActive;
+        existing.Difficulty    = dto.Difficulty;
+        existing.XpReward      = _xpService.CalculateXP("quiz", dto.Difficulty);
+        existing.Explanation   = dto.Explanation;
+        existing.OrderIndex    = dto.OrderIndex;
+        existing.IsActive      = dto.IsActive;
 
         await _questionRepository.UpdateAsync(existing);
         _logger.LogInformation("UpdateQuestion: QuestionId={QuestionId} updated", questionId);
@@ -135,20 +140,20 @@ public class QuizQuestionService : IQuizQuestionService
 
     private static QuizQuestionResponseDto MapToDto(QuizQuestion q) => new()
     {
-        QuestionId   = q.QuestionId,
-        QuizId       = q.QuizId,
-        QuestionType = q.QuestionType,
-        QuestionText = q.QuestionText,
-        OptionA      = q.OptionA,
-        OptionB      = q.OptionB,
-        OptionC      = q.OptionC,
-        OptionD      = q.OptionD,
+        QuestionId    = q.QuestionId,
+        QuizId        = q.QuizId,
+        QuestionType  = q.QuestionType,
+        QuestionText  = q.QuestionText,
+        OptionA       = q.OptionA,
+        OptionB       = q.OptionB,
+        OptionC       = q.OptionC,
+        OptionD       = q.OptionD,
         CorrectOption = q.CorrectOption,
-        Difficulty   = q.Difficulty,
-        Explanation  = q.Explanation,
-        OrderIndex   = q.OrderIndex,
-        IsActive     = q.IsActive,
-        CreatedAt    = q.CreatedAt
+        Difficulty    = q.Difficulty,
+        Explanation   = q.Explanation,
+        OrderIndex    = q.OrderIndex,
+        IsActive      = q.IsActive,
+        CreatedAt     = q.CreatedAt
     };
 
     /// <summary>
