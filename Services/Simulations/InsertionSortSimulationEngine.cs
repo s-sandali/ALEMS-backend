@@ -7,12 +7,25 @@ namespace backend.Services.Simulations;
 /// </summary>
 public class InsertionSortSimulationEngine : IAlgorithmSimulationEngine
 {
+    private const string AlgorithmDisplayName = "Insertion Sort";
+
     private sealed class InsertionStepMeta
     {
         public int? KeyIndex { get; init; }
         public int? Key { get; init; }
         public int? CompareIndex { get; init; }
         public int? SortedBoundary { get; init; }
+    }
+
+    private static class PseudocodeLine
+    {
+        public const int Start = 1;
+        public const int SelectKey = 2;
+        public const int Compare = 3;
+        public const int Shift = 4;
+        public const int Insert = 5;
+        public const int SortedBoundary = 6;
+        public const int Complete = 7;
     }
 
     public bool CanHandle(string algorithm)
@@ -32,7 +45,7 @@ public class InsertionSortSimulationEngine : IAlgorithmSimulationEngine
         var steps = new List<SimulationStep>();
         var stepNumber = 1;
 
-        AddStep(steps, ref stepNumber, values, [], 1, "start");
+        AddStep(steps, ref stepNumber, values, [], PseudocodeLine.Start, "start");
 
         for (var i = 1; i < values.Length; i++)
         {
@@ -44,7 +57,7 @@ public class InsertionSortSimulationEngine : IAlgorithmSimulationEngine
                 ref stepNumber,
                 values,
                 [i],
-                2,
+                PseudocodeLine.SelectKey,
                 "select_key",
                 new InsertionStepMeta
                 {
@@ -60,7 +73,7 @@ public class InsertionSortSimulationEngine : IAlgorithmSimulationEngine
                     ref stepNumber,
                     values,
                     [j, j + 1],
-                    3,
+                    PseudocodeLine.Compare,
                     "compare",
                     new InsertionStepMeta
                     {
@@ -81,7 +94,7 @@ public class InsertionSortSimulationEngine : IAlgorithmSimulationEngine
                     ref stepNumber,
                     values,
                     [j, j + 1],
-                    4,
+                    PseudocodeLine.Shift,
                     "shift",
                     new InsertionStepMeta
                     {
@@ -100,7 +113,7 @@ public class InsertionSortSimulationEngine : IAlgorithmSimulationEngine
                 ref stepNumber,
                 values,
                 [j + 1],
-                5,
+                PseudocodeLine.Insert,
                 "insert",
                 new InsertionStepMeta
                 {
@@ -109,16 +122,41 @@ public class InsertionSortSimulationEngine : IAlgorithmSimulationEngine
                     CompareIndex = j,
                     SortedBoundary = i
                 });
+
+            AddStep(
+                steps,
+                ref stepNumber,
+                values,
+                BuildSortedBoundaryIndices(i),
+                PseudocodeLine.SortedBoundary,
+                "sorted_boundary",
+                new InsertionStepMeta
+                {
+                    KeyIndex = i,
+                    Key = key,
+                    SortedBoundary = i
+                });
         }
 
-        AddStep(steps, ref stepNumber, values, [], 6, "complete");
+        AddStep(steps, ref stepNumber, values, [], PseudocodeLine.Complete, "complete");
 
         return new SimulationResponse
         {
-            AlgorithmName = "Insertion Sort",
+            AlgorithmName = AlgorithmDisplayName,
             Steps = steps,
             TotalSteps = steps.Count
         };
+    }
+
+    private static int[] BuildSortedBoundaryIndices(int boundary)
+    {
+        var indices = new int[boundary + 1];
+        for (var i = 0; i <= boundary; i++)
+        {
+            indices[i] = i;
+        }
+
+        return indices;
     }
 
     private static void AddStep(
