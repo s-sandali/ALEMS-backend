@@ -16,6 +16,8 @@ public class SimulationService : ISimulationService
         "insertion-sort",
         "binary_search",
         "binary-search",
+        "insertion_sort",
+        "insertion-sort",
         "quick_sort",
         "quick-sort",
         "heap_sort",

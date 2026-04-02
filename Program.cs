@@ -270,6 +270,7 @@ builder.Services.AddScoped<ISimulationService, SimulationService>();
 builder.Services.AddScoped<IAlgorithmSimulationEngine, BubbleSortSimulationEngine>();
 builder.Services.AddScoped<IAlgorithmSimulationEngine, InsertionSortSimulationEngine>();
 builder.Services.AddScoped<IAlgorithmSimulationEngine, BinarySearchSimulationEngine>();
+builder.Services.AddScoped<IAlgorithmSimulationEngine, InsertionSortSimulationEngine>();
 builder.Services.AddScoped<IAlgorithmSimulationEngine, QuickSortSimulationEngine>();
 builder.Services.AddScoped<IAlgorithmSimulationEngine, HeapSortSimulationEngine>();
 builder.Services.AddScoped<IAlgorithmSimulationEngine, MergeSortSimulationEngine>();
