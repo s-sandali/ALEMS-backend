@@ -23,6 +23,7 @@ public class SimulationService : ISimulationService
     private static readonly HashSet<string> InteractiveActionLabels =
     [
         "swap",
+        "pivot_swap",
         "shift",
         "insert",
         "midpoint_pick",
@@ -272,14 +273,31 @@ public class SimulationService : ISimulationService
     {
         for (var index = Math.Max(startIndex, 0); index < steps.Count; index++)
         {
-            var actionLabel = steps[index].ActionLabel.Trim().ToLowerInvariant();
-            if (InteractiveActionLabels.Contains(actionLabel) || TerminalActionLabels.Contains(actionLabel))
+            if (IsInteractiveStep(steps[index]))
             {
                 return index;
             }
         }
 
         return Math.Max(steps.Count - 1, 0);
+    }
+
+    private static bool IsInteractiveStep(SimulationStep step)
+    {
+        var actionLabel = step.ActionLabel.Trim().ToLowerInvariant();
+
+        if (TerminalActionLabels.Contains(actionLabel))
+        {
+            return true;
+        }
+
+        if (InteractiveActionLabels.Contains(actionLabel))
+        {
+            return true;
+        }
+
+        // compare is interactive for insertion sort (Key metadata present) but not for bubble sort
+        return actionLabel == "compare" && step.Key is not null;
     }
 
     private static string NormalizeActionLabel(string actionLabel)
@@ -383,6 +401,21 @@ public class SimulationService : ISimulationService
             return $"Pick the midpoint at index {indices[0]}.";
         }
 
+        if (nextExpectedAction == "compare" && indices.Length >= 2)
+        {
+            return $"Compare index {indices[0]} against index {indices[1]}.";
+        }
+
+        if (nextExpectedAction == "shift" && indices.Length >= 2)
+        {
+            return $"Shift the element at index {indices[0]} right to index {indices[1]}.";
+        }
+
+        if (nextExpectedAction == "insert" && indices.Length >= 1)
+        {
+            return $"Insert the key at index {indices[0]}.";
+        }
+
         return "No more actions are needed.";
     }
 
@@ -430,7 +463,39 @@ public class SimulationService : ISimulationService
                         ExtractedValue = step.Heap.ExtractedValue,
                         ExtractedFromIndex = step.Heap.ExtractedFromIndex,
                         SortedTargetIndex = step.Heap.SortedTargetIndex
-                    }
+                    },
+                QuickSort = step.QuickSort is null
+                    ? null
+                    : new QuickSortStepModel
+                    {
+                        Type = step.QuickSort.Type,
+                        Pivot = step.QuickSort.Pivot,
+                        PivotIndex = step.QuickSort.PivotIndex,
+                        Range = step.QuickSort.Range.ToArray(),
+                        RecursionDepth = step.QuickSort.RecursionDepth
+                    },
+                Recursion = step.Recursion is null
+                    ? null
+                    : new RecursionStepModel
+                    {
+                        State = step.Recursion.State,
+                        Depth = step.Recursion.Depth,
+                        CurrentFrameId = step.Recursion.CurrentFrameId,
+                        Stack = step.Recursion.Stack.Select(frame => new RecursionFrameModel
+                        {
+                            Id = frame.Id,
+                            FunctionName = frame.FunctionName,
+                            Depth = frame.Depth,
+                            State = frame.State,
+                            LeftIndex = frame.LeftIndex,
+                            RightIndex = frame.RightIndex,
+                            ReturnValue = frame.ReturnValue
+                        }).ToList()
+                    },
+                KeyIndex = step.KeyIndex,
+                Key = step.Key,
+                CompareIndex = step.CompareIndex,
+                SortedBoundary = step.SortedBoundary
             }).ToList()
         };
     }
