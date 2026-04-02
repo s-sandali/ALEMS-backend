@@ -60,4 +60,24 @@ public class SimulationServiceRunTests
             .ThrowAsync<NotSupportedException>()
             .WithMessage("*unknown_algorithm*");
     }
+
+    [Fact(DisplayName = "UT-IS-03 - SimulationService: RunAsync supports insertion sort and returns shift metadata")]
+    public async Task RunAsync_InsertionSort_ReturnsShiftStepWithMetadata()
+    {
+        var sut = BuildSut();
+
+        var result = await sut.RunAsync("insertion_sort", [9, 5, 7, 3], null);
+
+        result.AlgorithmName.Should().Be("Insertion Sort");
+        result.TotalSteps.Should().Be(result.Steps.Count);
+
+        var shiftStep = result.Steps.First(step => step.ActionLabel == "shift");
+
+        shiftStep.InsertionSort.Should().NotBeNull();
+        shiftStep.InsertionSort!.Type.Should().Be("shift");
+        shiftStep.InsertionSort.Key.Should().HaveValue();
+        shiftStep.InsertionSort.CompareIndex.Should().HaveValue();
+        shiftStep.InsertionSort.ShiftFrom.Should().HaveValue();
+        shiftStep.InsertionSort.ShiftTo.Should().HaveValue();
+    }
 }
