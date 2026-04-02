@@ -82,20 +82,24 @@ jobs:
           echo "coverage=$PERCENT" >> $GITHUB_OUTPUT
 
       - name: Check Coverage Threshold
-        continue-on-error: true
+        id: coverage_check
         run: |
           COVERAGE="${{ steps.coverage.outputs.coverage }}"
           
           if [ -z "$COVERAGE" ]; then
-            echo "⚠️ Coverage value not set, skipping threshold check"
-            exit 0
+            echo "❌ Coverage value not set, failing build"
+            exit 1
           fi
           
           if [ "$COVERAGE" -lt 70 ]; then
-            echo "⚠️ Coverage below 70% — continuing anyway (Current: $COVERAGE%)"
-            exit 0
+            echo "❌ Code coverage is below 70% threshold (Current: $COVERAGE%)"
+            echo "🚫 Deployment BLOCKED — coverage must be > 70%"
+            echo "coverage_status=FAILED" >> $GITHUB_OUTPUT
+            exit 1
           else
-            echo "✅ Coverage is sufficient at $COVERAGE% — deployment continues"
+            echo "✅ Code coverage meets threshold at $COVERAGE% — deployment approved"
+            echo "coverage_status=PASSED" >> $GITHUB_OUTPUT
+            exit 0
           fi
 
   deploy:
