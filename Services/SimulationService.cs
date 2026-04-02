@@ -310,7 +310,7 @@ public class SimulationService : ISimulationService
             return InteractionProfile.QuickSort;
         }
 
-        if (steps.Any(step => step.Search is not null))
+        if (steps.Any(IsBinarySearchStep))
         {
             return InteractionProfile.BinarySearch;
         }
@@ -458,6 +458,17 @@ public class SimulationService : ISimulationService
     private static bool IsQuickSortStep(SimulationStep? step)
     {
         return step?.QuickSort is not null || step?.Recursion is not null;
+    }
+
+    private static bool IsBinarySearchStep(SimulationStep step)
+    {
+        if (step.Search is not null)
+        {
+            return true;
+        }
+
+        var actionLabel = step.ActionLabel.Trim().ToLowerInvariant();
+        return actionLabel is "midpoint_pick" or "pick_midpoint" or "midpoint" or "discard_left" or "discard_right";
     }
 
     private static SimulationStep CloneStep(SimulationStep step)
