@@ -33,93 +33,170 @@ jobs:
       - name: Run Unit Tests
         continue-on-error: false
         run: |
+          echo "🧪 Running Unit Tests with Code Coverage..."
           dotnet test Testing/UnitTests/UnitTests.csproj \
             --configuration Release \
             --no-build \
             --logger "console;verbosity=detailed" \
-            --collect:"XPlat Code Coverage"
+            --collect:"XPlat Code Coverage" \
+            --results-directory "./TestResults/UnitTests"
         env:
           DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: false
 
       - name: Run Integration Tests
         continue-on-error: false
         run: |
+          echo "🔗 Running Integration Tests with Code Coverage..."
           dotnet test Testing/IntegrationTests/IntegrationTests.csproj \
             --configuration Release \
             --no-build \
             --logger "console;verbosity=detailed" \
-            --collect:"XPlat Code Coverage"
+            --collect:"XPlat Code Coverage" \
+            --results-directory "./TestResults/IntegrationTests"
         env:
           DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: false
 
-      - name: List generated test files
+      - name: List and Organize Coverage Files
         run: |
-          echo "📂 All files generated in workspace:"
-          find . -type f -name "*.xml" | grep -E "(coverage|test)" || echo "No coverage/test XML files found"
+          echo "📊 ============================================"
+          echo "   CODE COVERAGE DATA COLLECTION"
+          echo "📊 ============================================"
           echo ""
-          echo "📂 Full TestResults directory structure:"
-          find TestResults -type f 2>/dev/null | head -20 || echo "TestResults directory not found"
+          echo "🔍 Searching for all coverage files..."
+          find ./TestResults -name "*.xml" -type f 2>/dev/null | sort
+          echo ""
+          echo "📁 Full TestResults directory tree:"
+          find ./TestResults -type f 2>/dev/null | head -50
+          echo ""
+          echo "✅ Coverage file collection complete"
 
-      - name: Extract code coverage
+      - name: Extract and Merge Code Coverage
         id: coverage
         continue-on-error: true
         run: |
-          echo "🔍 Debugging coverage file search..."
-          echo "📁 TestResults directory contents:"
-          ls -la TestResults 2>/dev/null || echo "⚠️ TestResults directory not found"
+          echo "📊 ============================================"
+          echo "   COVERAGE EXTRACTION & ANALYSIS"
+          echo "📊 ============================================"
           echo ""
           
-          # Find all coverage reports from coverlet collector
-          echo "🔎 Searching for coverage.cobertura.xml files..."
-          COVERAGE_FILES=$(find . -name "coverage.cobertura.xml" -type f 2>/dev/null | head -1)
+          # Find ALL coverage files
+          echo "🔎 Searching for all coverage.cobertura.xml files..."
+          COVERAGE_FILES=$(find ./TestResults -name "coverage.cobertura.xml" -type f 2>/dev/null | sort)
           
           if [ -z "$COVERAGE_FILES" ]; then
-            echo "⚠️ No coverage.cobertura.xml files found"
-            echo "📦 Looking for alternative coverage file formats..."
-            COVERAGE_FILES=$(find . -name "*coverage*.xml" -type f 2>/dev/null | head -1)
+            echo "⚠️ No coverage files found in TestResults"
+            echo "❌ Falling back to search entire repository..."
+            COVERAGE_FILES=$(find . -name "coverage.cobertura.xml" -type f 2>/dev/null | sort)
             
             if [ -z "$COVERAGE_FILES" ]; then
-              echo "❌ No coverage XML files found anywhere"
+              echo "❌ NO COVERAGE FILES FOUND - Build will fail coverage check"
               echo "coverage=0" >> $GITHUB_OUTPUT
               exit 0
             fi
           fi
           
-          echo "📊 Found coverage file: $COVERAGE_FILES"
+          echo ""
+          echo "📄 Found coverage files:"
+          echo "$COVERAGE_FILES" | nl
+          echo ""
           
-          # Extract line-rate from cobertura report (range 0-1, convert to 0-100)
-          COVERAGE=$(grep -oP 'line-rate="\K[0-9.]+' "$COVERAGE_FILES" | head -1)
+          # Process each coverage file and calculate total average
+          TOTAL_COVERAGE=0
+          FILE_COUNT=0
           
-          if [ -z "$COVERAGE" ]; then
-            echo "⚠️ Could not parse coverage value from XML"
-            echo "📄 File contents preview:"
-            head -20 "$COVERAGE_FILES"
+          while IFS= read -r COVERAGE_FILE; do
+            if [ -f "$COVERAGE_FILE" ]; then
+              echo "📖 Processing: $COVERAGE_FILE"
+              
+              # Extract line-rate (0-1 decimal format from Cobertura)
+              LINE_RATE=$(grep -oP 'line-rate="\K[0-9.]+' "$COVERAGE_FILE" | head -1)
+              BRANCH_RATE=$(grep -oP 'branch-rate="\K[0-9.]+' "$COVERAGE_FILE" | head -1)
+              
+              if [ -n "$LINE_RATE" ]; then
+                # Convert to percentage
+                LINE_PERCENT=$(echo "$LINE_RATE * 100" | bc | cut -d'.' -f1)
+                BRANCH_PERCENT=$(echo "${BRANCH_RATE:-0} * 100" | bc | cut -d'.' -f1)
+                
+                echo "   ✓ Line Coverage: $LINE_PERCENT%"
+                echo "   ✓ Branch Coverage: $BRANCH_PERCENT%"
+                
+                TOTAL_COVERAGE=$((TOTAL_COVERAGE + LINE_PERCENT))
+                FILE_COUNT=$((FILE_COUNT + 1))
+              else
+                echo "   ⚠️ Could not parse coverage from file"
+              fi
+            fi
+          done <<< "$COVERAGE_FILES"
+          
+          echo ""
+          if [ "$FILE_COUNT" -eq 0 ]; then
+            echo "❌ No valid coverage data found in any file"
             echo "coverage=0" >> $GITHUB_OUTPUT
             exit 0
           fi
           
-          # Convert decimal to percentage
-          PERCENT=$(echo "$COVERAGE * 100" | bc | cut -d'.' -f1)
-          echo "✅ Coverage is $PERCENT%"
-          echo "coverage=$PERCENT" >> $GITHUB_OUTPUT
+          # Calculate average coverage across all test suites
+          AVERAGE_COVERAGE=$((TOTAL_COVERAGE / FILE_COUNT))
+          
+          echo "📊 ============================================"
+          echo "   FINAL COVERAGE REPORT"
+          echo "📊 ============================================"
+          echo "Files analyzed: $FILE_COUNT"
+          echo "Average Coverage: $AVERAGE_COVERAGE%"
+          echo "Threshold Required: 70%"
+          echo ""
+          
+          if [ "$AVERAGE_COVERAGE" -ge 70 ]; then
+            echo "✅ PASS: Coverage meets threshold"
+          else
+            echo "❌ FAIL: Coverage below threshold (Gap: $((70 - AVERAGE_COVERAGE))%)"
+          fi
+          echo ""
+          
+          echo "coverage=$AVERAGE_COVERAGE" >> $GITHUB_OUTPUT
 
       - name: Check Coverage Threshold
         id: coverage_check
         run: |
+          echo "🔐 ============================================"
+          echo "   COVERAGE THRESHOLD VALIDATION"
+          echo "🔐 ============================================"
+          echo ""
+          
           COVERAGE="${{ steps.coverage.outputs.coverage }}"
+          THRESHOLD=70
+          
+          echo "📊 Coverage Data:"
+          echo "   • Measured Coverage: $COVERAGE%"
+          echo "   • Required Threshold: $THRESHOLD%"
+          echo ""
           
           if [ -z "$COVERAGE" ]; then
-            echo "❌ Coverage value not set, failing build"
+            echo "❌ ERROR: Coverage value not set"
+            echo "🚫 DEPLOYMENT BLOCKED - Cannot validate coverage"
+            echo "coverage_status=FAILED" >> $GITHUB_OUTPUT
             exit 1
           fi
           
-          if [ "$COVERAGE" -lt 70 ]; then
-            echo "❌ Code coverage is below 70% threshold (Current: $COVERAGE%)"
-            echo "🚫 Deployment BLOCKED — coverage must be > 70%"
+          if [ "$COVERAGE" -lt "$THRESHOLD" ]; then
+            COVERAGE_GAP=$((THRESHOLD - COVERAGE))
+            echo "❌ FAILED: Code coverage is BELOW threshold"
+            echo "📉 Coverage Gap: $COVERAGE_GAP% (need to improve coverage)"
+            echo ""
+            echo "🚫 DEPLOYMENT BLOCKED — coverage must be ≥ $THRESHOLD%"
             echo "coverage_status=FAILED" >> $GITHUB_OUTPUT
+            echo ""
+            echo "💡 Recommendations:"
+            echo "   1. Add more unit tests for uncovered code paths"
+            echo "   2. Add integration tests for critical workflows"
+            echo "   3. Aim for at least $((THRESHOLD + 5))% coverage for safety margin"
             exit 1
           else
-            echo "✅ Code coverage meets threshold at $COVERAGE% — deployment approved"
+            COVERAGE_BUFFER=$((COVERAGE - THRESHOLD))
+            echo "✅ SUCCESS: Code coverage MEETS threshold"
+            echo "📈 Buffer Above Threshold: +$COVERAGE_BUFFER%"
+            echo ""
+            echo "✅ DEPLOYMENT APPROVED — proceeding with deployment"
             echo "coverage_status=PASSED" >> $GITHUB_OUTPUT
             exit 0
           fi
