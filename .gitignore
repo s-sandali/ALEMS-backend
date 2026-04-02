@@ -8,6 +8,7 @@
 [Bb]in/
 [Oo]bj/
 bin-verify/
+obj-verify/
 
 # NuGet
 *.nupkg
@@ -49,6 +50,7 @@ Testing/E2ETests/E2ETests.sln
 
 .claude/
 bin-verify/
+obj-verify/
 # Crash dumps
 *.dmp
 

@@ -23,7 +23,7 @@ public class QuizQuestionRepository : IQuizQuestionRepository
         const string sql = @"
             SELECT question_id, quiz_id, question_type, question_text,
                    option_a, option_b, option_c, option_d,
-                   correct_option, difficulty, explanation,
+                   correct_option, difficulty, xp_reward, explanation,
                    order_index, is_active, created_at
             FROM quiz_questions
             WHERE quiz_id = @QuizId AND is_active = TRUE
@@ -48,7 +48,7 @@ public class QuizQuestionRepository : IQuizQuestionRepository
         const string sql = @"
             SELECT question_id, quiz_id, question_type, question_text,
                    option_a, option_b, option_c, option_d,
-                   correct_option, difficulty, explanation,
+                   correct_option, difficulty, xp_reward, explanation,
                    order_index, is_active, created_at
             FROM quiz_questions
             WHERE question_id = @QuestionId
@@ -73,12 +73,12 @@ public class QuizQuestionRepository : IQuizQuestionRepository
             INSERT INTO quiz_questions
                 (quiz_id, question_type, question_text,
                  option_a, option_b, option_c, option_d,
-                 correct_option, difficulty, explanation,
+                 correct_option, difficulty, xp_reward, explanation,
                  order_index, is_active, created_at)
             VALUES
                 (@QuizId, @QuestionType, @QuestionText,
                  @OptionA, @OptionB, @OptionC, @OptionD,
-                 @CorrectOption, @Difficulty, @Explanation,
+                 @CorrectOption, @Difficulty, @XpReward, @Explanation,
                  @OrderIndex, @IsActive, @CreatedAt);
             SELECT LAST_INSERT_ID();";
 
@@ -94,6 +94,7 @@ public class QuizQuestionRepository : IQuizQuestionRepository
         cmd.Parameters.AddWithValue("@OptionD",       question.OptionD);
         cmd.Parameters.AddWithValue("@CorrectOption", question.CorrectOption);
         cmd.Parameters.AddWithValue("@Difficulty",    question.Difficulty);
+        cmd.Parameters.AddWithValue("@XpReward",      question.XpReward);
         cmd.Parameters.AddWithValue("@Explanation",   (object?)question.Explanation ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@OrderIndex",    question.OrderIndex);
         cmd.Parameters.AddWithValue("@IsActive",      question.IsActive);
@@ -118,6 +119,7 @@ public class QuizQuestionRepository : IQuizQuestionRepository
                 option_d       = @OptionD,
                 correct_option = @CorrectOption,
                 difficulty     = @Difficulty,
+                xp_reward      = @XpReward,
                 explanation    = @Explanation,
                 order_index    = @OrderIndex,
                 is_active      = @IsActive
@@ -134,6 +136,7 @@ public class QuizQuestionRepository : IQuizQuestionRepository
         cmd.Parameters.AddWithValue("@OptionD",       question.OptionD);
         cmd.Parameters.AddWithValue("@CorrectOption", question.CorrectOption);
         cmd.Parameters.AddWithValue("@Difficulty",    question.Difficulty);
+        cmd.Parameters.AddWithValue("@XpReward",      question.XpReward);
         cmd.Parameters.AddWithValue("@Explanation",   (object?)question.Explanation ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@OrderIndex",    question.OrderIndex);
         cmd.Parameters.AddWithValue("@IsActive",      question.IsActive);
@@ -178,6 +181,7 @@ public class QuizQuestionRepository : IQuizQuestionRepository
             OptionD      = reader.GetString("option_d"),
             CorrectOption = reader.GetString("correct_option"),
             Difficulty   = reader.GetString("difficulty"),
+            XpReward     = reader.GetInt32("xp_reward"),
             Explanation  = reader.IsDBNull(explanationOrdinal) ? null : reader.GetString(explanationOrdinal),
             OrderIndex   = reader.GetInt32("order_index"),
             IsActive     = reader.GetBoolean("is_active"),

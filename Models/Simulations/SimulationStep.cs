@@ -29,30 +29,7 @@ public class SimulationStep
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public QuickSortStepModel? QuickSort { get; set; }
 
-    /// <summary>
-    /// Index of the current key element being inserted (used in insertion sort).
-    /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public int? KeyIndex { get; set; }
-
-    /// <summary>
-    /// Current key element value being inserted (used in insertion sort).
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public int? Key { get; set; }
-
-    /// <summary>
-    /// Index currently being compared against the key (used in insertion sort).
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public int? CompareIndex { get; set; }
-
-    /// <summary>
-    /// End index of the sorted subarray boundary (used in insertion sort).
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public int? SortedBoundary { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public InsertionSortStepModel? InsertionSort { get; set; }
     public MergeSortStepModel? MergeSort { get; set; }
 }

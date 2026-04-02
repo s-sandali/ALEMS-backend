@@ -45,12 +45,12 @@ public class QuickSortSimulationEngineTests
     {
         var response = _sut.Run([9, 4, 7, 2]);
 
-        var pivotPlacedSteps = response.Steps.Where(step => step.ActionLabel == "pivotPlaced").ToArray();
+        var pivotPlacedSteps = response.Steps.Where(step => step.ActionLabel == "pivot_placed").ToArray();
 
         pivotPlacedSteps.Should().NotBeEmpty();
         pivotPlacedSteps.Should().OnlyContain(step =>
             step.QuickSort != null &&
-            step.QuickSort.Type == "pivotPlaced" &&
+            step.QuickSort.Type == "pivot_placed" &&
             step.QuickSort.PivotIndex.HasValue &&
             step.QuickSort.Range.Length == 2 &&
             step.ActiveIndices.Length == 1 &&

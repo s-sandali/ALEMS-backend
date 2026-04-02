@@ -19,40 +19,52 @@ public class InsertionSortSimulationEngineTests
 
     [Theory]
     [InlineData("")]
-    [InlineData("bubble_sort")]
+    [InlineData("quick_sort")]
     public void CanHandle_UnknownOrEmptyKeys_ReturnsFalse(string algorithm)
     {
         _sut.CanHandle(algorithm).Should().BeFalse();
     }
 
-    [Fact(DisplayName = "UT-IS-01 - InsertionSortEngine: shift step includes key, compare index, and sorted boundary metadata")]
-    public void Run_ShiftStep_ContainsRequiredMetadata()
+    [Fact(DisplayName = "UT-IS-01 - InsertionSortEngine: emits all required action types")]
+    public void Run_ProducesAllRequiredActions()
     {
-        var response = _sut.Run([9, 5, 7, 3]);
+        var response = _sut.Run([5, 3, 8, 4]);
 
-        var shiftStep = response.Steps.First(step => step.ActionLabel == "shift");
-
-        shiftStep.KeyIndex.Should().HaveValue();
-        shiftStep.Key.Should().HaveValue();
-        shiftStep.CompareIndex.Should().HaveValue();
-        shiftStep.SortedBoundary.Should().HaveValue();
-
-        var keyIndex = shiftStep.KeyIndex!.Value;
-        var compareIndex = shiftStep.CompareIndex!.Value;
-        var sortedBoundary = shiftStep.SortedBoundary!.Value;
-
-        keyIndex.Should().BeGreaterThan(0);
-        compareIndex.Should().BeLessThanOrEqualTo(sortedBoundary);
-        sortedBoundary.Should().Be(keyIndex - 1);
+        response.Steps.Should().Contain(step => step.ActionLabel == "select_key");
+        response.Steps.Should().Contain(step => step.ActionLabel == "compare");
+        response.Steps.Should().Contain(step => step.ActionLabel == "shift");
+        response.Steps.Should().Contain(step => step.ActionLabel == "insert");
+        response.Steps.Should().Contain(step => step.ActionLabel == "sorted_boundary");
     }
 
-    [Fact(DisplayName = "UT-IS-02 - InsertionSortEngine: final array state is sorted ascending")]
+    [Fact(DisplayName = "UT-IS-02 - InsertionSortEngine: compare and shift steps include key and compare indices")]
+    public void Run_CompareAndShiftSteps_IncludeMetadata()
+    {
+        var response = _sut.Run([5, 3, 8, 4]);
+
+        var compareSteps = response.Steps.Where(step => step.ActionLabel == "compare").ToArray();
+        var shiftSteps = response.Steps.Where(step => step.ActionLabel == "shift").ToArray();
+
+        compareSteps.Should().NotBeEmpty();
+        compareSteps.Should().OnlyContain(step =>
+            step.InsertionSort != null &&
+            step.InsertionSort.Type == "compare" &&
+            step.InsertionSort.Key.HasValue &&
+            step.InsertionSort.CompareIndex.HasValue);
+
+        shiftSteps.Should().NotBeEmpty();
+        shiftSteps.Should().OnlyContain(step =>
+            step.InsertionSort != null &&
+            step.InsertionSort.Type == "shift" &&
+            step.InsertionSort.ShiftFrom.HasValue &&
+            step.InsertionSort.ShiftTo.HasValue);
+    }
+
+    [Fact(DisplayName = "UT-IS-03 - InsertionSortEngine: final array state is sorted ascending")]
     public void Run_FinalArray_IsSortedAscending()
     {
-        var response = _sut.Run([10, 4, 8, 1, 6]);
-        var finalStep = response.Steps[^1];
+        var response = _sut.Run([10, 7, 8, 9, 1, 5]);
 
-        finalStep.ArrayState.Should().Equal(1, 4, 6, 8, 10);
-        finalStep.ActionLabel.Should().Be("complete");
+        response.Steps[^1].ArrayState.Should().Equal(1, 5, 7, 8, 9, 10);
     }
 }

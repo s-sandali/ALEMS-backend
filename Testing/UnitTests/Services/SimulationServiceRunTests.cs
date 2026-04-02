@@ -33,6 +33,22 @@ public class SimulationServiceRunTests
             !string.IsNullOrWhiteSpace(step.ActionLabel));
     }
 
+    [Fact(DisplayName = "UT-IS-04 - SimulationService: RunAsync returns Insertion Sort steps")]
+    public async Task RunAsync_InsertionSort_ReturnsInsertionSortTrace()
+    {
+        var sut = BuildSut();
+
+        var result = await sut.RunAsync("insertion_sort", [5, 3, 8, 4], null);
+
+        result.AlgorithmName.Should().Be("Insertion Sort");
+        result.TotalSteps.Should().Be(result.Steps.Count);
+        result.Steps.Should().Contain(step => step.ActionLabel == "select_key");
+        result.Steps.Should().Contain(step => step.ActionLabel == "compare");
+        result.Steps.Should().Contain(step => step.ActionLabel == "shift");
+        result.Steps.Should().Contain(step => step.ActionLabel == "insert");
+        result.Steps.Should().Contain(step => step.ActionLabel == "sorted_boundary");
+    }
+
     [Fact(DisplayName = "UT-BS-09 - SimulationService: RunAsync handles unknown algorithm ID gracefully")]
     public async Task RunAsync_UnknownAlgorithm_ThrowsNotSupportedException()
     {
@@ -57,9 +73,11 @@ public class SimulationServiceRunTests
 
         var shiftStep = result.Steps.First(step => step.ActionLabel == "shift");
 
-        shiftStep.KeyIndex.Should().HaveValue();
-        shiftStep.Key.Should().HaveValue();
-        shiftStep.CompareIndex.Should().HaveValue();
-        shiftStep.SortedBoundary.Should().HaveValue();
+        shiftStep.InsertionSort.Should().NotBeNull();
+        shiftStep.InsertionSort!.Type.Should().Be("shift");
+        shiftStep.InsertionSort.Key.Should().HaveValue();
+        shiftStep.InsertionSort.CompareIndex.Should().HaveValue();
+        shiftStep.InsertionSort.ShiftFrom.Should().HaveValue();
+        shiftStep.InsertionSort.ShiftTo.Should().HaveValue();
     }
 }
