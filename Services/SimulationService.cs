@@ -12,8 +12,12 @@ public class SimulationService : ISimulationService
     [
         "bubble_sort",
         "bubble-sort",
+        "insertion_sort",
+        "insertion-sort",
         "binary_search",
         "binary-search",
+        "insertion_sort",
+        "insertion-sort",
         "quick_sort",
         "quick-sort",
         "heap_sort",
@@ -44,7 +48,8 @@ public class SimulationService : ISimulationService
     {
         Default,
         BinarySearch,
-        QuickSort
+        QuickSort,
+        InsertionSort
     }
 
     private readonly IEnumerable<IAlgorithmSimulationEngine> _engines;
@@ -100,7 +105,7 @@ public class SimulationService : ISimulationService
             var expectedIndex = NormalizeSessionIndex(session);
             var expectedStep = session.Steps[expectedIndex];
             var expectedActionLabel = expectedStep.ActionLabel.Trim().ToLowerInvariant();
-            var normalizedAction = NormalizeActionLabel(actionType, expectedStep);
+            var normalizedAction = NormalizeActionLabel(actionType);
             var currentArrayState = GetCurrentArrayState(session, expectedIndex);
 
             if (TerminalActionLabels.Contains(expectedActionLabel))
@@ -295,6 +300,7 @@ public class SimulationService : ISimulationService
         {
             InteractionProfile.QuickSort => actionLabel is "compare" or "swap" or "pivot_swap",
             InteractionProfile.BinarySearch => actionLabel is "midpoint_pick" or "pick_midpoint" or "midpoint",
+            InteractionProfile.InsertionSort => actionLabel is "compare" or "shift" or "insert",
             _ => actionLabel == "swap"
         };
     }
@@ -309,6 +315,11 @@ public class SimulationService : ISimulationService
         if (steps.Any(IsBinarySearchStep))
         {
             return InteractionProfile.BinarySearch;
+        }
+
+        if (steps.Any(step => step.InsertionSort is not null))
+        {
+            return InteractionProfile.InsertionSort;
         }
 
         return InteractionProfile.Default;
@@ -422,6 +433,16 @@ public class SimulationService : ISimulationService
             return $"Pick the midpoint at index {indices[0]}.";
         }
 
+        if (nextExpectedAction == "shift" && indices.Length >= 2)
+        {
+            return $"Shift the element at index {indices[0]} right to index {indices[1]}.";
+        }
+
+        if (nextExpectedAction == "insert" && indices.Length >= 1)
+        {
+            return $"Insert the key at index {indices[0]}.";
+        }
+
         return "No more actions are needed.";
     }
 
@@ -438,27 +459,7 @@ public class SimulationService : ISimulationService
 
     private static bool IsQuickSortStep(SimulationStep? step)
     {
-        if (step is null)
-        {
-            return false;
-        }
-
-        if (step.QuickSort is not null || step.Recursion is not null)
-        {
-            return true;
-        }
-
-        var actionLabel = step.ActionLabel.Trim().ToLowerInvariant();
-        return actionLabel is "pivot_swap"
-            or "pivot_select"
-            or "partition_start"
-            or "recursive_call"
-            or "base_case"
-            or "pivot_positioned"
-            or "sort_left_start"
-            or "sort_left_complete"
-            or "sort_right_start"
-            or "sort_right_complete";
+        return step?.QuickSort is not null || step?.Recursion is not null;
     }
 
     private static bool IsBinarySearchStep(SimulationStep step)
@@ -469,11 +470,7 @@ public class SimulationService : ISimulationService
         }
 
         var actionLabel = step.ActionLabel.Trim().ToLowerInvariant();
-        return actionLabel is "midpoint_pick"
-            or "pick_midpoint"
-            or "midpoint"
-            or "discard_left"
-            or "discard_right";
+        return actionLabel is "midpoint_pick" or "pick_midpoint" or "midpoint" or "discard_left" or "discard_right";
     }
 
     private static SimulationStep CloneStep(SimulationStep step)
@@ -489,7 +486,8 @@ public class SimulationService : ISimulationService
             Search = CloneSearch(step.Search),
             Heap = CloneHeap(step.Heap),
             QuickSort = CloneQuickSort(step.QuickSort),
-            MergeSort = CloneMergeSort(step.MergeSort)
+            MergeSort = CloneMergeSort(step.MergeSort),
+            InsertionSort = CloneInsertionSort(step.InsertionSort)
         };
     }
 
@@ -574,13 +572,30 @@ public class SimulationService : ISimulationService
             ? null
             : new MergeSortStepModel
             {
-                Type           = mergeSort.Type,
-                Left           = mergeSort.Left,
-                Right          = mergeSort.Right,
-                Mid            = mergeSort.Mid,
+                Type = mergeSort.Type,
+                Left = mergeSort.Left,
+                Right = mergeSort.Right,
+                Mid = mergeSort.Mid,
                 RecursionDepth = mergeSort.RecursionDepth,
-                MergeBuffer    = mergeSort.MergeBuffer?.ToArray(),
-                PlaceIndex     = mergeSort.PlaceIndex
+                MergeBuffer = mergeSort.MergeBuffer?.ToArray(),
+                PlaceIndex = mergeSort.PlaceIndex
+            };
+    }
+
+    private static InsertionSortStepModel? CloneInsertionSort(InsertionSortStepModel? insertionSort)
+    {
+        return insertionSort is null
+            ? null
+            : new InsertionSortStepModel
+            {
+                Type = insertionSort.Type,
+                CurrentIndex = insertionSort.CurrentIndex,
+                Key = insertionSort.Key,
+                CompareIndex = insertionSort.CompareIndex,
+                ShiftFrom = insertionSort.ShiftFrom,
+                ShiftTo = insertionSort.ShiftTo,
+                InsertPosition = insertionSort.InsertPosition,
+                SortedBoundary = insertionSort.SortedBoundary
             };
     }
 }

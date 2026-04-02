@@ -11,24 +11,6 @@ namespace backend.Repositories;
 public class QuizAttemptRepository : IQuizAttemptRepository
 {
     private readonly DatabaseHelper _db;
-    private const string InsertAttemptSql = @"
-        INSERT INTO quiz_attempts
-            (user_id, quiz_id, score, total_questions, xp_earned, passed, started_at, completed_at)
-        VALUES
-            (@UserId, @QuizId, @Score, @TotalQuestions, @XpEarned, @Passed, @StartedAt, @CompletedAt);
-        SELECT LAST_INSERT_ID();";
-
-    private const string InsertAnswerSql = @"
-        INSERT INTO attempt_answers
-            (attempt_id, question_id, selected_option, is_correct)
-        VALUES
-            (@AttemptId, @QuestionId, @SelectedOption, @IsCorrect);
-        SELECT LAST_INSERT_ID();";
-
-    private const string AddUserXpSql = @"
-        UPDATE Users
-        SET XpTotal = XpTotal + @XpEarned
-        WHERE Id = @UserId;";
 
     public QuizAttemptRepository(DatabaseHelper db)
     {
@@ -38,92 +20,15 @@ public class QuizAttemptRepository : IQuizAttemptRepository
     /// <inheritdoc />
     public async Task<QuizAttempt> CreateAttemptAsync(QuizAttempt attempt)
     {
-        await using var connection = await _db.OpenConnectionAsync();
-        return await InsertAttemptAsync(connection, transaction: null, attempt);
-    }
-
-    /// <inheritdoc />
-    public async Task<AttemptAnswer> CreateAnswerAsync(AttemptAnswer answer)
-    {
-        await using var connection = await _db.OpenConnectionAsync();
-        return await InsertAnswerAsync(connection, transaction: null, answer);
-    }
-
-    /// <inheritdoc />
-    public async Task<IEnumerable<AttemptAnswer>> CreateAnswersAsync(IEnumerable<AttemptAnswer> answers)
-    {
-        var answerList = answers.ToList();
-        if (answerList.Count == 0)
-            return answerList;
+        const string sql = @"
+            INSERT INTO quiz_attempts
+                (user_id, quiz_id, score, total_questions, xp_earned, passed, started_at, completed_at)
+            VALUES
+                (@UserId, @QuizId, @Score, @TotalQuestions, @XpEarned, @Passed, @StartedAt, @CompletedAt);
+            SELECT LAST_INSERT_ID();";
 
         await using var connection = await _db.OpenConnectionAsync();
-        await using var transaction = await connection.BeginTransactionAsync();
-
-        try
-        {
-            foreach (var answer in answerList)
-            {
-                await InsertAnswerAsync(connection, (MySqlTransaction)transaction, answer);
-            }
-
-            await transaction.CommitAsync();
-            return answerList;
-        }
-        catch
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
-    }
-
-    /// <inheritdoc />
-    public async Task<QuizAttempt> CreateAttemptWithAnswersAndAwardXpAsync(
-        QuizAttempt attempt,
-        IEnumerable<AttemptAnswer> answers,
-        int xpEarned)
-    {
-        var answerList = answers.ToList();
-
-        await using var connection = await _db.OpenConnectionAsync();
-        await using var transaction = await connection.BeginTransactionAsync();
-
-        try
-        {
-            var createdAttempt = await InsertAttemptAsync(connection, (MySqlTransaction)transaction, attempt);
-
-            foreach (var answer in answerList)
-            {
-                answer.AttemptId = createdAttempt.AttemptId;
-                await InsertAnswerAsync(connection, (MySqlTransaction)transaction, answer);
-            }
-
-            if (xpEarned > 0)
-            {
-                await using var xpCmd = new MySqlCommand(AddUserXpSql, connection, (MySqlTransaction)transaction);
-                xpCmd.Parameters.AddWithValue("@XpEarned", xpEarned);
-                xpCmd.Parameters.AddWithValue("@UserId", createdAttempt.UserId);
-
-                var rowsAffected = await xpCmd.ExecuteNonQueryAsync();
-                if (rowsAffected == 0)
-                    throw new KeyNotFoundException($"User with ID {createdAttempt.UserId} was not found.");
-            }
-
-            await transaction.CommitAsync();
-            return createdAttempt;
-        }
-        catch
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
-    }
-
-    private static async Task<QuizAttempt> InsertAttemptAsync(
-        MySqlConnection connection,
-        MySqlTransaction? transaction,
-        QuizAttempt attempt)
-    {
-        await using var cmd = new MySqlCommand(InsertAttemptSql, connection, transaction);
+        await using var cmd = new MySqlCommand(sql, connection);
 
         cmd.Parameters.AddWithValue("@UserId",         attempt.UserId);
         cmd.Parameters.AddWithValue("@QuizId",         attempt.QuizId);
@@ -139,12 +44,18 @@ public class QuizAttemptRepository : IQuizAttemptRepository
         return attempt;
     }
 
-    private static async Task<AttemptAnswer> InsertAnswerAsync(
-        MySqlConnection connection,
-        MySqlTransaction? transaction,
-        AttemptAnswer answer)
+    /// <inheritdoc />
+    public async Task<AttemptAnswer> CreateAnswerAsync(AttemptAnswer answer)
     {
-        await using var cmd = new MySqlCommand(InsertAnswerSql, connection, transaction);
+        const string sql = @"
+            INSERT INTO attempt_answers
+                (attempt_id, question_id, selected_option, is_correct)
+            VALUES
+                (@AttemptId, @QuestionId, @SelectedOption, @IsCorrect);
+            SELECT LAST_INSERT_ID();";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
 
         cmd.Parameters.AddWithValue("@AttemptId",      answer.AttemptId);
         cmd.Parameters.AddWithValue("@QuestionId",     answer.QuestionId);
@@ -154,5 +65,142 @@ public class QuizAttemptRepository : IQuizAttemptRepository
         var insertedId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
         answer.AnswerId = insertedId;
         return answer;
+    }
+
+    /// <inheritdoc />
+    public async Task<IEnumerable<AttemptAnswer>> CreateAnswersAsync(IEnumerable<AttemptAnswer> answers)
+    {
+        var answerList = answers.ToList();
+        if (answerList.Count == 0)
+            return answerList;
+
+        const string sql = @"
+            INSERT INTO attempt_answers
+                (attempt_id, question_id, selected_option, is_correct)
+            VALUES
+                (@AttemptId, @QuestionId, @SelectedOption, @IsCorrect);
+            SELECT LAST_INSERT_ID();";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
+
+        try
+        {
+            foreach (var answer in answerList)
+            {
+                await using var cmd = new MySqlCommand(sql, connection, (MySqlTransaction)transaction);
+                cmd.Parameters.AddWithValue("@AttemptId",      answer.AttemptId);
+                cmd.Parameters.AddWithValue("@QuestionId",     answer.QuestionId);
+                cmd.Parameters.AddWithValue("@SelectedOption", answer.SelectedOption);
+                cmd.Parameters.AddWithValue("@IsCorrect",      answer.IsCorrect);
+
+                var insertedId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+                answer.AnswerId = insertedId;
+            }
+
+            await transaction.CommitAsync();
+            return answerList;
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> HasExistingAttemptAsync(int userId, int quizId)
+    {
+        const string sql = @"
+            SELECT COUNT(1)
+            FROM quiz_attempts
+            WHERE user_id = @UserId
+              AND quiz_id  = @QuizId
+            LIMIT 1;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@UserId", userId);
+        cmd.Parameters.AddWithValue("@QuizId", quizId);
+
+        var count = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        return count > 0;
+    }
+
+    /// <inheritdoc />
+    public async Task<QuizAttempt> SubmitAttemptTransactionalAsync(
+        QuizAttempt attempt,
+        IEnumerable<AttemptAnswer> answers,
+        int xpToAward)
+    {
+        var answerList = answers.ToList();
+
+        const string insertAttemptSql = @"
+            INSERT INTO quiz_attempts
+                (user_id, quiz_id, score, total_questions, xp_earned, passed, started_at, completed_at)
+            VALUES
+                (@UserId, @QuizId, @Score, @TotalQuestions, @XpEarned, @Passed, @StartedAt, @CompletedAt);
+            SELECT LAST_INSERT_ID();";
+
+        const string insertAnswerSql = @"
+            INSERT INTO attempt_answers
+                (attempt_id, question_id, selected_option, is_correct)
+            VALUES
+                (@AttemptId, @QuestionId, @SelectedOption, @IsCorrect);
+            SELECT LAST_INSERT_ID();";
+
+        const string awardXpSql = @"
+            UPDATE Users
+            SET XpTotal = XpTotal + @XpToAward
+            WHERE Id = @UserId;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
+
+        try
+        {
+            // 1. Insert attempt
+            await using var attemptCmd = new MySqlCommand(insertAttemptSql, connection, (MySqlTransaction)transaction);
+            attemptCmd.Parameters.AddWithValue("@UserId",         attempt.UserId);
+            attemptCmd.Parameters.AddWithValue("@QuizId",         attempt.QuizId);
+            attemptCmd.Parameters.AddWithValue("@Score",          attempt.Score);
+            attemptCmd.Parameters.AddWithValue("@TotalQuestions", attempt.TotalQuestions);
+            attemptCmd.Parameters.AddWithValue("@XpEarned",       attempt.XpEarned);
+            attemptCmd.Parameters.AddWithValue("@Passed",         attempt.Passed);
+            attemptCmd.Parameters.AddWithValue("@StartedAt",      attempt.StartedAt);
+            attemptCmd.Parameters.AddWithValue("@CompletedAt",    (object?)attempt.CompletedAt ?? DBNull.Value);
+
+            attempt.AttemptId = Convert.ToInt32(await attemptCmd.ExecuteScalarAsync());
+
+            // 2. Insert answers
+            foreach (var answer in answerList)
+            {
+                answer.AttemptId = attempt.AttemptId;
+                await using var answerCmd = new MySqlCommand(insertAnswerSql, connection, (MySqlTransaction)transaction);
+                answerCmd.Parameters.AddWithValue("@AttemptId",      answer.AttemptId);
+                answerCmd.Parameters.AddWithValue("@QuestionId",     answer.QuestionId);
+                answerCmd.Parameters.AddWithValue("@SelectedOption", answer.SelectedOption);
+                answerCmd.Parameters.AddWithValue("@IsCorrect",      answer.IsCorrect);
+
+                answer.AnswerId = Convert.ToInt32(await answerCmd.ExecuteScalarAsync());
+            }
+
+            // 3. Award XP to the user (only when there is XP to award)
+            if (xpToAward > 0)
+            {
+                await using var xpCmd = new MySqlCommand(awardXpSql, connection, (MySqlTransaction)transaction);
+                xpCmd.Parameters.AddWithValue("@XpToAward", xpToAward);
+                xpCmd.Parameters.AddWithValue("@UserId",    attempt.UserId);
+                await xpCmd.ExecuteNonQueryAsync();
+            }
+
+            await transaction.CommitAsync();
+            return attempt;
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
 }

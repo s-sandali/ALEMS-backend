@@ -23,10 +23,17 @@ public interface IQuizAttemptRepository
     Task<IEnumerable<AttemptAnswer>> CreateAnswersAsync(IEnumerable<AttemptAnswer> answers);
 
     /// <summary>
-    /// Persists the attempt, answers, and awarded XP in a single transaction.
+    /// Returns true if the user has already submitted at least one attempt for this quiz.
+    /// Used to gate XP awards so only the first attempt earns XP.
     /// </summary>
-    Task<QuizAttempt> CreateAttemptWithAnswersAndAwardXpAsync(
+    Task<bool> HasExistingAttemptAsync(int userId, int quizId);
+
+    /// <summary>
+    /// Atomically inserts the attempt, all answers, and increments the user's XP total
+    /// in a single database transaction. Returns the persisted attempt with its generated ID.
+    /// </summary>
+    Task<QuizAttempt> SubmitAttemptTransactionalAsync(
         QuizAttempt attempt,
         IEnumerable<AttemptAnswer> answers,
-        int xpEarned);
+        int xpToAward);
 }
