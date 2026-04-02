@@ -52,17 +52,37 @@ jobs:
         env:
           DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: false
 
+      - name: List generated test files
+        run: |
+          echo "📂 All files generated in workspace:"
+          find . -type f -name "*.xml" | grep -E "(coverage|test)" || echo "No coverage/test XML files found"
+          echo ""
+          echo "📂 Full TestResults directory structure:"
+          find TestResults -type f 2>/dev/null | head -20 || echo "TestResults directory not found"
+
       - name: Extract code coverage
         id: coverage
         continue-on-error: true
         run: |
+          echo "🔍 Debugging coverage file search..."
+          echo "📁 TestResults directory contents:"
+          ls -la TestResults 2>/dev/null || echo "⚠️ TestResults directory not found"
+          echo ""
+          
           # Find all coverage reports from coverlet collector
-          COVERAGE_FILES=$(find TestResults -name "coverage.cobertura.xml" 2>/dev/null | head -1)
+          echo "🔎 Searching for coverage.cobertura.xml files..."
+          COVERAGE_FILES=$(find . -name "coverage.cobertura.xml" -type f 2>/dev/null | head -1)
           
           if [ -z "$COVERAGE_FILES" ]; then
-            echo "⚠️ No coverage files found. Setting default coverage to 0%"
-            echo "coverage=0" >> $GITHUB_OUTPUT
-            exit 0
+            echo "⚠️ No coverage.cobertura.xml files found"
+            echo "📦 Looking for alternative coverage file formats..."
+            COVERAGE_FILES=$(find . -name "*coverage*.xml" -type f 2>/dev/null | head -1)
+            
+            if [ -z "$COVERAGE_FILES" ]; then
+              echo "❌ No coverage XML files found anywhere"
+              echo "coverage=0" >> $GITHUB_OUTPUT
+              exit 0
+            fi
           fi
           
           echo "📊 Found coverage file: $COVERAGE_FILES"
@@ -71,7 +91,9 @@ jobs:
           COVERAGE=$(grep -oP 'line-rate="\K[0-9.]+' "$COVERAGE_FILES" | head -1)
           
           if [ -z "$COVERAGE" ]; then
-            echo "⚠️ Could not parse coverage value"
+            echo "⚠️ Could not parse coverage value from XML"
+            echo "📄 File contents preview:"
+            head -20 "$COVERAGE_FILES"
             echo "coverage=0" >> $GITHUB_OUTPUT
             exit 0
           fi
