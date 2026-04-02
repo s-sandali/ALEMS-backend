@@ -33,6 +33,22 @@ public class SimulationServiceRunTests
             !string.IsNullOrWhiteSpace(step.ActionLabel));
     }
 
+    [Fact(DisplayName = "UT-IS-04 - SimulationService: RunAsync returns Insertion Sort steps")]
+    public async Task RunAsync_InsertionSort_ReturnsInsertionSortTrace()
+    {
+        var sut = BuildSut();
+
+        var result = await sut.RunAsync("insertion_sort", [5, 3, 8, 4], null);
+
+        result.AlgorithmName.Should().Be("Insertion Sort");
+        result.TotalSteps.Should().Be(result.Steps.Count);
+        result.Steps.Should().Contain(step => step.ActionLabel == "select_key");
+        result.Steps.Should().Contain(step => step.ActionLabel == "compare");
+        result.Steps.Should().Contain(step => step.ActionLabel == "shift");
+        result.Steps.Should().Contain(step => step.ActionLabel == "insert");
+        result.Steps.Should().Contain(step => step.ActionLabel == "sorted_boundary");
+    }
+
     [Fact(DisplayName = "UT-BS-09 - SimulationService: RunAsync handles unknown algorithm ID gracefully")]
     public async Task RunAsync_UnknownAlgorithm_ThrowsNotSupportedException()
     {
@@ -45,15 +61,23 @@ public class SimulationServiceRunTests
             .WithMessage("*unknown_algorithm*");
     }
 
-    [Fact(DisplayName = "UT-IS-03 - SimulationService: RunAsync routes insertion-sort to registered engine")]
-    public async Task RunAsync_InsertionSort_ReturnsInsertionSortTrace()
+    [Fact(DisplayName = "UT-IS-03 - SimulationService: RunAsync supports insertion sort and returns shift metadata")]
+    public async Task RunAsync_InsertionSort_ReturnsShiftStepWithMetadata()
     {
         var sut = BuildSut();
 
-        var result = await sut.RunAsync("insertion-sort", [5, 2, 4, 6, 1, 3], null);
+        var result = await sut.RunAsync("insertion_sort", [9, 5, 7, 3], null);
 
         result.AlgorithmName.Should().Be("Insertion Sort");
-        result.Steps.Should().NotBeEmpty();
-        result.Steps[result.Steps.Count - 1].ArrayState.Should().Equal(1, 2, 3, 4, 5, 6);
+        result.TotalSteps.Should().Be(result.Steps.Count);
+
+        var shiftStep = result.Steps.First(step => step.ActionLabel == "shift");
+
+        shiftStep.InsertionSort.Should().NotBeNull();
+        shiftStep.InsertionSort!.Type.Should().Be("shift");
+        shiftStep.InsertionSort.Key.Should().HaveValue();
+        shiftStep.InsertionSort.CompareIndex.Should().HaveValue();
+        shiftStep.InsertionSort.ShiftFrom.Should().HaveValue();
+        shiftStep.InsertionSort.ShiftTo.Should().HaveValue();
     }
 }
