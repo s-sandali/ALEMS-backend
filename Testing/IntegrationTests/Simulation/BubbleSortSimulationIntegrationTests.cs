@@ -110,6 +110,20 @@ public class BubbleSortSimulationIntegrationTests : IClassFixture<CustomWebAppli
         doc.RootElement.GetProperty("message").GetString().Should().Contain("not supported");
     }
 
+    [Fact(DisplayName = "BE-IT-IS-01 — GET /simulate/insertion-sort returns insertion sort trace")]
+    public async Task GetInsertionSort_ReturnsInsertionSortTrace()
+    {
+        var response = await _client.GetAsync("/simulate/insertion-sort?array=5&array=2&array=4&array=1");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadFromJsonAsync<SimulationResponse>();
+        body.Should().NotBeNull();
+        body!.AlgorithmName.Should().Be("Insertion Sort");
+        body.Steps.Should().NotBeEmpty();
+        body.Steps[body.Steps.Count - 1].ArrayState.Should().Equal(1, 2, 4, 5);
+    }
+
     [Theory(DisplayName = "BE-IT-SIM-04 — POST /api/simulation/run validates empty algorithm or empty array")]
     [InlineData("", new[] { 1, 2, 3 })]
     [InlineData("bubble_sort", new int[0])]
