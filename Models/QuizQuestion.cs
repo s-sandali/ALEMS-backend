@@ -15,6 +15,7 @@ public class QuizQuestion
     public string OptionD { get; set; } = string.Empty;
     public string CorrectOption { get; set; } = "A";    // 'A' | 'B' | 'C' | 'D'
     public string Difficulty { get; set; } = "easy";    // 'easy' | 'medium' | 'hard'
+    public int XpReward { get; set; }
     public string? Explanation { get; set; }
     public int OrderIndex { get; set; }
     public bool IsActive { get; set; } = true;
