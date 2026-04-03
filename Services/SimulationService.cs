@@ -49,7 +49,7 @@ public class SimulationService : ISimulationService
         Default,
         BinarySearch,
         QuickSort,
-        MergeSort
+        MergeSort,
         InsertionSort
     }
 
