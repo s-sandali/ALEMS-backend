@@ -31,5 +31,9 @@ public class SimulationStep
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public InsertionSortStepModel? InsertionSort { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SelectionSortStepModel? SelectionSort { get; set; }
+
     public MergeSortStepModel? MergeSort { get; set; }
 }

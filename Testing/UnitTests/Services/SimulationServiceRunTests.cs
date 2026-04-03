@@ -10,7 +10,7 @@ public class SimulationServiceRunTests
 {
     private static SimulationService BuildSut() =>
         new(
-            [new BubbleSortSimulationEngine(), new InsertionSortSimulationEngine()],
+            [new BubbleSortSimulationEngine(), new InsertionSortSimulationEngine(), new SelectionSortSimulationEngine()],
             new InMemorySimulationSessionStore(),
             NullLogger<SimulationService>.Instance);
 
@@ -79,5 +79,26 @@ public class SimulationServiceRunTests
         shiftStep.InsertionSort.CompareIndex.Should().HaveValue();
         shiftStep.InsertionSort.ShiftFrom.Should().HaveValue();
         shiftStep.InsertionSort.ShiftTo.Should().HaveValue();
+    }
+
+    [Fact(DisplayName = "UT-SS-01 - SimulationService: RunAsync returns Selection Sort steps")]
+    public async Task RunAsync_SelectionSort_ReturnsSelectionSortTrace()
+    {
+        var sut = BuildSut();
+
+        var result = await sut.RunAsync("selection_sort", [64, 25, 12, 22, 11], null);
+
+        result.AlgorithmName.Should().Be("Selection Sort");
+        result.TotalSteps.Should().Be(result.Steps.Count);
+        result.Steps.Should().Contain(step => step.ActionLabel == "compare");
+        result.Steps.Should().Contain(step => step.ActionLabel == "select_min");
+        result.Steps.Should().Contain(step => step.ActionLabel == "swap");
+        result.Steps.Should().Contain(step => step.ActionLabel == "sorted_boundary");
+
+        var swapStep = result.Steps.First(step => step.ActionLabel == "swap");
+        swapStep.SelectionSort.Should().NotBeNull();
+        swapStep.SelectionSort!.Type.Should().Be("swap");
+        swapStep.SelectionSort.SwapFrom.Should().HaveValue();
+        swapStep.SelectionSort.SwapTo.Should().HaveValue();
     }
 }
