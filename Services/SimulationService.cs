@@ -44,7 +44,8 @@ public class SimulationService : ISimulationService
     {
         Default,
         BinarySearch,
-        QuickSort
+        QuickSort,
+        MergeSort
     }
 
     private readonly IEnumerable<IAlgorithmSimulationEngine> _engines;
@@ -294,6 +295,7 @@ public class SimulationService : ISimulationService
         return interactionProfile switch
         {
             InteractionProfile.QuickSort => actionLabel is "compare" or "swap" or "pivot_swap",
+            InteractionProfile.MergeSort => actionLabel is "compare" or "place",
             InteractionProfile.BinarySearch => actionLabel is "midpoint_pick" or "pick_midpoint" or "midpoint",
             _ => actionLabel == "swap"
         };
@@ -301,6 +303,11 @@ public class SimulationService : ISimulationService
 
     private static InteractionProfile DetermineInteractionProfile(IReadOnlyList<SimulationStep> steps)
     {
+        if (steps.Any(IsMergeSortStep))
+        {
+            return InteractionProfile.MergeSort;
+        }
+
         if (steps.Any(IsQuickSortStep))
         {
             return InteractionProfile.QuickSort;
@@ -321,6 +328,7 @@ public class SimulationService : ISimulationService
         return normalizedAction switch
         {
             "compare" => "compare",
+            "place" => "place",
             "swap" => "swap",
             "pivot_swap" when IsQuickSortStep(stepContext) => "swap",
             "pick_midpoint" => "midpoint_pick",
@@ -417,6 +425,11 @@ public class SimulationService : ISimulationService
             return $"Compare index {indices[0]} against index {indices[1]}.";
         }
 
+        if (nextExpectedAction == "place" && indices.Length >= 1)
+        {
+            return $"Place the selected value at index {indices[0]}.";
+        }
+
         if (nextExpectedAction == "midpoint_pick" && indices.Length >= 1)
         {
             return $"Pick the midpoint at index {indices[0]}.";
@@ -443,7 +456,7 @@ public class SimulationService : ISimulationService
             return false;
         }
 
-        if (step.QuickSort is not null || step.Recursion is not null)
+        if (step.QuickSort is not null)
         {
             return true;
         }
@@ -455,6 +468,24 @@ public class SimulationService : ISimulationService
             or "recursive_call"
             or "base_case"
             or "pivot_positioned"
+            or "sort_left_start"
+            or "sort_left_complete"
+            or "sort_right_start"
+            or "sort_right_complete";
+    }
+
+    private static bool IsMergeSortStep(SimulationStep step)
+    {
+        if (step.MergeSort is not null)
+        {
+            return true;
+        }
+
+        var actionLabel = step.ActionLabel.Trim().ToLowerInvariant();
+        return actionLabel is "split"
+            or "merge_start"
+            or "place"
+            or "merge_complete"
             or "sort_left_start"
             or "sort_left_complete"
             or "sort_right_start"
