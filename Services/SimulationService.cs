@@ -8,8 +8,8 @@ namespace backend.Services;
 /// </summary>
 public class SimulationService : ISimulationService
 {
-    private static readonly HashSet<string> SupportedAlgorithms =
-    [
+    private static readonly HashSet<string> SupportedAlgorithms = new()
+    {
         "bubble_sort",
         "bubble-sort",
         "binary_search",
@@ -20,25 +20,25 @@ public class SimulationService : ISimulationService
         "heap-sort",
         "merge_sort",
         "merge-sort"
-    ];
+    };
 
-    private static readonly HashSet<string> TerminalActionLabels =
-    [
+    private static readonly HashSet<string> TerminalActionLabels = new()
+    {
         "complete",
         "early_exit",
         "target_found",
         "found",
         "target_not_found",
         "not_found"
-    ];
+    };
 
-    private static readonly HashSet<string> DecisionActionLabels =
-    [
+    private static readonly HashSet<string> DecisionActionLabels = new()
+    {
         "discard_left",
         "discard_right",
         "target_found",
         "found"
-    ];
+    };
 
     private enum InteractionProfile
     {
@@ -116,7 +116,7 @@ public class SimulationService : ISimulationService
                     NextExpectedAction = terminalAction,
                     Message = "Practice complete.",
                     Hint = "No more actions are needed.",
-                    SuggestedIndices = [],
+                    SuggestedIndices = Array.Empty<int>(),
                     CurrentStepIndex = session.CurrentStepIndex
                 });
             }
@@ -135,7 +135,7 @@ public class SimulationService : ISimulationService
                         NextExpectedAction = normalizedAction,
                         Message = "No decision is expected at this step.",
                         Hint = "Wait for the midpoint before choosing a direction.",
-                        SuggestedIndices = [],
+                        SuggestedIndices = Array.Empty<int>(),
                         CurrentStepIndex = session.CurrentStepIndex
                     });
                 }
@@ -168,7 +168,7 @@ public class SimulationService : ISimulationService
                 var decisionNextActionLabel = decisionNextStep.ActionLabel.Trim().ToLowerInvariant();
                 var decisionNextExpectedAction = NormalizeActionLabel(decisionNextActionLabel, decisionNextStep);
                 var decisionNextSuggestedIndices = TerminalActionLabels.Contains(decisionNextActionLabel)
-                    ? []
+                    ? Array.Empty<int>()
                     : decisionNextStep.ActiveIndices.ToArray();
 
                 return Task.FromResult(new SimulationValidationResponse
@@ -220,7 +220,7 @@ public class SimulationService : ISimulationService
             var nextActionLabel = nextStep.ActionLabel.Trim().ToLowerInvariant();
             var nextExpectedAction = NormalizeActionLabel(nextActionLabel, nextStep);
             var nextSuggestedIndices = TerminalActionLabels.Contains(nextActionLabel)
-                ? []
+                ? Array.Empty<int>()
                 : nextStep.ActiveIndices.ToArray();
 
             return Task.FromResult(new SimulationValidationResponse
@@ -373,7 +373,7 @@ public class SimulationService : ISimulationService
     {
         if (session.Steps.Count == 0)
         {
-            return [];
+            return Array.Empty<int>();
         }
 
         if (expectedIndex <= 0)
