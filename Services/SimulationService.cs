@@ -309,7 +309,12 @@ public class SimulationService : ISimulationService
 
     private static InteractionProfile DetermineInteractionProfile(IReadOnlyList<SimulationStep> steps)
     {
-        if (steps.Any(IsMergeSortStep))
+        if (steps.Any(step => step.QuickSort is not null))
+        {
+            return InteractionProfile.QuickSort;
+        }
+
+        if (steps.Any(step => step.MergeSort is not null))
         {
             return InteractionProfile.MergeSort;
         }
@@ -317,6 +322,11 @@ public class SimulationService : ISimulationService
         if (steps.Any(IsQuickSortStep))
         {
             return InteractionProfile.QuickSort;
+        }
+
+        if (steps.Any(IsMergeSortStep))
+        {
+            return InteractionProfile.MergeSort;
         }
 
         if (steps.Any(IsBinarySearchStep))
@@ -486,13 +496,7 @@ public class SimulationService : ISimulationService
         return actionLabel is "pivot_swap"
             or "pivot_select"
             or "partition_start"
-            or "recursive_call"
-            or "base_case"
-            or "pivot_positioned"
-            or "sort_left_start"
-            or "sort_left_complete"
-            or "sort_right_start"
-            or "sort_right_complete";
+            or "pivot_positioned";
     }
 
     private static bool IsMergeSortStep(SimulationStep step)
@@ -506,11 +510,7 @@ public class SimulationService : ISimulationService
         return actionLabel is "split"
             or "merge_start"
             or "place"
-            or "merge_complete"
-            or "sort_left_start"
-            or "sort_left_complete"
-            or "sort_right_start"
-            or "sort_right_complete";
+            or "merge_complete";
     }
 
     private static bool IsBinarySearchStep(SimulationStep step)
