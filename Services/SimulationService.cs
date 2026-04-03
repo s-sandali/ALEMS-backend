@@ -8,8 +8,8 @@ namespace backend.Services;
 /// </summary>
 public class SimulationService : ISimulationService
 {
-    private static readonly HashSet<string> SupportedAlgorithms =
-    [
+    private static readonly HashSet<string> SupportedAlgorithms = new()
+    {
         "bubble_sort",
         "bubble-sort",
         "insertion_sort",
@@ -24,31 +24,32 @@ public class SimulationService : ISimulationService
         "heap-sort",
         "merge_sort",
         "merge-sort"
-    ];
+    };
 
-    private static readonly HashSet<string> TerminalActionLabels =
-    [
+    private static readonly HashSet<string> TerminalActionLabels = new()
+    {
         "complete",
         "early_exit",
         "target_found",
         "found",
         "target_not_found",
         "not_found"
-    ];
+    };
 
-    private static readonly HashSet<string> DecisionActionLabels =
-    [
+    private static readonly HashSet<string> DecisionActionLabels = new()
+    {
         "discard_left",
         "discard_right",
         "target_found",
         "found"
-    ];
+    };
 
     private enum InteractionProfile
     {
         Default,
         BinarySearch,
         QuickSort,
+        MergeSort,
         InsertionSort
     }
 
@@ -120,7 +121,7 @@ public class SimulationService : ISimulationService
                     NextExpectedAction = terminalAction,
                     Message = "Practice complete.",
                     Hint = "No more actions are needed.",
-                    SuggestedIndices = [],
+                    SuggestedIndices = Array.Empty<int>(),
                     CurrentStepIndex = session.CurrentStepIndex
                 });
             }
@@ -139,7 +140,7 @@ public class SimulationService : ISimulationService
                         NextExpectedAction = normalizedAction,
                         Message = "No decision is expected at this step.",
                         Hint = "Wait for the midpoint before choosing a direction.",
-                        SuggestedIndices = [],
+                        SuggestedIndices = Array.Empty<int>(),
                         CurrentStepIndex = session.CurrentStepIndex
                     });
                 }
@@ -172,7 +173,7 @@ public class SimulationService : ISimulationService
                 var decisionNextActionLabel = decisionNextStep.ActionLabel.Trim().ToLowerInvariant();
                 var decisionNextExpectedAction = NormalizeActionLabel(decisionNextActionLabel, decisionNextStep);
                 var decisionNextSuggestedIndices = TerminalActionLabels.Contains(decisionNextActionLabel)
-                    ? []
+                    ? Array.Empty<int>()
                     : decisionNextStep.ActiveIndices.ToArray();
 
                 return Task.FromResult(new SimulationValidationResponse
@@ -224,7 +225,7 @@ public class SimulationService : ISimulationService
             var nextActionLabel = nextStep.ActionLabel.Trim().ToLowerInvariant();
             var nextExpectedAction = NormalizeActionLabel(nextActionLabel, nextStep);
             var nextSuggestedIndices = TerminalActionLabels.Contains(nextActionLabel)
-                ? []
+                ? Array.Empty<int>()
                 : nextStep.ActiveIndices.ToArray();
 
             return Task.FromResult(new SimulationValidationResponse
@@ -299,6 +300,7 @@ public class SimulationService : ISimulationService
         return interactionProfile switch
         {
             InteractionProfile.QuickSort => actionLabel is "compare" or "swap" or "pivot_swap",
+            InteractionProfile.MergeSort => actionLabel is "compare" or "place",
             InteractionProfile.BinarySearch => actionLabel is "midpoint_pick" or "pick_midpoint" or "midpoint",
             InteractionProfile.InsertionSort => actionLabel is "compare" or "shift" or "insert",
             _ => actionLabel == "swap"
@@ -307,9 +309,24 @@ public class SimulationService : ISimulationService
 
     private static InteractionProfile DetermineInteractionProfile(IReadOnlyList<SimulationStep> steps)
     {
+        if (steps.Any(step => step.QuickSort is not null))
+        {
+            return InteractionProfile.QuickSort;
+        }
+
+        if (steps.Any(step => step.MergeSort is not null))
+        {
+            return InteractionProfile.MergeSort;
+        }
+
         if (steps.Any(IsQuickSortStep))
         {
             return InteractionProfile.QuickSort;
+        }
+
+        if (steps.Any(IsMergeSortStep))
+        {
+            return InteractionProfile.MergeSort;
         }
 
         if (steps.Any(IsBinarySearchStep))
@@ -332,6 +349,7 @@ public class SimulationService : ISimulationService
         return normalizedAction switch
         {
             "compare" => "compare",
+            "place" => "place",
             "swap" => "swap",
             "pivot_swap" when IsQuickSortStep(stepContext) => "swap",
             "pick_midpoint" => "midpoint_pick",
@@ -376,7 +394,7 @@ public class SimulationService : ISimulationService
     {
         if (session.Steps.Count == 0)
         {
-            return [];
+            return Array.Empty<int>();
         }
 
         if (expectedIndex <= 0)
@@ -428,6 +446,11 @@ public class SimulationService : ISimulationService
             return $"Compare index {indices[0]} against index {indices[1]}.";
         }
 
+        if (nextExpectedAction == "place" && indices.Length >= 1)
+        {
+            return $"Place the selected value at index {indices[0]}.";
+        }
+
         if (nextExpectedAction == "midpoint_pick" && indices.Length >= 1)
         {
             return $"Pick the midpoint at index {indices[0]}.";
@@ -459,7 +482,35 @@ public class SimulationService : ISimulationService
 
     private static bool IsQuickSortStep(SimulationStep? step)
     {
-        return step?.QuickSort is not null || step?.Recursion is not null;
+        if (step is null)
+        {
+            return false;
+        }
+
+        if (step.QuickSort is not null)
+        {
+            return true;
+        }
+
+        var actionLabel = step.ActionLabel.Trim().ToLowerInvariant();
+        return actionLabel is "pivot_swap"
+            or "pivot_select"
+            or "partition_start"
+            or "pivot_positioned";
+    }
+
+    private static bool IsMergeSortStep(SimulationStep step)
+    {
+        if (step.MergeSort is not null)
+        {
+            return true;
+        }
+
+        var actionLabel = step.ActionLabel.Trim().ToLowerInvariant();
+        return actionLabel is "split"
+            or "merge_start"
+            or "place"
+            or "merge_complete";
     }
 
     private static bool IsBinarySearchStep(SimulationStep step)
