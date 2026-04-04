@@ -146,12 +146,12 @@ public class InsertionSortSimulationIntegrationTests : IClassFixture<CustomWebAp
         body.Should().NotBeNull();
         body!.Steps[^1].ArrayState.Should().Equal(1, 2, 3, 3);
         // Equal elements must not be shifted past each other (stable sort):
-        // every shift step must have a shifted value strictly greater than the key
+        // in a shift snapshot, the moved value is at ShiftTo and must be strictly greater than the key
         body.Steps
             .Where(s => s.ActionLabel == "shift")
             .Should().OnlyContain(s =>
                 s.InsertionSort != null &&
-                s.ArrayState[s.InsertionSort.ShiftFrom!.Value] > s.InsertionSort.Key!.Value);
+            s.ArrayState[s.InsertionSort.ShiftTo!.Value] > s.InsertionSort.Key!.Value);
     }
 
     // ---- POST /api/simulation/start ----
