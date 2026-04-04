@@ -14,6 +14,25 @@ public class SimulationServicePracticeSessionTests
             store,
             NullLogger<SimulationService>.Instance);
 
+    private static SimulationService BuildQuickSortSut(InMemorySimulationSessionStore store) =>
+        new(
+            [new QuickSortSimulationEngine()],
+            store,
+            NullLogger<SimulationService>.Instance);
+
+    private static SimulationService BuildSelectionSortSut(InMemorySimulationSessionStore store) =>
+        new(
+            [new SelectionSortSimulationEngine()],
+            store,
+            NullLogger<SimulationService>.Instance);
+
+    private static string NormalizeQuickSortAction(string actionLabel) =>
+        actionLabel switch
+        {
+            "pivot_swap" => "swap",
+            _ => actionLabel
+        };
+
     [Fact]
     public async Task StartSessionAsync_SeedsSessionAtFirstInteractiveStep()
     {
@@ -82,6 +101,38 @@ public class SimulationServicePracticeSessionTests
     }
 
     [Fact]
+    public async Task StartSessionAsync_QuickSortSessionStartsAtCompareStep_AndClonesMetadata()
+    {
+        var store = new InMemorySimulationSessionStore();
+        var sut = BuildQuickSortSut(store);
+
+        var session = await sut.StartSessionAsync("quick_sort", [5, 1, 4], null);
+
+        session.Steps[session.CurrentStepIndex].ActionLabel.Should().Be("compare");
+        session.Steps[session.CurrentStepIndex].QuickSort.Should().NotBeNull();
+        session.Steps[session.CurrentStepIndex].QuickSort!.Type.Should().Be("compare");
+        session.Steps[session.CurrentStepIndex].Recursion.Should().NotBeNull();
+        session.Steps[session.CurrentStepIndex].Recursion!.State.Should().Be("compare");
+
+        var storedSession = store.Get(session.SessionId);
+        storedSession.Should().NotBeNull();
+        storedSession!.Steps[storedSession.CurrentStepIndex].QuickSort.Should().NotBeNull();
+        storedSession.Steps[storedSession.CurrentStepIndex].Recursion.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task StartSessionAsync_SelectionSortSessionStartsAtSwapStep()
+    {
+        var store = new InMemorySimulationSessionStore();
+        var sut = BuildSelectionSortSut(store);
+
+        var session = await sut.StartSessionAsync("selection_sort", [64, 25, 12, 22, 11], null);
+
+        session.Steps[session.CurrentStepIndex].ActionLabel.Should().Be("swap");
+        session.Steps[session.CurrentStepIndex].ActiveIndices.Should().Equal([0, 4]);
+    }
+
+    [Fact]
     public async Task ValidateStepAsync_BinaryMidpointAlias_AdvancesAndExposesTerminalLabel()
     {
         var store = new InMemorySimulationSessionStore();
@@ -96,6 +147,42 @@ public class SimulationServicePracticeSessionTests
         response.Correct.Should().BeTrue();
         response.NextExpectedAction.Should().Be("target_found");
         response.SuggestedIndices.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ValidateStepAsync_QuickSortPivotSwapAcceptsSwapAlias_WithoutDesynchronizingSession()
+    {
+        var store = new InMemorySimulationSessionStore();
+        var sut = BuildQuickSortSut(store);
+        var session = await sut.StartSessionAsync("quick_sort", [5, 1, 4], null);
+
+        var currentIndex = session.CurrentStepIndex;
+        while (session.Steps[currentIndex].ActionLabel != "pivot_swap")
+        {
+            var currentStep = session.Steps[currentIndex];
+            var response = await sut.ValidateStepAsync(
+                session.SessionId,
+                NormalizeQuickSortAction(currentStep.ActionLabel),
+                currentStep.ActiveIndices);
+
+            response.Correct.Should().BeTrue();
+
+            currentIndex = response.CurrentStepIndex;
+            session = store.Get(session.SessionId)!;
+        }
+
+        var pivotSwapStep = session.Steps[currentIndex];
+        pivotSwapStep.ActionLabel.Should().Be("pivot_swap");
+
+        var pivotSwapResponse = await sut.ValidateStepAsync(session.SessionId, "swap", pivotSwapStep.ActiveIndices);
+
+        pivotSwapResponse.Correct.Should().BeTrue();
+        pivotSwapResponse.CurrentStepIndex.Should().BeGreaterThan(currentIndex);
+        pivotSwapResponse.NextExpectedAction.Should().Be("complete");
+
+        var updatedSession = store.Get(session.SessionId);
+        updatedSession.Should().NotBeNull();
+        updatedSession!.CurrentStepIndex.Should().Be(pivotSwapResponse.CurrentStepIndex);
     }
 
     [Fact]

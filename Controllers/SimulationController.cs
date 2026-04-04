@@ -26,6 +26,44 @@ public class SimulationController : ControllerBase
     }
 
     /// <summary>
+    /// GET /simulate/insertion-sort
+    /// Compatibility endpoint that runs insertion sort simulation.
+    /// If no query values are provided, a sample array is used.
+    /// </summary>
+    [HttpGet("/simulate/insertion-sort")]
+    [ProducesResponseType(typeof(backend.Models.Simulations.SimulationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status501NotImplemented)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetInsertionSortSimulation([FromQuery] int[]? array)
+    {
+        try
+        {
+            var input = array is { Length: > 0 } ? array : [5, 2, 4, 6, 1, 3];
+            var response = await _simulationService.RunAsync("insertion-sort", input, null);
+            return Ok(response);
+        }
+        catch (NotSupportedException ex)
+        {
+            _logger.LogWarning(ex, "Insertion sort simulation endpoint is not registered.");
+            return StatusCode(StatusCodes.Status501NotImplemented, new
+            {
+                status = "error",
+                message = ex.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unhandled error in GET /simulate/insertion-sort");
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                status = "error",
+                message = "An unexpected error occurred while running insertion sort simulation.",
+                detail = ex.Message
+            });
+        }
+    }
+
+    /// <summary>
     /// POST /api/simulation/run
     /// Runs a simulation for the requested algorithm and input array.
     /// </summary>
@@ -177,7 +215,7 @@ public class SimulationController : ControllerBase
                     or "target_found";
                 var requiredIndices = isDecisionType
                     ? 0
-                    : (normalizedType is "midpoint" or "midpoint_pick" or "pick_midpoint" ? 1 : 2);
+                    : (normalizedType is "midpoint" or "midpoint_pick" or "pick_midpoint" or "place" ? 1 : 2);
 
                 if (requiredIndices > 0 && (userAction.Indices is null || userAction.Indices.Length < requiredIndices))
                 {

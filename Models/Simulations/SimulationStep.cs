@@ -18,5 +18,22 @@ public class SimulationStep
     public string ActionLabel { get; set; } = string.Empty;
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public RecursionStepModel? Recursion { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SearchStepModel? Search { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public HeapStepModel? Heap { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public QuickSortStepModel? QuickSort { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public InsertionSortStepModel? InsertionSort { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SelectionSortStepModel? SelectionSort { get; set; }
+
+    public MergeSortStepModel? MergeSort { get; set; }
 }

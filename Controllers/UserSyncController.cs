@@ -84,14 +84,24 @@ public class UserSyncController : ControllerBase
                 email ?? string.Empty,
                 username);
 
-            // If public_metadata.role was absent, write "User" to Clerk now so every
-            // subsequent token will contain the claim automatically.
-            if (roleMissing)
+            // If public_metadata.role was absent AND the DB role is the default "User",
+            // write it to Clerk so future tokens carry the claim automatically.
+            // Guard against overwriting an elevated role (e.g. Admin) that was set in
+            // Clerk/DB manually but isn't yet present in the JWT (e.g. no JWT template).
+            if (roleMissing && string.Equals(dto.Role, "User", StringComparison.OrdinalIgnoreCase))
             {
                 await _clerkService.SetUserRoleAsync(clerkUserId, "User");
                 _logger.LogInformation(
                     "POST /api/users/sync — Default role 'User' written to Clerk for ClerkId={ClerkId}",
                     clerkUserId);
+            }
+            else if (roleMissing)
+            {
+                // Role is missing from JWT but DB has a non-default role — sync it back to Clerk.
+                await _clerkService.SetUserRoleAsync(clerkUserId, dto.Role);
+                _logger.LogInformation(
+                    "POST /api/users/sync — Restored role '{Role}' to Clerk for ClerkId={ClerkId}",
+                    dto.Role, clerkUserId);
             }
 
             if (isNewUser)

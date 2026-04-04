@@ -100,7 +100,7 @@ public class BubbleSortSimulationIntegrationTests : IClassFixture<CustomWebAppli
     {
         var response = await _client.PostAsJsonAsync("/api/simulation/run", new
         {
-            algorithm = "quick_sort",
+            algorithm = "linear_search",
             array = new[] { 3, 1, 2 }
         });
 
@@ -108,6 +108,20 @@ public class BubbleSortSimulationIntegrationTests : IClassFixture<CustomWebAppli
         using var doc = await ParseBodyAsync(response);
         doc.RootElement.GetProperty("status").GetString().Should().Be("error");
         doc.RootElement.GetProperty("message").GetString().Should().Contain("not supported");
+    }
+
+    [Fact(DisplayName = "BE-IT-IS-01 — GET /simulate/insertion-sort returns insertion sort trace")]
+    public async Task GetInsertionSort_ReturnsInsertionSortTrace()
+    {
+        var response = await _client.GetAsync("/simulate/insertion-sort?array=5&array=2&array=4&array=1");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadFromJsonAsync<SimulationResponse>();
+        body.Should().NotBeNull();
+        body!.AlgorithmName.Should().Be("Insertion Sort");
+        body.Steps.Should().NotBeEmpty();
+        body.Steps[body.Steps.Count - 1].ArrayState.Should().Equal(1, 2, 4, 5);
     }
 
     [Theory(DisplayName = "BE-IT-SIM-04 — POST /api/simulation/run validates empty algorithm or empty array")]
@@ -166,7 +180,7 @@ public class BubbleSortSimulationIntegrationTests : IClassFixture<CustomWebAppli
     {
         var response = await _client.PostAsJsonAsync("/api/simulation/start", new
         {
-            algorithm = "merge_sort",
+            algorithm = "linear_search",
             array = new[] { 3, 2, 1 }
         });
 

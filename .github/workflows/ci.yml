@@ -2,10 +2,10 @@ name: Backend CI
 
 on:
   pull_request:
-    branches: [develop, main]
+    branches: [develop, main, QA, devops]
 
   push:
-    branches: [develop, main]
+    branches: [develop, main, QA, devops]
 
 jobs:
   secret-scan:

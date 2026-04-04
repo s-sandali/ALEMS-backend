@@ -7,8 +7,16 @@ namespace backend.Services.Simulations;
 /// </summary>
 public class BubbleSortSimulationEngine : IAlgorithmSimulationEngine
 {
-    public bool CanHandle(string algorithm) =>
-        algorithm == "bubble_sort" || algorithm == "bubble-sort";
+    public bool CanHandle(string algorithm)
+    {
+        if (string.IsNullOrWhiteSpace(algorithm))
+        {
+            return false;
+        }
+
+        var normalized = algorithm.Trim().ToLowerInvariant();
+        return normalized is "bubble_sort" or "bubble-sort";
+    }
 
     public SimulationResponse Run(int[] array, int? targetValue = null)
     {
