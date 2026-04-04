@@ -215,7 +215,7 @@ public class SimulationController : ControllerBase
                     or "target_found";
                 var requiredIndices = isDecisionType
                     ? 0
-                    : (normalizedType is "midpoint" or "midpoint_pick" or "pick_midpoint" or "place" ? 1 : 2);
+                    : (normalizedType is "midpoint" or "midpoint_pick" or "pick_midpoint" or "place" or "select_min" ? 1 : 2);
 
                 if (requiredIndices > 0 && (userAction.Indices is null || userAction.Indices.Length < requiredIndices))
                 {
