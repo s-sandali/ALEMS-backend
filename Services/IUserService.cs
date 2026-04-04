@@ -40,4 +40,10 @@ public interface IUserService
     /// Returns true if successful, false if not found.
     /// </summary>
     Task<bool> DeleteUserAsync(int id);
+
+    /// <summary>
+    /// Increments a user's XP total by the supplied amount.
+    /// Throws <see cref="KeyNotFoundException"/> if the user does not exist.
+    /// </summary>
+    Task UpdateUserXPAsync(int userId, int xpEarned);
 }

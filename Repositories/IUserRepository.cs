@@ -48,4 +48,10 @@ public interface IUserRepository
     /// Returns true if the row was updated, false if the user was not found.
     /// </summary>
     Task<bool> LinkClerkUserIdAsync(int userId, string clerkUserId);
+
+    /// <summary>
+    /// Increments a user's accumulated XP.
+    /// Returns true if the user was updated, false if not found.
+    /// </summary>
+    Task<bool> AddXpAsync(int userId, int xpEarned);
 }

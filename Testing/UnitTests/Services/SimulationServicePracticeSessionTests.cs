@@ -20,6 +20,12 @@ public class SimulationServicePracticeSessionTests
             store,
             NullLogger<SimulationService>.Instance);
 
+    private static SimulationService BuildSelectionSortSut(InMemorySimulationSessionStore store) =>
+        new(
+            [new SelectionSortSimulationEngine()],
+            store,
+            NullLogger<SimulationService>.Instance);
+
     private static string NormalizeQuickSortAction(string actionLabel) =>
         actionLabel switch
         {
@@ -112,6 +118,18 @@ public class SimulationServicePracticeSessionTests
         storedSession.Should().NotBeNull();
         storedSession!.Steps[storedSession.CurrentStepIndex].QuickSort.Should().NotBeNull();
         storedSession.Steps[storedSession.CurrentStepIndex].Recursion.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task StartSessionAsync_SelectionSortSessionStartsAtSwapStep()
+    {
+        var store = new InMemorySimulationSessionStore();
+        var sut = BuildSelectionSortSut(store);
+
+        var session = await sut.StartSessionAsync("selection_sort", [64, 25, 12, 22, 11], null);
+
+        session.Steps[session.CurrentStepIndex].ActionLabel.Should().Be("swap");
+        session.Steps[session.CurrentStepIndex].ActiveIndices.Should().Equal([0, 4]);
     }
 
     [Fact]
