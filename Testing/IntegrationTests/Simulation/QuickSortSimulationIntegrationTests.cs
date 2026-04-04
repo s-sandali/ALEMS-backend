@@ -107,6 +107,25 @@ public class QuickSortSimulationIntegrationTests : IClassFixture<CustomWebApplic
         return body!;
     }
 
+    private async Task<int> AdvanceSessionUntilActionAsync(SimulationSession session, string actionLabel)
+    {
+        var currentIndex = session.CurrentStepIndex;
+
+        while (session.Steps[currentIndex].ActionLabel != actionLabel)
+        {
+            var expectedStep = session.Steps[currentIndex];
+            var response = await ValidateStepAsync(
+                session.SessionId,
+                NormalizeAction(expectedStep.ActionLabel),
+                expectedStep.ActiveIndices);
+
+            response.Correct.Should().BeTrue();
+            currentIndex = response.CurrentStepIndex;
+        }
+
+        return currentIndex;
+    }
+
     [Fact(DisplayName = "BE-IT-QS-01 - POST /api/simulation/start returns the first Quick Sort compare step with metadata intact")]
     public async Task Start_ReturnsFirstInteractiveCompareStep_WithQuickSortAndRecursionMetadata()
     {
@@ -282,6 +301,211 @@ public class QuickSortSimulationIntegrationTests : IClassFixture<CustomWebApplic
     public async Task Start_ValidatesRequiredFields(string payload, string expectedErrorKey)
     {
         var response = await _client.PostAsync("/api/simulation/start", Json(payload));
+
+        await AssertValidationBadRequestAsync(response);
+
+        using var doc = await ParseBodyAsync(response);
+        var errors = doc.RootElement.GetProperty("errors");
+        errors.TryGetProperty(expectedErrorKey, out _).Should().BeTrue();
+    }
+
+    [Fact(DisplayName = "BE-IT-QS-09 - POST /api/simulation/run returns a full Quick Sort trace with quick-sort metadata")]
+    public async Task Run_ReturnsFullQuickSortTrace_WithQuickSortMetadata()
+    {
+        var response = await _client.PostAsJsonAsync("/api/simulation/run", new
+        {
+            algorithm = "quick_sort",
+            array = new[] { 8, 3, 5, 1, 7 }
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadFromJsonAsync<SimulationResponse>();
+        body.Should().NotBeNull();
+        body!.AlgorithmName.Should().Be("Quick Sort");
+        body.TotalSteps.Should().Be(body.Steps.Count);
+        body.Steps.Should().OnlyContain(step => step.QuickSort != null && step.Recursion != null);
+
+        var labels = body.Steps.Select(step => step.ActionLabel).ToArray();
+        labels.Should().Contain("pivot_select");
+        labels.Should().Contain("compare");
+        labels.Should().Contain("pivot_placed");
+        labels.Should().Contain("complete");
+        body.Steps.Last().ArrayState.Should().Equal([1, 3, 5, 7, 8]);
+    }
+
+    [Fact(DisplayName = "BE-IT-QS-10 - POST /api/simulation/run accepts the 'quick-sort' HTTP algorithm alias")]
+    public async Task Run_AcceptsQuickSortHyphenAlias()
+    {
+        var response = await _client.PostAsJsonAsync("/api/simulation/run", new
+        {
+            algorithm = "quick-sort",
+            array = new[] { 4, 1, 3, 2 }
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadFromJsonAsync<SimulationResponse>();
+        body.Should().NotBeNull();
+        body!.AlgorithmName.Should().Be("Quick Sort");
+        body.Steps.Last().ArrayState.Should().Equal([1, 2, 3, 4]);
+    }
+
+    [Fact(DisplayName = "BE-IT-QS-11 - Quick Sort practice completes through a full walkthrough for a larger input")]
+    public async Task Session_FullWalkthrough_CompletesAndProducesSortedArray()
+    {
+        var session = await StartSessionAsync("quick_sort", [8, 3, 5, 1, 7]);
+        var currentIndex = session.CurrentStepIndex;
+        SimulationValidationResponse? lastResponse = null;
+
+        while (session.Steps[currentIndex].ActionLabel != "complete")
+        {
+            var expectedStep = session.Steps[currentIndex];
+            IsQuickSortInteractive(expectedStep).Should().BeTrue();
+
+            lastResponse = await ValidateStepAsync(
+                session.SessionId,
+                NormalizeAction(expectedStep.ActionLabel),
+                expectedStep.ActiveIndices);
+
+            lastResponse.Correct.Should().BeTrue();
+            currentIndex = lastResponse.CurrentStepIndex;
+        }
+
+        lastResponse.Should().NotBeNull();
+        lastResponse!.NextExpectedAction.Should().Be("complete");
+        lastResponse.Hint.Should().Be("No more actions are needed.");
+        lastResponse.NewArrayState.Should().Equal([1, 3, 5, 7, 8]);
+        session.Steps[currentIndex].ActionLabel.Should().Be("complete");
+        session.Steps[currentIndex].ArrayState.Should().Equal([1, 3, 5, 7, 8]);
+    }
+
+    [Fact(DisplayName = "BE-IT-QS-12 - Duplicate-heavy Quick Sort practice still validates correctly through to completion")]
+    public async Task Session_DuplicateHeavyInput_CompletesWithSortedFinalArray()
+    {
+        var session = await StartSessionAsync("quick_sort", [5, 3, 5, 1, 5, 2]);
+        var currentIndex = session.CurrentStepIndex;
+        SimulationValidationResponse? lastResponse = null;
+
+        while (session.Steps[currentIndex].ActionLabel != "complete")
+        {
+            var expectedStep = session.Steps[currentIndex];
+            IsQuickSortInteractive(expectedStep).Should().BeTrue();
+
+            lastResponse = await ValidateStepAsync(
+                session.SessionId,
+                NormalizeAction(expectedStep.ActionLabel),
+                expectedStep.ActiveIndices);
+
+            lastResponse.Correct.Should().BeTrue();
+            currentIndex = lastResponse.CurrentStepIndex;
+        }
+
+        lastResponse.Should().NotBeNull();
+        lastResponse!.NextExpectedAction.Should().Be("complete");
+        session.Steps[currentIndex].ArrayState.Should().Equal([1, 2, 3, 5, 5, 5]);
+    }
+
+    [Fact(DisplayName = "BE-IT-QS-13 - POST /api/simulation/validate-step rejects the wrong quick-sort action without advancing")]
+    public async Task ValidateStep_RejectsWrongAction_WithoutAdvancingSession()
+    {
+        var session = await StartSessionAsync("quick_sort", [5, 1, 4]);
+        var expectedStep = session.Steps[session.CurrentStepIndex];
+
+        expectedStep.ActionLabel.Should().Be("compare");
+
+        var response = await ValidateStepAsync(session.SessionId, "swap", expectedStep.ActiveIndices);
+
+        response.Correct.Should().BeFalse();
+        response.CurrentStepIndex.Should().Be(session.CurrentStepIndex);
+        response.NextExpectedAction.Should().Be("compare");
+        response.Hint.Should().Contain("Compare index");
+        response.SuggestedIndices.Should().Equal(expectedStep.ActiveIndices);
+        response.NewArrayState.Should().Equal(expectedStep.ArrayState);
+    }
+
+    [Fact(DisplayName = "BE-IT-QS-14 - POST /api/simulation/validate-step rejects wrong compare indices without advancing")]
+    public async Task ValidateStep_RejectsWrongCompareIndices_WithoutAdvancingSession()
+    {
+        var session = await StartSessionAsync("quick_sort", [5, 1, 4]);
+        var expectedStep = session.Steps[session.CurrentStepIndex];
+
+        expectedStep.ActionLabel.Should().Be("compare");
+
+        var response = await ValidateStepAsync(
+            session.SessionId,
+            "compare",
+            expectedStep.ActiveIndices.Reverse().ToArray());
+
+        response.Correct.Should().BeFalse();
+        response.CurrentStepIndex.Should().Be(session.CurrentStepIndex);
+        response.NextExpectedAction.Should().Be("compare");
+        response.Hint.Should().Contain("Compare index");
+        response.SuggestedIndices.Should().Equal(expectedStep.ActiveIndices);
+    }
+
+    [Fact(DisplayName = "BE-IT-QS-15 - POST /api/simulation/validate-step rejects reversed pivot-swap indices")]
+    public async Task ValidateStep_RejectsReversedPivotSwapIndices()
+    {
+        var session = await StartSessionAsync("quick_sort", [5, 1, 4]);
+        var pivotSwapIndex = await AdvanceSessionUntilActionAsync(session, "pivot_swap");
+        var pivotSwapStep = session.Steps[pivotSwapIndex];
+
+        var response = await ValidateStepAsync(
+            session.SessionId,
+            "swap",
+            pivotSwapStep.ActiveIndices.Reverse().ToArray());
+
+        response.Correct.Should().BeFalse();
+        response.CurrentStepIndex.Should().Be(pivotSwapIndex);
+        response.NextExpectedAction.Should().Be("swap");
+        response.Hint.Should().Contain("Try swapping index");
+        response.SuggestedIndices.Should().Equal(pivotSwapStep.ActiveIndices);
+    }
+
+    [Fact(DisplayName = "BE-IT-QS-16 - POST /api/simulation/validate-step rejects explicit 'pivot_swap' user actions and requires the swap alias")]
+    public async Task ValidateStep_RejectsExplicitPivotSwapAction()
+    {
+        var session = await StartSessionAsync("quick_sort", [5, 1, 4]);
+        var pivotSwapIndex = await AdvanceSessionUntilActionAsync(session, "pivot_swap");
+        var pivotSwapStep = session.Steps[pivotSwapIndex];
+
+        var response = await ValidateStepAsync(session.SessionId, "pivot_swap", pivotSwapStep.ActiveIndices);
+
+        response.Correct.Should().BeFalse();
+        response.CurrentStepIndex.Should().Be(pivotSwapIndex);
+        response.NextExpectedAction.Should().Be("swap");
+        response.SuggestedIndices.Should().Equal(pivotSwapStep.ActiveIndices);
+    }
+
+    [Fact(DisplayName = "BE-IT-QS-17 - POST /api/simulation/validate-step returns 404 for an unknown quick-sort session id")]
+    public async Task ValidateStep_UnknownSessionId_ReturnsNotFound()
+    {
+        var response = await _client.PostAsJsonAsync("/api/simulation/validate-step", new
+        {
+            sessionId = "missing-quick-sort-session",
+            action = new
+            {
+                type = "compare",
+                indices = new[] { 0, 1 }
+            }
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        using var doc = await ParseBodyAsync(response);
+        doc.RootElement.GetProperty("status").GetString().Should().Be("error");
+        doc.RootElement.GetProperty("message").GetString().Should().Contain("missing-quick-sort-session");
+    }
+
+    [Theory(DisplayName = "BE-IT-QS-18 - POST /api/simulation/validate-step validates missing or malformed quick-sort action payloads")]
+    [InlineData("{ \"action\": { \"type\": \"compare\", \"indices\": [0, 1] } }", "SessionId")]
+    [InlineData("{ \"sessionId\": \"abc\" }", "Action")]
+    [InlineData("{ \"sessionId\": \"abc\", \"action\": { \"indices\": [0, 1] } }", "Action.Type")]
+    [InlineData("{ \"sessionId\": \"abc\", \"action\": { \"type\": \"compare\", \"indices\": [0] } }", "Action.Indices")]
+    public async Task ValidateStep_ValidatesMissingOrMalformedFields(string payload, string expectedErrorKey)
+    {
+        var response = await _client.PostAsync("/api/simulation/validate-step", Json(payload));
 
         await AssertValidationBadRequestAsync(response);
 
