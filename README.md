@@ -71,7 +71,7 @@ All endpoints are prefixed with `/api`.
 | GET    | `/health`                    | Health check endpoint     | Public        |
 | GET    | `/swagger`                   | API documentation         | Public        |
 
-Full endpoint specification is defined in the SRS .
+Full endpoint specification is defined in the SRS 
 
 ---
 
