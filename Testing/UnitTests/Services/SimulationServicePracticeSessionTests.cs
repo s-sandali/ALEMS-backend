@@ -121,15 +121,25 @@ public class SimulationServicePracticeSessionTests
     }
 
     [Fact]
-    public async Task StartSessionAsync_SelectionSortSessionStartsAtSwapStep()
+    public async Task StartSessionAsync_SelectionSortSessionStartsAtCompareStep_AndRequiresSelectMinBeforeSwap()
     {
         var store = new InMemorySimulationSessionStore();
         var sut = BuildSelectionSortSut(store);
 
         var session = await sut.StartSessionAsync("selection_sort", [64, 25, 12, 22, 11], null);
 
-        session.Steps[session.CurrentStepIndex].ActionLabel.Should().Be("swap");
-        session.Steps[session.CurrentStepIndex].ActiveIndices.Should().Equal([0, 4]);
+        session.Steps[session.CurrentStepIndex].ActionLabel.Should().Be("compare");
+        session.Steps[session.CurrentStepIndex].ActiveIndices.Should().Equal([0, 1]);
+
+        var compareResponse = await sut.ValidateStepAsync(session.SessionId, "compare", [0, 1]);
+        compareResponse.Correct.Should().BeTrue();
+        compareResponse.NextExpectedAction.Should().Be("select_min");
+        compareResponse.SuggestedIndices.Should().Equal([1]);
+
+        var selectMinResponse = await sut.ValidateStepAsync(session.SessionId, "select_min", [1]);
+        selectMinResponse.Correct.Should().BeTrue();
+        selectMinResponse.NextExpectedAction.Should().Be("compare");
+        selectMinResponse.SuggestedIndices.Should().Equal([1, 2]);
     }
 
     [Fact]

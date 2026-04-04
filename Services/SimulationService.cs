@@ -304,7 +304,7 @@ public class SimulationService : ISimulationService
             InteractionProfile.MergeSort => actionLabel is "compare" or "place",
             InteractionProfile.BinarySearch => actionLabel is "midpoint_pick" or "pick_midpoint" or "midpoint",
             InteractionProfile.InsertionSort => actionLabel is "compare" or "shift" or "insert",
-            InteractionProfile.SelectionSort => actionLabel == "swap",
+            InteractionProfile.SelectionSort => actionLabel is "compare" or "select_min" or "swap",
             _ => actionLabel == "swap"
         };
     }
@@ -471,6 +471,11 @@ public class SimulationService : ISimulationService
         if (nextExpectedAction == "insert" && indices.Length >= 1)
         {
             return $"Insert the key at index {indices[0]}.";
+        }
+
+        if (nextExpectedAction == "select_min" && indices.Length >= 1)
+        {
+            return $"Update the current minimum to index {indices[0]}.";
         }
 
         return "No more actions are needed.";
