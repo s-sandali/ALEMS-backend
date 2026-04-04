@@ -301,19 +301,22 @@ public class MergeSortSimulationEngineTests
             because: "every split step must record a midpoint within its subrange");
     }
 
-    [Fact(DisplayName = "UT-MS-33 - MergeSortEngine: non-split steps (compare, place) do not have Mid set")]
-    public void Run_NonSplitSteps_HaveNullMid()
+    [Fact(DisplayName = "UT-MS-33 - MergeSortEngine: compare and place steps retain a valid Mid for the active merge range")]
+    public void Run_MergePassSteps_RetainValidMid()
     {
         var response = _sut.Run([4, 2, 7, 1]);
 
-        var nonSplitSteps = response.Steps
+        var mergePassSteps = response.Steps
             .Where(s => s.ActionLabel is "compare" or "place")
             .ToArray();
 
-        nonSplitSteps.Should().NotBeEmpty();
-        nonSplitSteps.Should().OnlyContain(s =>
-            s.MergeSort != null && !s.MergeSort.Mid.HasValue,
-            because: "Mid is only meaningful during a split, not during a merge pass");
+        mergePassSteps.Should().NotBeEmpty();
+        mergePassSteps.Should().OnlyContain(s =>
+            s.MergeSort != null
+            && s.MergeSort.Mid.HasValue
+            && s.MergeSort.Mid.Value >= s.MergeSort.Left
+            && s.MergeSort.Mid.Value < s.MergeSort.Right,
+            because: "merge-pass steps need the midpoint to describe which two sorted halves are being merged");
     }
 
     [Fact(DisplayName = "UT-MS-34 - MergeSortEngine: compare steps have non-null MergeBuffer")]
