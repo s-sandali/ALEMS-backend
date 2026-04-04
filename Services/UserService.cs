@@ -141,6 +141,22 @@ public class UserService : IUserService
         return success;
     }
 
+    /// <inheritdoc />
+    public async Task UpdateUserXPAsync(int userId, int xpEarned)
+    {
+        if (xpEarned <= 0)
+            return;
+
+        var success = await _userRepository.AddXpAsync(userId, xpEarned);
+        if (!success)
+        {
+            _logger.LogWarning("UpdateUserXP: user not found — ID={Id}", userId);
+            throw new KeyNotFoundException($"User with ID {userId} was not found.");
+        }
+
+        _logger.LogInformation("UpdateUserXP: awarded {XpEarned} XP to UserId={UserId}", xpEarned, userId);
+    }
+
     /// <summary>
     /// Maps a <see cref="User"/> domain model to a <see cref="UserResponseDto"/>.
     /// </summary>

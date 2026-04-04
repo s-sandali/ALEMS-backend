@@ -37,4 +37,7 @@ public sealed class StubUserService : IUserService
 
     public Task<bool> DeleteUserAsync(int id) =>
         Task.FromResult(false);
+
+    public Task UpdateUserXPAsync(int userId, int xpEarned) =>
+        Task.CompletedTask;
 }

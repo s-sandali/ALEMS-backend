@@ -12,7 +12,7 @@ public class AlgorithmService : IAlgorithmService
     private readonly IAlgorithmRepository _algorithmRepository;
     private readonly ILogger<AlgorithmService> _logger;
     private readonly HashSet<string> _quizReadyAlgorithmKeys;
-    private static readonly string[] DefaultQuizReadyAlgorithms = ["bubble_sort", "binary_search"];
+    private static readonly string[] DefaultQuizReadyAlgorithms = ["bubble_sort", "binary_search", "heap_sort"];
 
     public AlgorithmService(
         IAlgorithmRepository algorithmRepository,

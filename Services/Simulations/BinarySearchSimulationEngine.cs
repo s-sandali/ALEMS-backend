@@ -7,8 +7,16 @@ namespace backend.Services.Simulations;
 /// </summary>
 public class BinarySearchSimulationEngine : IAlgorithmSimulationEngine
 {
-    public bool CanHandle(string algorithm) =>
-        algorithm == "binary_search" || algorithm == "binary-search";
+    public bool CanHandle(string algorithm)
+    {
+        if (string.IsNullOrWhiteSpace(algorithm))
+        {
+            return false;
+        }
+
+        var normalized = algorithm.Trim().ToLowerInvariant();
+        return normalized is "binary_search" or "binary-search";
+    }
 
     public SimulationResponse Run(int[] array, int? targetValue = null)
     {
