@@ -478,4 +478,186 @@ public class QuickSortSimulationEngineTests
             s.QuickSort.Range[1] < arrayLength &&
             s.QuickSort.Range[0] <= s.QuickSort.Range[1]);
     }
+
+    [Fact(DisplayName = "UT-QS-37 - QuickSortEngine: Run does not mutate the caller's original input array")]
+    public void Run_DoesNotMutateOriginalInputArray()
+    {
+        var input = new[] { 4, 1, 3, 2 };
+        var original = input.ToArray();
+
+        var response = _sut.Run(input);
+
+        input.Should().Equal(original,
+            because: "the engine should sort a cloned working array, not the caller's input buffer");
+        response.Steps.Last().ArrayState.Should().Equal([1, 2, 3, 4]);
+    }
+
+    [Fact(DisplayName = "UT-QS-38 - QuickSortEngine: mixed signed values are sorted correctly")]
+    public void Run_MixedSignedValues_FinalStateIsSortedAscending()
+    {
+        var response = _sut.Run([0, -5, 8, -1, 3]);
+
+        response.Steps.Last().ArrayState.Should().Equal([-5, -1, 0, 3, 8]);
+    }
+
+    [Fact(DisplayName = "UT-QS-39 - QuickSortEngine: int.MinValue and int.MaxValue are sorted correctly")]
+    public void Run_ExtremeIntegerValues_FinalStateIsSortedAscending()
+    {
+        var response = _sut.Run([int.MaxValue, 0, int.MinValue, 42, -7]);
+
+        response.Steps.Last().ArrayState.Should().Equal([int.MinValue, -7, 0, 42, int.MaxValue]);
+    }
+
+    [Fact(DisplayName = "UT-QS-40 - QuickSortEngine: all-equal arrays preserve values through to the final state")]
+    public void Run_AllEqualValues_FinalStateMatchesInput()
+    {
+        var response = _sut.Run([4, 4, 4, 4]);
+
+        response.Steps.Last().ArrayState.Should().Equal([4, 4, 4, 4]);
+    }
+
+    [Fact(DisplayName = "UT-QS-41 - QuickSortEngine: two-element sorted array does not emit a pivot_swap step")]
+    public void Run_TwoElementSortedArray_DoesNotEmitPivotSwap()
+    {
+        var response = _sut.Run([1, 2]);
+
+        response.Steps.Last().ArrayState.Should().Equal([1, 2]);
+        response.Steps.Should().NotContain(s => s.ActionLabel == "pivot_swap",
+            because: "when the pivot is already at its final position there is nothing to swap");
+        response.Steps.Should().ContainSingle(s =>
+            s.ActionLabel == "pivot_placed" &&
+            s.QuickSort != null &&
+            s.QuickSort.PivotIndex == 1);
+    }
+
+    [Fact(DisplayName = "UT-QS-42 - QuickSortEngine: two-element reversed array emits a pivot_swap and sorts correctly")]
+    public void Run_TwoElementReversedArray_EmitsPivotSwapAndSorts()
+    {
+        var response = _sut.Run([2, 1]);
+
+        response.Steps.Last().ArrayState.Should().Equal([1, 2]);
+
+        var pivotSwapStep = response.Steps.Single(s => s.ActionLabel == "pivot_swap");
+        pivotSwapStep.ActiveIndices.Should().Equal([0, 1]);
+        pivotSwapStep.QuickSort.Should().NotBeNull();
+        pivotSwapStep.QuickSort!.Type.Should().Be("pivot_swap");
+        pivotSwapStep.QuickSort.Pivot.Should().Be(1);
+        pivotSwapStep.QuickSort.Range.Should().Equal([0, 1]);
+    }
+
+    [Fact(DisplayName = "UT-QS-43 - QuickSortEngine: internal swap steps expose swap metadata and the swapped indices directly")]
+    public void Run_InternalSwapSteps_HaveExpectedMetadataAndActiveIndices()
+    {
+        var response = _sut.Run([4, 1, 3, 2]);
+
+        var swapStep = response.Steps.Single(s => s.ActionLabel == "swap");
+
+        swapStep.ActiveIndices.Should().Equal([0, 1]);
+        swapStep.ArrayState.Should().Equal([1, 4, 3, 2]);
+        swapStep.QuickSort.Should().NotBeNull();
+        swapStep.QuickSort!.Type.Should().Be("swap");
+        swapStep.QuickSort.Pivot.Should().Be(2);
+        swapStep.QuickSort.PivotIndex.Should().BeNull();
+        swapStep.QuickSort.Range.Should().Equal([0, 3]);
+    }
+
+    [Fact(DisplayName = "UT-QS-44 - QuickSortEngine: compare steps always highlight the candidate index plus the pivot index at high")]
+    public void Run_CompareSteps_SecondActiveIndexAlwaysMatchesPivotIndexAtHigh()
+    {
+        var response = _sut.Run([4, 1, 3, 2]);
+
+        var compareSteps = response.Steps.Where(s => s.ActionLabel == "compare").ToArray();
+
+        compareSteps.Should().NotBeEmpty();
+        compareSteps.Should().OnlyContain(s =>
+            s.QuickSort != null &&
+            s.QuickSort.PivotIndex.HasValue &&
+            s.QuickSort.Range.Length == 2 &&
+            s.ActiveIndices.Length == 2 &&
+            s.ActiveIndices[1] == s.QuickSort.PivotIndex.Value &&
+            s.QuickSort.PivotIndex.Value == s.QuickSort.Range[1]);
+    }
+
+    [Fact(DisplayName = "UT-QS-45 - QuickSortEngine: pivot value remains consistent across all pivot-carrying steps within a partition")]
+    public void Run_PartitionSteps_KeepPivotValueConsistentWithinEachPartition()
+    {
+        var response = _sut.Run([5, 1, 4, 2, 3]);
+
+        var pivotSelectSteps = response.Steps.Where(s => s.ActionLabel == "pivot_select").ToArray();
+        pivotSelectSteps.Should().NotBeEmpty();
+
+        foreach (var pivotSelectStep in pivotSelectSteps)
+        {
+            var partitionRange = pivotSelectStep.QuickSort!.Range;
+            var partitionDepth = pivotSelectStep.QuickSort.RecursionDepth;
+            var pivotValue = pivotSelectStep.QuickSort.Pivot;
+
+            var partitionSteps = response.Steps
+                .Where(s =>
+                    s.QuickSort != null &&
+                    s.QuickSort.RecursionDepth == partitionDepth &&
+                    s.QuickSort.Range.SequenceEqual(partitionRange) &&
+                    s.ActionLabel is "pivot_select" or "compare" or "swap" or "pivot_swap" or "pivot_placed")
+                .ToArray();
+
+            partitionSteps.Should().NotBeEmpty();
+            partitionSteps.Should().OnlyContain(s => s.QuickSort!.Pivot == pivotValue,
+                because: "every partition step should describe the same pivot value until that partition finishes");
+        }
+    }
+
+    [Fact(DisplayName = "UT-QS-46 - QuickSortEngine: recursion frames preserve call details and restore the parent frame after nested returns")]
+    public void Run_RecursionFrames_PreserveCallDetailsAndRestoreParentAfterNestedReturn()
+    {
+        var response = _sut.Run([4, 2, 7, 1]);
+
+        var nestedReturnStep = response.Steps.First(s =>
+            s.ActionLabel == "return" &&
+            s.Recursion != null &&
+            s.Recursion.Stack.Count > 1);
+
+        nestedReturnStep.Recursion.Should().NotBeNull();
+        nestedReturnStep.Recursion!.CurrentFrameId.Should().Be(nestedReturnStep.Recursion.Stack.Last().Id);
+
+        var parentFrame = nestedReturnStep.Recursion.Stack[^2];
+        var childFrame = nestedReturnStep.Recursion.Stack[^1];
+
+        parentFrame.FunctionName.Should().Be("quickSort");
+        parentFrame.LeftIndex.Should().Be(0);
+        parentFrame.RightIndex.Should().Be(3);
+
+        childFrame.FunctionName.Should().Be("quickSort");
+        childFrame.LeftIndex.Should().Be(nestedReturnStep.QuickSort!.Range[0]);
+        childFrame.RightIndex.Should().Be(nestedReturnStep.QuickSort.Range[1]);
+        childFrame.ReturnValue.Should().NotBeNullOrWhiteSpace();
+
+        var parentRestoredStep = response.Steps.First(s =>
+            s.ActionLabel is "sort_left_complete" or "sort_right_complete" &&
+            s.Recursion != null &&
+            s.Recursion.Stack.Count == 1);
+
+        parentRestoredStep.Recursion!.CurrentFrameId.Should().Be(parentRestoredStep.Recursion.Stack.Single().Id);
+
+        var restoredParent = parentRestoredStep.Recursion.Stack.Single();
+        restoredParent.FunctionName.Should().Be("quickSort");
+        restoredParent.LeftIndex.Should().Be(0);
+        restoredParent.RightIndex.Should().Be(3);
+    }
+
+    [Fact(DisplayName = "UT-QS-47 - QuickSortEngine: key partition actions map to the expected pseudocode line numbers")]
+    public void Run_KeyPartitionActions_MapToExpectedPseudocodeLines()
+    {
+        var response = _sut.Run([4, 1, 3, 2]);
+
+        response.Steps.Where(s => s.ActionLabel == "pivot_select")
+            .Should().OnlyContain(s => s.LineNumber == 11);
+        response.Steps.Where(s => s.ActionLabel == "compare")
+            .Should().OnlyContain(s => s.LineNumber == 12);
+        response.Steps.Where(s => s.ActionLabel == "swap")
+            .Should().OnlyContain(s => s.LineNumber == 13);
+        response.Steps.Where(s => s.ActionLabel == "pivot_swap")
+            .Should().OnlyContain(s => s.LineNumber == 14);
+        response.Steps.Where(s => s.ActionLabel == "pivot_placed")
+            .Should().OnlyContain(s => s.LineNumber == 15);
+    }
 }
