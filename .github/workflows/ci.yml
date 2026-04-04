@@ -1,0 +1,54 @@
+name: Backend CI
+
+on:
+  pull_request:
+    branches: [develop, main, QA, devops]
+
+  push:
+    branches: [develop, main, QA, devops]
+
+jobs:
+  secret-scan:
+    name: Secret Scan (Gitleaks)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - run: dotnet restore BigO.sln
+
+      - run: dotnet build BigO.sln --configuration Release --no-restore
+
+      - name: Run Unit Tests
+        run: dotnet test Testing/UnitTests/UnitTests.csproj --configuration Release --no-build --collect:"XPlat Code Coverage"
+
+      - name: Run Integration Tests
+        run: dotnet test Testing/IntegrationTests/IntegrationTests.csproj --configuration Release --no-build --collect:"XPlat Code Coverage"
+
+      - name: Publish Artifact (ONLY main branch)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: dotnet publish backend.csproj --configuration Release --output ./publish
+
+      - name: Upload Artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-app
+          path: ./publish
