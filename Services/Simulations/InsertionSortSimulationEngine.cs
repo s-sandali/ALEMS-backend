@@ -91,6 +91,7 @@ public class InsertionSortSimulationEngine : IAlgorithmSimulationEngine
                 }
 
                 values[j + 1] = values[j];
+                values[j] = key; // keep key at the vacated slot so the snapshot has no duplicate
                 AddStep(
                     steps,
                     ref stepNumber,
