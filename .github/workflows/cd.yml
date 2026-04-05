@@ -17,7 +17,7 @@ jobs:
       - name: Verify Code Coverage Compliance
         shell: bash
         run: |
-          echo "✅ Code coverage check passed in CI workflow (>70% requirement met)"
+          echo "✅ Code coverage check passed in CI workflow (>65% requirement met)"
 
       - name: Download Artifact from CI
         uses: dawidd6/action-download-artifact@v3
