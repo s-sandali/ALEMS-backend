@@ -52,7 +52,7 @@ jobs:
           reportgenerator \
             "-reports:**/coverage.cobertura.xml" \
             "-targetdir:./coverage-report" \
-            "-reporttypes:Json"
+            "-reporttypes:JsonSummary"
 
       - name: Check Code Coverage (>70%)
         shell: bash
