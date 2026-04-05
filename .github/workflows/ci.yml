@@ -57,11 +57,27 @@ jobs:
       - name: Check Code Coverage (>70%)
         shell: bash
         run: |
+          echo "📊 Checking coverage report..."
           if [ -f ./coverage-report/Summary.json ]; then
-            COVERAGE=$(cat ./coverage-report/Summary.json | grep -o '"lineCoverage":"[0-9.]*"' | cut -d':' -f2 | tr -d '"')
-            if [ -z "$COVERAGE" ]; then
-              COVERAGE=$(cat ./coverage-report/Summary.json | jq -r '.lineCoverage // "0"' 2>/dev/null || echo "0")
+            echo "Coverage file found. Content preview:"
+            head -20 ./coverage-report/Summary.json
+            
+            # Try to extract coverage using jq first
+            COVERAGE=$(cat ./coverage-report/Summary.json | jq -r '.lineCoverage' 2>/dev/null)
+            
+            # If jq fails or returns null, try alternative extraction
+            if [ -z "$COVERAGE" ] || [ "$COVERAGE" = "null" ]; then
+              COVERAGE=$(cat ./coverage-report/Summary.json | grep -oP '"lineCoverage":\s*\K[0-9.]+' | head -1)
             fi
+            
+            # Default to 0 if still empty
+            if [ -z "$COVERAGE" ]; then
+              COVERAGE=0
+            fi
+            
+            # Remove percentage sign if present
+            COVERAGE=${COVERAGE%\%}
+            
             echo "Code Coverage: ${COVERAGE}%"
             
             THRESHOLD=70
@@ -71,7 +87,8 @@ jobs:
             fi
             echo "✅ Code coverage is ${COVERAGE}%, meets required ${THRESHOLD}%"
           else
-            echo "❌ Summary.json not found"
+            echo "❌ Summary.json not found at ./coverage-report/Summary.json"
+            ls -la ./coverage-report/ 2>/dev/null || echo "Coverage report directory not found"
             exit 1
           fi
 
