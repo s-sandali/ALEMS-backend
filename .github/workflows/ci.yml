@@ -57,14 +57,23 @@ jobs:
       - name: Check Code Coverage (>70%)
         shell: bash
         run: |
-          COVERAGE=$(cat ./coverage-report/Summary.json | grep -o '"lineCoverage":[0-9.]*' | head -1 | cut -d':' -f2)
-          echo "Code Coverage: ${COVERAGE}%"
-          
-          if (( $(echo "$COVERAGE < 70" | bc -l) )); then
-            echo "❌ Code coverage is ${COVERAGE}%, below required 70%"
+          if [ -f ./coverage-report/Summary.json ]; then
+            COVERAGE=$(cat ./coverage-report/Summary.json | grep -o '"lineCoverage":"[0-9.]*"' | cut -d':' -f2 | tr -d '"')
+            if [ -z "$COVERAGE" ]; then
+              COVERAGE=$(cat ./coverage-report/Summary.json | jq -r '.lineCoverage // "0"' 2>/dev/null || echo "0")
+            fi
+            echo "Code Coverage: ${COVERAGE}%"
+            
+            THRESHOLD=70
+            if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
+              echo "❌ Code coverage is ${COVERAGE}%, below required ${THRESHOLD}%"
+              exit 1
+            fi
+            echo "✅ Code coverage is ${COVERAGE}%, meets required ${THRESHOLD}%"
+          else
+            echo "❌ Summary.json not found"
             exit 1
           fi
-          echo "✅ Code coverage is ${COVERAGE}%, meets required 70%"
 
       - name: Publish Artifact (ONLY main branch)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
