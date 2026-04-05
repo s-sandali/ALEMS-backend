@@ -42,6 +42,28 @@ jobs:
       - name: Run Integration Tests
         run: dotnet test Testing/IntegrationTests/IntegrationTests.csproj --configuration Release --no-build --collect:"XPlat Code Coverage"
 
+      - name: Install ReportGenerator
+        run: dotnet tool install -g dotnet-reportgenerator-globaltool
+
+      - name: Generate Coverage Report
+        run: |
+          reportgenerator \
+            "-reports:**/coverage.cobertura.xml" \
+            "-targetdir:./coverage-report" \
+            "-reporttypes:Json"
+
+      - name: Check Code Coverage (>70%)
+        shell: bash
+        run: |
+          COVERAGE=$(cat ./coverage-report/Summary.json | grep -o '"lineCoverage":[0-9.]*' | head -1 | cut -d':' -f2)
+          echo "Code Coverage: ${COVERAGE}%"
+          
+          if (( $(echo "$COVERAGE < 70" | bc -l) )); then
+            echo "❌ Code coverage is ${COVERAGE}%, below required 70%"
+            exit 1
+          fi
+          echo "✅ Code coverage is ${COVERAGE}%, meets required 70%"
+
       - name: Publish Artifact (ONLY main branch)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: dotnet publish backend.csproj --configuration Release --output ./publish
