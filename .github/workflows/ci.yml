@@ -6,6 +6,8 @@ on:
 
   push:
     branches: [develop, main, QA, devops]
+    tags:
+      - 'v*'
 
 jobs:
   secret-scan:
@@ -41,6 +43,54 @@ jobs:
 
       - name: Run Integration Tests
         run: dotnet test Testing/IntegrationTests/IntegrationTests.csproj --configuration Release --no-build --collect:"XPlat Code Coverage"
+
+      - name: Install ReportGenerator
+        run: dotnet tool install -g dotnet-reportgenerator-globaltool
+
+      - name: Generate Coverage Report
+        run: |
+          reportgenerator \
+            "-reports:**/coverage.cobertura.xml" \
+            "-targetdir:./coverage-report" \
+            "-reporttypes:JsonSummary"
+
+      - name: Check Code Coverage (>65%)
+        shell: bash
+        run: |
+          echo "📊 Checking coverage report..."
+          if [ -f ./coverage-report/Summary.json ]; then
+            echo "Coverage file found. Content preview:"
+            head -20 ./coverage-report/Summary.json
+            
+            # Extract coverage using correct lowercase key
+            COVERAGE=$(cat ./coverage-report/Summary.json | grep -oP '"linecoverage":\s*\K[0-9.]+' | head -1)
+            
+            # If still empty, try jq with lowercase key
+            if [ -z "$COVERAGE" ]; then
+              COVERAGE=$(cat ./coverage-report/Summary.json | jq -r '.linecoverage // "0"' 2>/dev/null)
+            fi
+            
+            # Default to 0 if still empty
+            if [ -z "$COVERAGE" ]; then
+              COVERAGE=0
+            fi
+            
+            # Remove percentage sign if present
+            COVERAGE=${COVERAGE%\%}
+            
+            echo "Code Coverage: ${COVERAGE}%"
+            
+            THRESHOLD=65
+            if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
+              echo "❌ Code coverage is ${COVERAGE}%, below required ${THRESHOLD}%"
+              exit 1
+            fi
+            echo "✅ Code coverage is ${COVERAGE}%, meets required ${THRESHOLD}%"
+          else
+            echo "❌ Summary.json not found at ./coverage-report/Summary.json"
+            ls -la ./coverage-report/ 2>/dev/null || echo "Coverage report directory not found"
+            exit 1
+          fi
 
       - name: Publish Artifact (ONLY main branch)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
