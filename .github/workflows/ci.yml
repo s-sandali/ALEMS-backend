@@ -6,6 +6,8 @@ on:
 
   push:
     branches: [develop, main, QA, devops]
+    tags:
+      - 'v*'
 
 jobs:
   secret-scan:
