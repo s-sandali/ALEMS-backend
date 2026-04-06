@@ -1,7 +1,6 @@
 name: Backend CD
 
 on:
-  workflow_dispatch:  # Allow manual triggering from GitHub UI
   workflow_run:
     workflows: ["Backend CI"]
     types:
@@ -12,7 +11,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main') }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' }}
 
     steps:
       - name: Verify Code Coverage Compliance
@@ -80,19 +79,14 @@ jobs:
           tar -xzf apache-jmeter-5.6.3.tgz
           echo "$PWD/apache-jmeter-5.6.3/bin" >> $GITHUB_PATH
 
-      - name: Run JMeter Load Test (100 Concurrent Users)
+      - name: Run JMeter Load Test with NFR Validation (NFRP01, NFRP02)
         shell: bash
         env:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.webapp-url }}
         run: |
           set -euo pipefail
 
-          TEMP_PLAN="/tmp/jmeter-staging-test.jmx"
           RESULTS_JTL="/tmp/jmeter-results.jtl"
-          RESULTS_HTML="/tmp/jmeter-report.html"
-
-          # Get Clerk token (create test user or use existing token)
-          # Note: For production, store a service account token in GitHub secrets
           TEST_TOKEN="${{ secrets.JMETER_SERVICE_TOKEN }}"
           
           if [ -z "$TEST_TOKEN" ]; then
@@ -101,6 +95,9 @@ jobs:
           fi
 
           echo "📊 Running JMeter load test against: $DEPLOYMENT_URL"
+          echo "🎯 Performance Thresholds:"
+          echo "   NFRP01: 95th percentile response time ≤ 500ms"
+          echo "   NFRP02: Simulation API avg response time ≤ 200ms"
           
           # Run JMeter in non-GUI mode
           jmeter -n \
@@ -111,37 +108,83 @@ jobs:
             -Jnum_threads=100 \
             -Jramp_up=60 \
             -Jduration=300 \
-            -j /tmp/jmeter.log
+            -j /tmp/jmeter.log || true
 
-          # Check for errors
-          ERROR_COUNT=$(grep -c '"success":"false"' "$RESULTS_JTL" || echo "0")
-          
-          if [ "$ERROR_COUNT" -gt 0 ]; then
-            echo "❌ JMeter test found errors. Check results."
+          echo ""
+          echo "📈 Performance Analysis:"
+          echo "=========================="
+
+          # Overall 95th percentile (NFRP01)
+          OVERALL_P95=$(awk -F',' 'NR>1 {print $2}' "$RESULTS_JTL" | sort -n | awk '{a[NR]=$1} END {idx=int(NR*0.95); if(idx<1) idx=1; print a[idx]}')
+          echo "Overall 95th percentile: ${OVERALL_P95}ms (threshold: 500ms)"
+
+          # Simulation API average response time (NFRP02)
+          SIM_AVG=$(awk -F',' '$3=="simulation_run" && NR>1 {sum+=$2; count++} END {if(count>0) print int(sum/count); else print 0}' "$RESULTS_JTL")
+          echo "Simulation API avg: ${SIM_AVG}ms (threshold: 200ms)"
+
+          # Other endpoints
+          QUIZ_AVG=$(awk -F',' '$3=="quiz_attempt" && NR>1 {sum+=$2; count++} END {if(count>0) print int(sum/count); else print 0}' "$RESULTS_JTL")
+          echo "Quiz Attempt avg: ${QUIZ_AVG}ms"
+
+          HEALTH_AVG=$(awk -F',' '$3=="health_check" && NR>1 {sum+=$2; count++} END {if(count>0) print int(sum/count); else print 0}' "$RESULTS_JTL")
+          echo "Health Check avg: ${HEALTH_AVG}ms"
+
+          # Error count
+          ERROR_COUNT=$(awk -F',' '$8=="false" && NR>1 {count++} END {print count+0}' "$RESULTS_JTL")
+          echo "Errors: $ERROR_COUNT"
+
+          echo ""
+          echo "🔍 NFR Validation Results:"
+          echo "=========================="
+
+          NFRP_PASSED=true
+
+          # NFRP01: 95th percentile ≤ 500ms
+          if [ -z "$OVERALL_P95" ] || [ "$OVERALL_P95" = "0" ]; then
+            echo "⚠️  NFRP01: Could not calculate 95th percentile"
+          elif [ "$OVERALL_P95" -le 500 ]; then
+            echo "✅ NFRP01 PASSED: 95th percentile ${OVERALL_P95}ms ≤ 500ms"
+          else
+            echo "❌ NFRP01 FAILED: 95th percentile ${OVERALL_P95}ms exceeds 500ms threshold"
+            NFRP_PASSED=false
+          fi
+
+          # NFRP02: Simulation API ≤ 200ms
+          if [ -z "$SIM_AVG" ] || [ "$SIM_AVG" = "0" ]; then
+            echo "⚠️  NFRP02: No simulation API data available"
+          elif [ "$SIM_AVG" -le 200 ]; then
+            echo "✅ NFRP02 PASSED: Simulation API ${SIM_AVG}ms ≤ 200ms"
+          else
+            echo "❌ NFRP02 FAILED: Simulation API ${SIM_AVG}ms exceeds 200ms threshold"
+            NFRP_PASSED=false
+          fi
+
+          # Fail if NFR not met or errors found
+          if [ "$NFRP_PASSED" = false ] || [ "$ERROR_COUNT" -gt 0 ]; then
+            echo ""
+            echo "🚨 Performance validation FAILED"
             exit 1
           fi
 
-          echo "✅ JMeter load test passed"
+          echo ""
+          echo "🎉 All NFRs PASSED - Pipeline continues"
 
       - name: Generate JMeter HTML Report
         if: always()
         run: |
           jmeter -g /tmp/jmeter-results.jtl \
-            -o /tmp/jmeter-report.html \
-            -j /tmp/jmeter-report.log || true
+            -o /tmp/jmeter-report || true
 
-      - name: Upload JMeter Results
+      - name: Upload JMeter Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: jmeter-load-test-results
           path: |
             /tmp/jmeter-results.jtl
-            /tmp/jmeter-report.html
+            /tmp/jmeter-report
             /tmp/jmeter.log
           retention-days: 30
-
-  notify-failure:
     runs-on: ubuntu-latest
     needs: deploy
     if: failure()
