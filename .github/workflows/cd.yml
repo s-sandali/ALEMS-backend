@@ -1,6 +1,7 @@
 name: Backend CD
 
 on:
+  workflow_dispatch:  # Allow manual triggering from GitHub UI
   workflow_run:
     workflows: ["Backend CI"]
     types:
@@ -11,7 +12,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main') }}
 
     steps:
       - name: Verify Code Coverage Compliance
@@ -70,6 +71,75 @@ jobs:
 
           echo "❌ Health check failed"
           exit 1
+
+      - name: Install JMeter
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y default-jdk
+          wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
+          tar -xzf apache-jmeter-5.6.3.tgz
+          echo "$PWD/apache-jmeter-5.6.3/bin" >> $GITHUB_PATH
+
+      - name: Run JMeter Load Test (100 Concurrent Users)
+        shell: bash
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.webapp-url }}
+        run: |
+          set -euo pipefail
+
+          TEMP_PLAN="/tmp/jmeter-staging-test.jmx"
+          RESULTS_JTL="/tmp/jmeter-results.jtl"
+          RESULTS_HTML="/tmp/jmeter-report.html"
+
+          # Get Clerk token (create test user or use existing token)
+          # Note: For production, store a service account token in GitHub secrets
+          TEST_TOKEN="${{ secrets.JMETER_SERVICE_TOKEN }}"
+          
+          if [ -z "$TEST_TOKEN" ]; then
+            echo "⚠️  JMETER_SERVICE_TOKEN not set. Skipping JMeter tests."
+            exit 0
+          fi
+
+          echo "📊 Running JMeter load test against: $DEPLOYMENT_URL"
+          
+          # Run JMeter in non-GUI mode
+          jmeter -n \
+            -t "Testing/PerformanceTests/staging-load-test.jmx" \
+            -l "$RESULTS_JTL" \
+            -Jbase_url="$DEPLOYMENT_URL" \
+            -Jclerk_token="$TEST_TOKEN" \
+            -Jnum_threads=100 \
+            -Jramp_up=60 \
+            -Jduration=300 \
+            -j /tmp/jmeter.log
+
+          # Check for errors
+          ERROR_COUNT=$(grep -c '"success":"false"' "$RESULTS_JTL" || echo "0")
+          
+          if [ "$ERROR_COUNT" -gt 0 ]; then
+            echo "❌ JMeter test found errors. Check results."
+            exit 1
+          fi
+
+          echo "✅ JMeter load test passed"
+
+      - name: Generate JMeter HTML Report
+        if: always()
+        run: |
+          jmeter -g /tmp/jmeter-results.jtl \
+            -o /tmp/jmeter-report.html \
+            -j /tmp/jmeter-report.log || true
+
+      - name: Upload JMeter Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jmeter-load-test-results
+          path: |
+            /tmp/jmeter-results.jtl
+            /tmp/jmeter-report.html
+            /tmp/jmeter.log
+          retention-days: 30
 
   notify-failure:
     runs-on: ubuntu-latest
