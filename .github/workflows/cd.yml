@@ -1,6 +1,7 @@
 name: Backend CD
 
 on:
+  workflow_dispatch:  # Allow manual triggering from GitHub UI
   workflow_run:
     workflows: ["Backend CI"]
     types:
