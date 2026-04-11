@@ -255,6 +255,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<DatabaseHelper>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<ILevelingService, LevelingService>();
 builder.Services.AddScoped<IAlgorithmRepository, AlgorithmRepository>();
 builder.Services.AddScoped<IAlgorithmService, AlgorithmService>();
 builder.Services.AddScoped<IQuizRepository, QuizRepository>();
