@@ -51,6 +51,12 @@ public interface IBadgeRepository
     Task<bool> AwardBadgeToUserAsync(int userId, int badgeId);
 
     /// <summary>
+    /// Retrieves algorithm badges the user qualifies for (passed a quiz for the algorithm)
+    /// but has not yet been awarded.
+    /// </summary>
+    Task<IEnumerable<Badge>> GetUnlockedAlgorithmBadgesByUserIdAsync(int userId);
+
+    /// <summary>
     /// Retrieves earned badges for a user with their award dates.
     /// Returns joined UserBadge and Badge data sorted by XP threshold ascending.
     /// </summary>
