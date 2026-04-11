@@ -10,7 +10,7 @@ public class SimulationServiceRunTests
 {
     private static SimulationService BuildSut() =>
         new(
-            [new BubbleSortSimulationEngine(), new InsertionSortSimulationEngine(), new SelectionSortSimulationEngine()],
+            [new BubbleSortSimulationEngine(), new InsertionSortSimulationEngine(), new SelectionSortSimulationEngine(), new QuickSortSimulationEngine()],
             new InMemorySimulationSessionStore(),
             NullLogger<SimulationService>.Instance);
 
@@ -100,5 +100,31 @@ public class SimulationServiceRunTests
         swapStep.SelectionSort!.Type.Should().Be("swap");
         swapStep.SelectionSort.SwapFrom.Should().HaveValue();
         swapStep.SelectionSort.SwapTo.Should().HaveValue();
+    }
+
+    [Fact(DisplayName = "UT-QS-SVC-01 - SimulationService: RunAsync returns Quick Sort steps with quick-sort and recursion metadata")]
+    public async Task RunAsync_QuickSort_ReturnsQuickSortTrace()
+    {
+        var sut = BuildSut();
+
+        var result = await sut.RunAsync("quick_sort", [4, 1, 3, 2], null);
+
+        result.AlgorithmName.Should().Be("Quick Sort");
+        result.TotalSteps.Should().Be(result.Steps.Count);
+        result.Steps.Should().NotBeEmpty();
+        result.Steps.Should().Contain(step => step.ActionLabel == "pivot_select");
+        result.Steps.Should().Contain(step => step.ActionLabel == "compare");
+        result.Steps.Should().Contain(step => step.ActionLabel == "pivot_placed");
+        result.Steps.Last().ActionLabel.Should().Be("complete");
+        result.Steps.Last().ArrayState.Should().Equal([1, 2, 3, 4]);
+
+        result.Steps.Should().OnlyContain(step =>
+            step.QuickSort != null &&
+            step.Recursion != null &&
+            step.StepNumber > 0 &&
+            step.ArrayState != null &&
+            step.ActiveIndices != null &&
+            step.LineNumber >= 1 &&
+            !string.IsNullOrWhiteSpace(step.ActionLabel));
     }
 }
