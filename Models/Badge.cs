@@ -13,6 +13,7 @@ public class Badge
     public string IconType { get; set; } = "star";  // Maps to lucide-react icons: star, bolt, shield, etc.
     public string IconColor { get; set; } = "#8f8f3e";  // Icon color in hex format (default lime green)
     public string UnlockHint { get; set; } = "Locked";  // Hint text for locked badges
+    public int? AlgorithmId { get; set; }  // NULL = XP badge; set = algorithm badge
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     // Navigation property
