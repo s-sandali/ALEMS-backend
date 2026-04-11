@@ -49,23 +49,27 @@ public class BadgeService : IBadgeService
     /// <inheritdoc />
     public async Task<IEnumerable<BadgeResponseDto>> AwardUnlockedBadgesAsync(int userId)
     {
-        // Get the user's current XP
+        // Verify the user exists
         var user = await _userRepository.GetByIdAsync(userId);
         if (user == null)
             return Enumerable.Empty<BadgeResponseDto>();
 
-        // Get all badges that user hasn't earned yet but XP qualifies for
-        var unlockedBadges = await _badgeRepository.GetUnlockedBadgesByUserIdAsync(userId);
         var awards = new List<BadgeResponseDto>();
 
-        foreach (var badge in unlockedBadges)
+        // 1. XP-based badges: award any whose threshold the user has crossed
+        var xpBadges = await _badgeRepository.GetUnlockedBadgesByUserIdAsync(userId);
+        foreach (var badge in xpBadges)
         {
-            // Award the badge
-            var success = await AwardBadgeAsync(userId, badge.BadgeId);
-            if (success)
-            {
+            if (await AwardBadgeAsync(userId, badge.BadgeId))
                 awards.Add(MapToDto(badge));
-            }
+        }
+
+        // 2. Algorithm badges: award any whose algorithm the user has passed a quiz for
+        var algorithmBadges = await _badgeRepository.GetUnlockedAlgorithmBadgesByUserIdAsync(userId);
+        foreach (var badge in algorithmBadges)
+        {
+            if (await AwardBadgeAsync(userId, badge.BadgeId))
+                awards.Add(MapToDto(badge));
         }
 
         return awards;
