@@ -56,10 +56,13 @@ public class StudentController : ControllerBase
     {
         try
         {
+            _logger.LogInformation("📊 GetStudentDashboard called for StudentId={StudentId}", id);
+            
             // Fetch the user
             var user = await _userService.GetUserByIdAsync(id);
             if (user is null)
             {
+                _logger.LogWarning("❌ Student not found: {StudentId}", id);
                 return NotFound(new
                 {
                     status = "error",
@@ -67,34 +70,56 @@ public class StudentController : ControllerBase
                 });
             }
 
+            _logger.LogInformation("✅ Student found: {StudentId}, XpTotal={XpTotal}", id, user.XpTotal);
+
             // Fetch earned badges with award dates
             var earnedBadgesWithDates = await _badgeService.GetEarnedBadgesWithAwardDateAsync(id);
+            _logger.LogInformation("✅ Earned badges count: {Count}", earnedBadgesWithDates.Count());
 
             // Fetch all available badges
             var allBadges = await _badgeService.GetAllBadgesAsync();
+            var allBadgesCount = allBadges.Count();
+            _logger.LogInformation("✅ All badges count: {Count}", allBadgesCount);
+            
+            if (allBadgesCount == 0)
+            {
+                _logger.LogWarning("⚠️  WARNING: No badges found in database!");
+            }
 
             // Create a set of earned badge IDs for quick lookup
             var earnedBadgeIds = new HashSet<int>(earnedBadgesWithDates.Select(b => b.Id));
 
-            // Map earned badges with icons
+            // Map earned badges with styling properties
             var earnedBadges = earnedBadgesWithDates
                 .Select(b => new EarnedBadgeDto
                 {
                     Id = b.Id,
                     Name = b.Name,
-                    Icon = GetBadgeIcon(b.Id, b.Name),
+                    Description = b.Description,
+                    XpThreshold = b.XpThreshold,
+                    IconType = b.IconType,
+                    IconColor = b.IconColor,
                     AwardDate = b.AwardDate
-                });
+                })
+                .ToList();
+            
+            _logger.LogInformation("✅ Mapped earned badges: {Count}", earnedBadges.Count);
 
-            // Map all badges with earned status and icons
+            // Map all badges with earned status and styling properties
             var allBadgesList = allBadges
                 .Select(b => new BadgeDashboardDto
                 {
                     Id = b.BadgeId,
                     Name = b.BadgeName,
-                    Icon = GetBadgeIcon(b.BadgeId, b.BadgeName),
+                    Description = b.BadgeDescription,
+                    XpThreshold = b.XpThreshold,
+                    IconType = b.IconType,
+                    IconColor = b.IconColor,
                     Earned = earnedBadgeIds.Contains(b.BadgeId)
-                });
+                })
+                .ToList();
+            
+            _logger.LogInformation("✅ Mapped all badges: {Count}", allBadgesList.Count);
 
             // Construct the dashboard DTO
             var dashboard = new StudentDashboardDto
@@ -105,6 +130,9 @@ public class StudentController : ControllerBase
                 AllBadges = allBadgesList
             };
 
+            _logger.LogInformation("✅ Dashboard constructed: StudentId={StudentId}, EarnedBadges={EarnedCount}, AllBadges={AllCount}", 
+                id, earnedBadges.Count, allBadgesList.Count);
+
             return Ok(new
             {
                 status = "success",
@@ -113,34 +141,12 @@ public class StudentController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error retrieving student dashboard for ID {StudentId}", id);
+            _logger.LogError(ex, "❌ Error retrieving student dashboard for ID {StudentId}", id);
             return StatusCode(StatusCodes.Status500InternalServerError, new
             {
                 status = "error",
                 message = "An unexpected error occurred while retrieving the dashboard."
             });
         }
-    }
-
-    /// <summary>
-    /// Maps badge IDs/names to emoji icons for display.
-    /// Add more mappings as needed based on badge names.
-    /// </summary>
-    private static string GetBadgeIcon(int badgeId, string badgeName)
-    {
-        return badgeName.ToLower() switch
-        {
-            var s when s.Contains("first") => "🎯",
-            var s when s.Contains("master") || s.Contains("expert") => "🏆",
-            var s when s.Contains("power") => "⚡",
-            var s when s.Contains("legend") => "👑",
-            var s when s.Contains("streak") => "🔥",
-            var s when s.Contains("speed") => "🚀",
-            var s when s.Contains("challenge") => "💪",
-            var s when s.Contains("algorithm") => "🧮",
-            var s when s.Contains("quiz") => "📚",
-            var s when s.Contains("solve") || s.Contains("solun") => "✅",
-            _ => "⭐"  // Default icon
-        };
     }
 }

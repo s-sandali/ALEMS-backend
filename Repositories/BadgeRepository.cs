@@ -21,7 +21,7 @@ public class BadgeRepository : IBadgeRepository
     public async Task<IEnumerable<Badge>> GetAllAsync()
     {
         const string sql = @"
-            SELECT badge_id, badge_name, badge_description, xp_threshold, created_at
+            SELECT badge_id, badge_name, badge_description, xp_threshold, icon_type, icon_color, unlock_hint, created_at
             FROM badges
             ORDER BY xp_threshold ASC;";
 
@@ -43,7 +43,7 @@ public class BadgeRepository : IBadgeRepository
     public async Task<Badge?> GetByIdAsync(int badgeId)
     {
         const string sql = @"
-            SELECT badge_id, badge_name, badge_description, xp_threshold, created_at
+            SELECT badge_id, badge_name, badge_description, xp_threshold, icon_type, icon_color, unlock_hint, created_at
             FROM badges
             WHERE badge_id = @BadgeId
             LIMIT 1;";
@@ -64,7 +64,7 @@ public class BadgeRepository : IBadgeRepository
     public async Task<IEnumerable<Badge>> GetEarnedBadgesByUserIdAsync(int userId)
     {
         const string sql = @"
-            SELECT b.badge_id, b.badge_name, b.badge_description, b.xp_threshold, b.created_at
+            SELECT b.badge_id, b.badge_name, b.badge_description, b.xp_threshold, b.icon_type, b.icon_color, b.unlock_hint, b.created_at
             FROM badges b
             INNER JOIN user_badges ub ON b.badge_id = ub.badge_id
             WHERE ub.user_id = @UserId
@@ -89,7 +89,7 @@ public class BadgeRepository : IBadgeRepository
     public async Task<IEnumerable<Badge>> GetUnlockedBadgesByUserIdAsync(int userId)
     {
         const string sql = @"
-            SELECT b.badge_id, b.badge_name, b.badge_description, b.xp_threshold, b.created_at
+            SELECT b.badge_id, b.badge_name, b.badge_description, b.xp_threshold, b.icon_type, b.icon_color, b.unlock_hint, b.created_at
             FROM badges b
             WHERE b.xp_threshold <= (SELECT xp_total FROM users WHERE id = @UserId)
             AND b.badge_id NOT IN (
@@ -116,8 +116,8 @@ public class BadgeRepository : IBadgeRepository
     public async Task<Badge> CreateAsync(Badge badge)
     {
         const string sql = @"
-            INSERT INTO badges (badge_name, badge_description, xp_threshold)
-            VALUES (@BadgeName, @BadgeDescription, @XpThreshold);
+            INSERT INTO badges (badge_name, badge_description, xp_threshold, icon_type, icon_color, unlock_hint)
+            VALUES (@BadgeName, @BadgeDescription, @XpThreshold, @IconType, @IconColor, @UnlockHint);
             SELECT LAST_INSERT_ID();";
 
         await using var connection = await _db.OpenConnectionAsync();
@@ -126,6 +126,9 @@ public class BadgeRepository : IBadgeRepository
         cmd.Parameters.AddWithValue("@BadgeName", badge.BadgeName);
         cmd.Parameters.AddWithValue("@BadgeDescription", badge.BadgeDescription);
         cmd.Parameters.AddWithValue("@XpThreshold", badge.XpThreshold);
+        cmd.Parameters.AddWithValue("@IconType", badge.IconType);
+        cmd.Parameters.AddWithValue("@IconColor", badge.IconColor);
+        cmd.Parameters.AddWithValue("@UnlockHint", badge.UnlockHint);
 
         var id = (long?)await cmd.ExecuteScalarAsync() ?? 0;
         badge.BadgeId = (int)id;
@@ -140,7 +143,10 @@ public class BadgeRepository : IBadgeRepository
             UPDATE badges
             SET badge_name = @BadgeName,
                 badge_description = @BadgeDescription,
-                xp_threshold = @XpThreshold
+                xp_threshold = @XpThreshold,
+                icon_type = @IconType,
+                icon_color = @IconColor,
+                unlock_hint = @UnlockHint
             WHERE badge_id = @BadgeId;";
 
         await using var connection = await _db.OpenConnectionAsync();
@@ -150,6 +156,9 @@ public class BadgeRepository : IBadgeRepository
         cmd.Parameters.AddWithValue("@BadgeName", badge.BadgeName);
         cmd.Parameters.AddWithValue("@BadgeDescription", badge.BadgeDescription);
         cmd.Parameters.AddWithValue("@XpThreshold", badge.XpThreshold);
+        cmd.Parameters.AddWithValue("@IconType", badge.IconType);
+        cmd.Parameters.AddWithValue("@IconColor", badge.IconColor);
+        cmd.Parameters.AddWithValue("@UnlockHint", badge.UnlockHint);
 
         var rowsAffected = await cmd.ExecuteNonQueryAsync();
         return rowsAffected > 0;
@@ -208,6 +217,9 @@ public class BadgeRepository : IBadgeRepository
             BadgeName = (string)reader["badge_name"],
             BadgeDescription = (string)reader["badge_description"],
             XpThreshold = (int)(uint)reader["xp_threshold"],  // xp_threshold is UNSIGNED INT
+            IconType = (string)(reader["icon_type"] ?? "star"),
+            IconColor = (string)(reader["icon_color"] ?? "#8f8f3e"),
+            UnlockHint = (string)(reader["unlock_hint"] ?? "Locked"),
             CreatedAt = (DateTime)reader["created_at"]
         };
     }
@@ -216,7 +228,7 @@ public class BadgeRepository : IBadgeRepository
     public async Task<IEnumerable<(Badge Badge, DateTime AwardedAt)>> GetEarnedBadgesWithAwardDateAsync(int userId)
     {
         const string sql = @"
-            SELECT b.badge_id, b.badge_name, b.badge_description, b.xp_threshold, b.created_at,
+            SELECT b.badge_id, b.badge_name, b.badge_description, b.xp_threshold, b.icon_type, b.icon_color, b.unlock_hint, b.created_at,
                    ub.awarded_at
             FROM badges b
             INNER JOIN user_badges ub ON b.badge_id = ub.badge_id
@@ -238,6 +250,9 @@ public class BadgeRepository : IBadgeRepository
                 BadgeName = (string)reader["badge_name"],
                 BadgeDescription = (string)reader["badge_description"],
                 XpThreshold = (int)(uint)reader["xp_threshold"],
+                IconType = (string)(reader["icon_type"] ?? "star"),
+                IconColor = (string)(reader["icon_color"] ?? "#8f8f3e"),
+                UnlockHint = (string)(reader["unlock_hint"] ?? "Locked"),
                 CreatedAt = (DateTime)reader["created_at"]
             };
             var awardedAt = (DateTime)reader["awarded_at"];
