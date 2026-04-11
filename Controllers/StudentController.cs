@@ -61,6 +61,14 @@ public class StudentController : ControllerBase
         {
             _logger.LogInformation("📊 GetStudentDashboard called for StudentId={StudentId}", id);
             
+            // ── Authorization: Ensure user is reading their own dashboard or is an Admin ──
+            var clerkUserId = User.FindFirst("sub")?.Value;
+            if (clerkUserId == null || (!clerkUserId.Equals(id.ToString(), StringComparison.OrdinalIgnoreCase) && !User.IsInRole("Admin")))
+            {
+                _logger.LogWarning("❌ Unauthorized access attempt: user {ClerkUserId} tried to access student dashboard for ID {StudentId}", clerkUserId, id);
+                return Forbid();
+            }
+            
             // Fetch the user
             var user = await _userService.GetUserByIdAsync(id);
             if (user is null)
