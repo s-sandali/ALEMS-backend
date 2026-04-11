@@ -75,6 +75,9 @@ public class StudentController : ControllerBase
 
             _logger.LogInformation("✅ Student found: {StudentId}, XpTotal={XpTotal}", id, user.XpTotal);
 
+            // Award any badges the user qualifies for but hasn't received yet
+            await _badgeService.AwardUnlockedBadgesAsync(id);
+
             // Fetch earned badges with award dates
             var earnedBadgesWithDates = await _badgeService.GetEarnedBadgesWithAwardDateAsync(id);
             _logger.LogInformation("✅ Earned badges count: {Count}", earnedBadgesWithDates.Count());
@@ -118,6 +121,7 @@ public class StudentController : ControllerBase
                     XpThreshold = b.XpThreshold,
                     IconType = b.IconType,
                     IconColor = b.IconColor,
+                    UnlockHint = b.UnlockHint,
                     Earned = earnedBadgeIds.Contains(b.BadgeId)
                 })
                 .ToList();
