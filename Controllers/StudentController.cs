@@ -20,15 +20,18 @@ public class StudentController : ControllerBase
 {
     private readonly IUserService _userService;
     private readonly IBadgeService _badgeService;
+    private readonly ILevelingService _levelingService;
     private readonly ILogger<StudentController> _logger;
 
     public StudentController(
         IUserService userService,
         IBadgeService badgeService,
+        ILevelingService levelingService,
         ILogger<StudentController> logger)
     {
         _userService = userService;
         _badgeService = badgeService;
+        _levelingService = levelingService;
         _logger = logger;
     }
 
@@ -146,6 +149,93 @@ public class StudentController : ControllerBase
             {
                 status = "error",
                 message = "An unexpected error occurred while retrieving the dashboard."
+            });
+        }
+    }
+
+    // ── GET /api/students/{id}/progression ─────────────────────────────
+
+    /// <summary>
+    /// GET /api/students/{id}/progression — Retrieve the student's XP progression data.
+    /// </summary>
+    /// <param name="id">The student user ID.</param>
+    /// <returns>
+    /// Progression data containing:
+    /// - UserId: The student's user ID.
+    /// - XpTotal: Total XP earned by the student.
+    /// - CurrentLevel: The student's current level.
+    /// - XpPrevLevel: Cumulative XP required to reach current level.
+    /// - XpForNextLevel: Cumulative XP required to reach next level.
+    /// - XpInCurrentLevel: XP earned within the current level progression.
+    /// - XpNeededForLevel: Total XP needed to advance to next level.
+    /// - ProgressPercentage: Progress percentage (0-100) for current level.
+    /// </returns>
+    /// <response code="200">Progression data retrieved successfully.</response>
+    /// <response code="404">Student not found.</response>
+    /// <response code="500">Unexpected server error.</response>
+    [HttpGet("{id:int}/progression")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetUserProgression(int id)
+    {
+        try
+        {
+            _logger.LogInformation("📈 GetUserProgression called for UserId={UserId}", id);
+            
+            // Fetch the user
+            var user = await _userService.GetUserByIdAsync(id);
+            if (user is null)
+            {
+                _logger.LogWarning("❌ User not found: {UserId}", id);
+                return NotFound(new
+                {
+                    status = "error",
+                    message = $"User with ID {id} not found."
+                });
+            }
+
+            _logger.LogInformation("✅ User found: {UserId}, XpTotal={XpTotal}", id, user.XpTotal);
+
+            // Calculate progression data
+            int currentLevel = _levelingService.CalculateLevel(user.XpTotal);
+            int xpPrevLevel = _levelingService.GetXpForPreviousLevel(currentLevel);
+            int xpForNextLevel = _levelingService.GetXpForNextLevel(currentLevel);
+            int xpInCurrentLevel = user.XpTotal - xpPrevLevel;
+            int xpNeededForLevel = xpForNextLevel - xpPrevLevel;
+            double progressPercentage = xpNeededForLevel > 0 
+                ? Math.Min((xpInCurrentLevel / (double)xpNeededForLevel) * 100, 100) 
+                : 0;
+
+            var progression = new UserProgressionDto
+            {
+                UserId = user.UserId,
+                XpTotal = user.XpTotal,
+                CurrentLevel = currentLevel,
+                XpPrevLevel = xpPrevLevel,
+                XpForNextLevel = xpForNextLevel,
+                XpInCurrentLevel = xpInCurrentLevel,
+                XpNeededForLevel = xpNeededForLevel,
+                ProgressPercentage = progressPercentage
+            };
+
+            _logger.LogInformation(
+                "✅ Progression calculated: Level={Level}, XpTotal={XpTotal}, Progress={Progress}%",
+                currentLevel, user.XpTotal, Math.Round(progressPercentage));
+
+            return Ok(new
+            {
+                status = "success",
+                data = progression
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Error retrieving user progression for ID {UserId}", id);
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                status = "error",
+                message = "An unexpected error occurred while retrieving progression data."
             });
         }
     }
