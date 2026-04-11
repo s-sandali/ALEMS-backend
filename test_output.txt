@@ -1,0 +1,7 @@
+Test run for C:\Users\hp\OneDrive\Desktop\alems\backend\ALEMS-backend\Testing\UnitTests\bin\Release\net10.0\UnitTests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.1 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:   446, Skipped:     0, Total:   446, Duration: 601 ms - UnitTests.dll (net10.0)
