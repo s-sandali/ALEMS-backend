@@ -203,4 +203,37 @@ public class QuizAttemptRepository : IQuizAttemptRepository
             throw;
         }
     }
+
+    /// <inheritdoc />
+    public async Task<IEnumerable<QuizAttempt>> GetAllAsync()
+    {
+        const string sql = @"
+            SELECT attempt_id, user_id, quiz_id, score, total_questions, xp_earned, passed, started_at, completed_at
+            FROM quiz_attempts
+            ORDER BY started_at DESC;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+
+        var attempts = new List<QuizAttempt>();
+        await using var reader = (MySqlDataReader)await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            attempts.Add(new QuizAttempt
+            {
+                AttemptId = reader.GetInt32(0),
+                UserId = reader.GetInt32(1),
+                QuizId = reader.GetInt32(2),
+                Score = reader.GetInt32(3),
+                TotalQuestions = reader.GetInt32(4),
+                XpEarned = reader.GetInt32(5),
+                Passed = reader.GetBoolean(6),
+                StartedAt = reader.GetDateTime(7),
+                CompletedAt = reader.IsDBNull(8) ? null : reader.GetDateTime(8)
+            });
+        }
+
+        return attempts;
+    }
 }

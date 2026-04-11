@@ -36,4 +36,9 @@ public interface IQuizAttemptRepository
         QuizAttempt attempt,
         IEnumerable<AttemptAnswer> answers,
         int xpToAward);
+
+    /// <summary>
+    /// Retrieves all quiz attempts across all users and quizzes.
+    /// </summary>
+    Task<IEnumerable<QuizAttempt>> GetAllAsync();
 }
