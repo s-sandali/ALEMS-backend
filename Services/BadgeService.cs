@@ -49,23 +49,27 @@ public class BadgeService : IBadgeService
     /// <inheritdoc />
     public async Task<IEnumerable<BadgeResponseDto>> AwardUnlockedBadgesAsync(int userId)
     {
-        // Get the user's current XP
+        // Verify the user exists
         var user = await _userRepository.GetByIdAsync(userId);
         if (user == null)
             return Enumerable.Empty<BadgeResponseDto>();
 
-        // Get all badges that user hasn't earned yet but XP qualifies for
-        var unlockedBadges = await _badgeRepository.GetUnlockedBadgesByUserIdAsync(userId);
         var awards = new List<BadgeResponseDto>();
 
-        foreach (var badge in unlockedBadges)
+        // 1. XP-based badges: award any whose threshold the user has crossed
+        var xpBadges = await _badgeRepository.GetUnlockedBadgesByUserIdAsync(userId);
+        foreach (var badge in xpBadges)
         {
-            // Award the badge
-            var success = await AwardBadgeAsync(userId, badge.BadgeId);
-            if (success)
-            {
+            if (await AwardBadgeAsync(userId, badge.BadgeId))
                 awards.Add(MapToDto(badge));
-            }
+        }
+
+        // 2. Algorithm badges: award any whose algorithm the user has passed a quiz for
+        var algorithmBadges = await _badgeRepository.GetUnlockedAlgorithmBadgesByUserIdAsync(userId);
+        foreach (var badge in algorithmBadges)
+        {
+            if (await AwardBadgeAsync(userId, badge.BadgeId))
+                awards.Add(MapToDto(badge));
         }
 
         return awards;
@@ -95,6 +99,22 @@ public class BadgeService : IBadgeService
         return MapToDto(created);
     }
 
+    /// <inheritdoc />
+    public async Task<IEnumerable<EarnedBadgeDto>> GetEarnedBadgesWithAwardDateAsync(int userId)
+    {
+        var earnedBadges = await _badgeRepository.GetEarnedBadgesWithAwardDateAsync(userId);
+        return earnedBadges.Select(item => new EarnedBadgeDto
+        {
+            Id = item.Badge.BadgeId,  // Field name: Id (instead of BadgeId)
+            Name = item.Badge.BadgeName,  // Field name: Name (instead of BadgeName)
+            Description = item.Badge.BadgeDescription,  // BadgeDescription
+            XpThreshold = item.Badge.XpThreshold,  // XP required
+            IconType = item.Badge.IconType,  // lucide-react icon type
+            IconColor = item.Badge.IconColor,  // Icon color in hex
+            AwardDate = item.AwardedAt  // Field name: AwardDate (instead of AwardedAt)
+        });
+    }
+
     /// <summary>
     /// Maps a Badge domain model to a BadgeResponseDto.
     /// </summary>
@@ -105,7 +125,10 @@ public class BadgeService : IBadgeService
             BadgeId = badge.BadgeId,
             BadgeName = badge.BadgeName,
             BadgeDescription = badge.BadgeDescription,
-            XpThreshold = badge.XpThreshold
+            XpThreshold = badge.XpThreshold,
+            IconType = badge.IconType,
+            IconColor = badge.IconColor,
+            UnlockHint = badge.UnlockHint
         };
     }
 }
