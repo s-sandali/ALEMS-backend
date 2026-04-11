@@ -44,4 +44,10 @@ public interface IBadgeService
     /// Creates a new badge.
     /// </summary>
     Task<BadgeResponseDto> CreateBadgeAsync(Badge badge);
+
+    /// <summary>
+    /// Retrieves earned badges for a user with their award dates.
+    /// Used for dashboard display showing when badges were earned.
+    /// </summary>
+    Task<IEnumerable<EarnedBadgeDto>> GetEarnedBadgesWithAwardDateAsync(int userId);
 }

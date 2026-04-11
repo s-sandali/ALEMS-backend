@@ -211,4 +211,39 @@ public class BadgeRepository : IBadgeRepository
             CreatedAt = (DateTime)reader["created_at"]
         };
     }
+
+    /// <inheritdoc />
+    public async Task<IEnumerable<(Badge Badge, DateTime AwardedAt)>> GetEarnedBadgesWithAwardDateAsync(int userId)
+    {
+        const string sql = @"
+            SELECT b.badge_id, b.badge_name, b.badge_description, b.xp_threshold, b.created_at,
+                   ub.awarded_at
+            FROM badges b
+            INNER JOIN user_badges ub ON b.badge_id = ub.badge_id
+            WHERE ub.user_id = @UserId
+            ORDER BY b.xp_threshold ASC;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@UserId", userId);
+
+        var results = new List<(Badge Badge, DateTime AwardedAt)>();
+        await using var reader = (MySqlDataReader)await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            var badge = new Badge
+            {
+                BadgeId = (int)reader["badge_id"],
+                BadgeName = (string)reader["badge_name"],
+                BadgeDescription = (string)reader["badge_description"],
+                XpThreshold = (int)(uint)reader["xp_threshold"],
+                CreatedAt = (DateTime)reader["created_at"]
+            };
+            var awardedAt = (DateTime)reader["awarded_at"];
+            results.Add((badge, awardedAt));
+        }
+
+        return results;
+    }
 }

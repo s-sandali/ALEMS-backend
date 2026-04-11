@@ -95,6 +95,19 @@ public class BadgeService : IBadgeService
         return MapToDto(created);
     }
 
+    /// <inheritdoc />
+    public async Task<IEnumerable<EarnedBadgeDto>> GetEarnedBadgesWithAwardDateAsync(int userId)
+    {
+        var earnedBadges = await _badgeRepository.GetEarnedBadgesWithAwardDateAsync(userId);
+        return earnedBadges.Select(item => new EarnedBadgeDto
+        {
+            Id = item.Badge.BadgeId,  // Field name: Id (instead of BadgeId)
+            Name = item.Badge.BadgeName,  // Field name: Name (instead of BadgeName)
+            Icon = string.Empty,  // Icon will be set in controller
+            AwardDate = item.AwardedAt  // Field name: AwardDate (instead of AwardedAt)
+        });
+    }
+
     /// <summary>
     /// Maps a Badge domain model to a BadgeResponseDto.
     /// </summary>
