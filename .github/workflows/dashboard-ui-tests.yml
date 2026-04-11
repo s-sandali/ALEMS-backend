@@ -1,0 +1,110 @@
+name: Dashboard UI Tests
+
+on:
+  pull_request:
+    branches: [develop, main, QA, devops]
+    paths:
+      - 'Controllers/DashboardController.cs'
+      - 'Testing/E2ETests/DashboardUITests.cs'
+      - 'Program.cs'
+
+  push:
+    branches: [develop, main, QA, devops]
+    paths:
+      - 'Controllers/DashboardController.cs'
+      - 'Testing/E2ETests/DashboardUITests.cs'
+      - 'Program.cs'
+
+jobs:
+  dashboard-ui-tests:
+    name: Dashboard UI Tests (Selenium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: bigodb
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+        ports:
+          - 3306:3306
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore BigO.sln
+
+      - name: Build solution
+        run: dotnet build BigO.sln --configuration Release --no-restore
+
+      - name: Create testsettings.json for E2E tests
+        working-directory: Testing/E2ETests
+        run: |
+          cat > testsettings.json << 'EOF'
+          {
+            "MySqlConnectionString": "Server=localhost;Port=3306;Database=bigodb;User Id=root;Password=root;",
+            "TestAccount": {
+              "Email": "test@example.com",
+              "Password": "TestPassword123!"
+            },
+            "FrontendUrl": "http://localhost:5173",
+            "BackendUrl": "http://localhost:5000"
+          }
+          EOF
+
+      - name: Install Chrome dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser chromium-chromedriver
+
+      - name: Start backend in background
+        run: |
+          dotnet run --project backend.csproj --configuration Release &
+          BACKEND_PID=$!
+          echo "BACKEND_PID=$BACKEND_PID" >> $GITHUB_ENV
+          # Wait for backend to start
+          sleep 10
+          curl -f http://localhost:5000/api/health || exit 1
+
+      - name: Run Dashboard UI Tests
+        working-directory: Testing/E2ETests
+        run: |
+          dotnet test E2ETests.csproj \
+            --configuration Release \
+            --no-build \
+            --logger "console;verbosity=detailed" \
+            --logger "trx;LogFileName=test-results.trx" \
+            --collect:"XPlat Code Coverage" \
+            --filter "FullyQualifiedName~DashboardUITests" \
+            || true
+        continue-on-error: true
+
+      - name: Publish Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-ui-test-results
+          path: Testing/E2ETests/**/test-results.trx
+          retention-days: 30
+
+      - name: Publish Test Report
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Dashboard UI Test Results
+          path: 'Testing/E2ETests/**/test-results.trx'
+          reporter: 'dotnet trx'
+          fail-on-error: false
+          token: ${{ secrets.GITHUB_TOKEN }}

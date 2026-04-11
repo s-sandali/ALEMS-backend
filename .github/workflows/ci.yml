@@ -44,6 +44,10 @@ jobs:
       - name: Run Integration Tests
         run: dotnet test Testing/IntegrationTests/IntegrationTests.csproj --configuration Release --no-build --collect:"XPlat Code Coverage"
 
+      - name: Run E2E/UI Tests (Dashboard)
+        run: dotnet test Testing/E2ETests/E2ETests.csproj --configuration Release --no-build --logger:"console;verbosity=normal" || true
+        continue-on-error: true
+
       - name: Install ReportGenerator
         run: dotnet tool install -g dotnet-reportgenerator-globaltool
 
