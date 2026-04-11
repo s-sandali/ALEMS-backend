@@ -436,32 +436,25 @@ async Task RunPendingMigrationsAsync(backend.Data.DatabaseHelper db, Serilog.ILo
             logger.Information("V009 migration already applied (icon_type column exists)");
         }
         
-        // Seed default badges if they don't exist
-        logger.Information("Checking if default badges exist...");
-        const string countSql = "SELECT COUNT(*) FROM badges WHERE badge_id IN (1, 2, 3, 4, 5)";
-        await using var countCmd = new MySql.Data.MySqlClient.MySqlCommand(countSql, connection);
-        var badgeCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync() ?? 0);
-        
-        if (badgeCount < 5)
-        {
-            logger.Information("Seeding default badges...");
-            const string seedSql = @"
-                INSERT IGNORE INTO badges (badge_name, badge_description, xp_threshold, icon_type, icon_color, unlock_hint)
-                VALUES
-                    ('First Steps', 'Earned after reaching 50 XP.', 50, 'star', '#8f8f3e', 'Reach 50 XP'),
-                    ('Quick Learner', 'Earned after reaching 150 XP.', 150, 'bolt', '#c8ff3e', 'Reach 150 XP'),
-                    ('Problem Solver', 'Earned after reaching 300 XP.', 300, 'shield', '#8f8f3e', 'Reach 300 XP'),
-                    ('Algorithm Ace', 'Earned after reaching 600 XP.', 600, 'trophy', '#c8ff3e', 'Reach 600 XP'),
-                    ('Big O Master', 'Earned after reaching 1000 XP.', 1000, 'gauge', '#8f8f3e', 'Reach 1000 XP');";
-            
-            await using var seedCmd = new MySql.Data.MySqlClient.MySqlCommand(seedSql, connection);
-            var rowsInserted = await seedCmd.ExecuteNonQueryAsync();
-            logger.Information("Seeded {RowCount} badges", rowsInserted);
-        }
-        else
-        {
-            logger.Information("Default badges already exist");
-        }
+        logger.Information("Synchronizing default badge catalog...");
+        const string syncDefaultBadgesSql = @"
+            INSERT INTO badges (badge_name, badge_description, xp_threshold, icon_type, icon_color, unlock_hint)
+            VALUES
+                ('First Steps', 'Earned after reaching 50 XP.', 50, 'star', '#f6c945', 'Reach 50 XP'),
+                ('Quick Learner', 'Earned after reaching 150 XP.', 150, 'bolt', '#7df9ff', 'Reach 150 XP'),
+                ('Problem Solver', 'Earned after reaching 300 XP.', 300, 'shield', '#7fe7a2', 'Reach 300 XP'),
+                ('Algorithm Ace', 'Earned after reaching 600 XP.', 600, 'trophy', '#c8ff3e', 'Reach 600 XP'),
+                ('Big O Master', 'Earned after reaching 1000 XP.', 1000, 'gauge', '#ff9f5a', 'Reach 1000 XP')
+            ON DUPLICATE KEY UPDATE
+                badge_description = VALUES(badge_description),
+                xp_threshold = VALUES(xp_threshold),
+                icon_type = VALUES(icon_type),
+                icon_color = VALUES(icon_color),
+                unlock_hint = VALUES(unlock_hint);";
+
+        await using var syncDefaultBadgesCmd = new MySql.Data.MySqlClient.MySqlCommand(syncDefaultBadgesSql, connection);
+        var rowsAffected = await syncDefaultBadgesCmd.ExecuteNonQueryAsync();
+        logger.Information("Default badge catalog synchronized. Rows affected: {RowCount}", rowsAffected);
     }
     catch (Exception ex)
     {
