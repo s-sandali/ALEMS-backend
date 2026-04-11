@@ -12,5 +12,6 @@ public class BadgeDashboardDto
     public int XpThreshold { get; set; }  // XP required to earn badge
     public string IconType { get; set; } = "star";  // lucide-react icon type
     public string IconColor { get; set; } = "#8f8f3e";  // Icon color in hex
+    public string UnlockHint { get; set; } = "Locked";  // Copy for locked badge UI
     public bool Earned { get; set; }  // Whether this badge has been earned by the student
 }
