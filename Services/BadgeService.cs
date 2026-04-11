@@ -103,7 +103,10 @@ public class BadgeService : IBadgeService
         {
             Id = item.Badge.BadgeId,  // Field name: Id (instead of BadgeId)
             Name = item.Badge.BadgeName,  // Field name: Name (instead of BadgeName)
-            Icon = string.Empty,  // Icon will be set in controller
+            Description = item.Badge.BadgeDescription,  // BadgeDescription
+            XpThreshold = item.Badge.XpThreshold,  // XP required
+            IconType = item.Badge.IconType,  // lucide-react icon type
+            IconColor = item.Badge.IconColor,  // Icon color in hex
             AwardDate = item.AwardedAt  // Field name: AwardDate (instead of AwardedAt)
         });
     }
@@ -118,7 +121,10 @@ public class BadgeService : IBadgeService
             BadgeId = badge.BadgeId,
             BadgeName = badge.BadgeName,
             BadgeDescription = badge.BadgeDescription,
-            XpThreshold = badge.XpThreshold
+            XpThreshold = badge.XpThreshold,
+            IconType = badge.IconType,
+            IconColor = badge.IconColor,
+            UnlockHint = badge.UnlockHint
         };
     }
 }

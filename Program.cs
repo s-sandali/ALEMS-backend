@@ -350,6 +350,25 @@ app.UseCors("AllowFrontend");
 app.UseAuthentication();   // Must come before UseAuthorization
 app.UseAuthorization();
 
+// ── Run pending migrations ────────────────────────────────────────
+try
+{
+    var logger = Log.Logger;
+    logger.Information("Checking and running pending database migrations...");
+    
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<DatabaseHelper>();
+        await RunPendingMigrationsAsync(db, logger);
+    }
+    
+    logger.Information("Migrations completed successfully.");
+}
+catch (Exception migrationEx)
+{
+    Log.Error(migrationEx, "Error running migrations");
+}
+
 app.MapControllers();
 
 await app.RunAsync();
@@ -362,6 +381,92 @@ catch (Exception ex)
 finally
 {
     await Log.CloseAndFlushAsync();
+}
+
+// ── Helper method to run pending migrations ───────────────────────
+
+async Task RunPendingMigrationsAsync(backend.Data.DatabaseHelper db, Serilog.ILogger logger)
+{
+    try
+    {
+        await using var connection = await db.OpenConnectionAsync();
+        
+        // Check if icon_type column exists
+        const string checkSql = @"
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'badges'
+            AND COLUMN_NAME = 'icon_type';";
+        
+        await using var checkCmd = new MySql.Data.MySqlClient.MySqlCommand(checkSql, connection);
+        var columnExists = await checkCmd.ExecuteScalarAsync();
+        
+        if (columnExists == null)
+        {
+            logger.Information("Running V009 migration: Adding badge UI styling properties...");
+            
+            // Execute each ALTER TABLE statement separately with proper syntax
+            var migrations = new[]
+            {
+                "ALTER TABLE badges ADD COLUMN icon_type VARCHAR(50) DEFAULT 'star' COMMENT 'Icon type for lucide-react icons'",
+                "ALTER TABLE badges ADD COLUMN icon_color VARCHAR(20) DEFAULT '#8f8f3e' COMMENT 'Icon color in hex format'",
+                "ALTER TABLE badges ADD COLUMN unlock_hint VARCHAR(100) DEFAULT 'Locked' COMMENT 'Hint text for locked badges'"
+            };
+            
+            foreach (var statement in migrations)
+            {
+                try
+                {
+                    await using var migrationCmd = new MySql.Data.MySqlClient.MySqlCommand(statement, connection);
+                    await migrationCmd.ExecuteNonQueryAsync();
+                    logger.Information("Executed migration: {Statement}", statement.Substring(0, Math.Min(50, statement.Length)));
+                }
+                catch (MySql.Data.MySqlClient.MySqlException ex) when (ex.Number == 1060) // Column already exists
+                {
+                    logger.Information("Column already exists, skipping: {Statement}", statement.Substring(0, Math.Min(50, statement.Length)));
+                }
+            }
+            
+            logger.Information("V009 migration completed successfully");
+        }
+        else
+        {
+            logger.Information("V009 migration already applied (icon_type column exists)");
+        }
+        
+        // Seed default badges if they don't exist
+        logger.Information("Checking if default badges exist...");
+        const string countSql = "SELECT COUNT(*) FROM badges WHERE badge_id IN (1, 2, 3, 4, 5)";
+        await using var countCmd = new MySql.Data.MySqlClient.MySqlCommand(countSql, connection);
+        var badgeCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync() ?? 0);
+        
+        if (badgeCount < 5)
+        {
+            logger.Information("Seeding default badges...");
+            const string seedSql = @"
+                INSERT IGNORE INTO badges (badge_name, badge_description, xp_threshold, icon_type, icon_color, unlock_hint)
+                VALUES
+                    ('First Steps', 'Earned after reaching 50 XP.', 50, 'star', '#8f8f3e', 'Reach 50 XP'),
+                    ('Quick Learner', 'Earned after reaching 150 XP.', 150, 'bolt', '#c8ff3e', 'Reach 150 XP'),
+                    ('Problem Solver', 'Earned after reaching 300 XP.', 300, 'shield', '#8f8f3e', 'Reach 300 XP'),
+                    ('Algorithm Ace', 'Earned after reaching 600 XP.', 600, 'trophy', '#c8ff3e', 'Reach 600 XP'),
+                    ('Big O Master', 'Earned after reaching 1000 XP.', 1000, 'gauge', '#8f8f3e', 'Reach 1000 XP');";
+            
+            await using var seedCmd = new MySql.Data.MySqlClient.MySqlCommand(seedSql, connection);
+            var rowsInserted = await seedCmd.ExecuteNonQueryAsync();
+            logger.Information("Seeded {RowCount} badges", rowsInserted);
+        }
+        else
+        {
+            logger.Information("Default badges already exist");
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.Error(ex, "Error running migrations. Application may not function properly without the badge UI styling columns.");
+        // Don't rethrow - allow app to continue running
+    }
 }
 
 // Expose Program to the integration-test project (WebApplicationFactory<Program>)
