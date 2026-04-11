@@ -21,9 +21,9 @@ public class BadgeRepository : IBadgeRepository
     public async Task<IEnumerable<Badge>> GetAllAsync()
     {
         const string sql = @"
-            SELECT badge_id, badge_name, badge_description, xp_threshold, icon_type, icon_color, unlock_hint, created_at
+            SELECT badge_id, badge_name, badge_description, xp_threshold, icon_type, icon_color, unlock_hint, algorithm_id, created_at
             FROM badges
-            ORDER BY xp_threshold ASC;";
+            ORDER BY xp_threshold ASC, badge_id ASC;";
 
         await using var connection = await _db.OpenConnectionAsync();
         await using var cmd = new MySqlCommand(sql, connection);
@@ -43,7 +43,7 @@ public class BadgeRepository : IBadgeRepository
     public async Task<Badge?> GetByIdAsync(int badgeId)
     {
         const string sql = @"
-            SELECT badge_id, badge_name, badge_description, xp_threshold, icon_type, icon_color, unlock_hint, created_at
+            SELECT badge_id, badge_name, badge_description, xp_threshold, icon_type, icon_color, unlock_hint, algorithm_id, created_at
             FROM badges
             WHERE badge_id = @BadgeId
             LIMIT 1;";
@@ -64,11 +64,11 @@ public class BadgeRepository : IBadgeRepository
     public async Task<IEnumerable<Badge>> GetEarnedBadgesByUserIdAsync(int userId)
     {
         const string sql = @"
-            SELECT b.badge_id, b.badge_name, b.badge_description, b.xp_threshold, b.icon_type, b.icon_color, b.unlock_hint, b.created_at
+            SELECT b.badge_id, b.badge_name, b.badge_description, b.xp_threshold, b.icon_type, b.icon_color, b.unlock_hint, b.algorithm_id, b.created_at
             FROM badges b
             INNER JOIN user_badges ub ON b.badge_id = ub.badge_id
             WHERE ub.user_id = @UserId
-            ORDER BY b.xp_threshold ASC;";
+            ORDER BY b.xp_threshold ASC, b.badge_id ASC;";
 
         await using var connection = await _db.OpenConnectionAsync();
         await using var cmd = new MySqlCommand(sql, connection);
@@ -89,9 +89,10 @@ public class BadgeRepository : IBadgeRepository
     public async Task<IEnumerable<Badge>> GetUnlockedBadgesByUserIdAsync(int userId)
     {
         const string sql = @"
-            SELECT b.badge_id, b.badge_name, b.badge_description, b.xp_threshold, b.icon_type, b.icon_color, b.unlock_hint, b.created_at
+            SELECT b.badge_id, b.badge_name, b.badge_description, b.xp_threshold, b.icon_type, b.icon_color, b.unlock_hint, b.algorithm_id, b.created_at
             FROM badges b
-            WHERE b.xp_threshold <= (SELECT xp_total FROM users WHERE id = @UserId)
+            WHERE b.algorithm_id IS NULL
+            AND b.xp_threshold <= (SELECT xp_total FROM users WHERE id = @UserId)
             AND b.badge_id NOT IN (
                 SELECT badge_id FROM user_badges WHERE user_id = @UserId
             )
@@ -206,6 +207,39 @@ public class BadgeRepository : IBadgeRepository
         }
     }
 
+    /// <inheritdoc />
+    public async Task<IEnumerable<Badge>> GetUnlockedAlgorithmBadgesByUserIdAsync(int userId)
+    {
+        const string sql = @"
+            SELECT b.badge_id, b.badge_name, b.badge_description, b.xp_threshold, b.icon_type, b.icon_color, b.unlock_hint, b.algorithm_id, b.created_at
+            FROM badges b
+            WHERE b.algorithm_id IS NOT NULL
+            AND b.badge_id NOT IN (
+                SELECT badge_id FROM user_badges WHERE user_id = @UserId
+            )
+            AND b.algorithm_id IN (
+                SELECT q.algorithm_id
+                FROM quiz_attempts qa
+                INNER JOIN quizzes q ON q.quiz_id = qa.quiz_id
+                WHERE qa.user_id = @UserId AND qa.passed = 1
+            )
+            ORDER BY b.badge_id ASC;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@UserId", userId);
+
+        var badges = new List<Badge>();
+        await using var reader = (MySqlDataReader)await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            badges.Add(MapBadge(reader));
+        }
+
+        return badges;
+    }
+
     /// <summary>
     /// Maps a MySqlDataReader row to a Badge object.
     /// </summary>
@@ -220,6 +254,7 @@ public class BadgeRepository : IBadgeRepository
             IconType = (string)(reader["icon_type"] ?? "star"),
             IconColor = (string)(reader["icon_color"] ?? "#8f8f3e"),
             UnlockHint = (string)(reader["unlock_hint"] ?? "Locked"),
+            AlgorithmId = reader["algorithm_id"] == DBNull.Value ? null : (int?)Convert.ToInt32(reader["algorithm_id"]),
             CreatedAt = (DateTime)reader["created_at"]
         };
     }
@@ -228,12 +263,12 @@ public class BadgeRepository : IBadgeRepository
     public async Task<IEnumerable<(Badge Badge, DateTime AwardedAt)>> GetEarnedBadgesWithAwardDateAsync(int userId)
     {
         const string sql = @"
-            SELECT b.badge_id, b.badge_name, b.badge_description, b.xp_threshold, b.icon_type, b.icon_color, b.unlock_hint, b.created_at,
+            SELECT b.badge_id, b.badge_name, b.badge_description, b.xp_threshold, b.icon_type, b.icon_color, b.unlock_hint, b.algorithm_id, b.created_at,
                    ub.awarded_at
             FROM badges b
             INNER JOIN user_badges ub ON b.badge_id = ub.badge_id
             WHERE ub.user_id = @UserId
-            ORDER BY b.xp_threshold ASC;";
+            ORDER BY b.xp_threshold ASC, b.badge_id ASC;";
 
         await using var connection = await _db.OpenConnectionAsync();
         await using var cmd = new MySqlCommand(sql, connection);
@@ -244,17 +279,7 @@ public class BadgeRepository : IBadgeRepository
 
         while (await reader.ReadAsync())
         {
-            var badge = new Badge
-            {
-                BadgeId = (int)reader["badge_id"],
-                BadgeName = (string)reader["badge_name"],
-                BadgeDescription = (string)reader["badge_description"],
-                XpThreshold = (int)(uint)reader["xp_threshold"],
-                IconType = (string)(reader["icon_type"] ?? "star"),
-                IconColor = (string)(reader["icon_color"] ?? "#8f8f3e"),
-                UnlockHint = (string)(reader["unlock_hint"] ?? "Locked"),
-                CreatedAt = (DateTime)reader["created_at"]
-            };
+            var badge = MapBadge(reader);
             var awardedAt = (DateTime)reader["awarded_at"];
             results.Add((badge, awardedAt));
         }
