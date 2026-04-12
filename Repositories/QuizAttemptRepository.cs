@@ -213,7 +213,7 @@ public class QuizAttemptRepository : IQuizAttemptRepository
                 qa.attempt_id,
                 qa.quiz_id,
                 q.title                                        AS quiz_title,
-                a.Name                                         AS algorithm_name,
+                a.name                                         AS algorithm_name,
                 qa.score,
                 qa.total_questions,
                 (qa.score / qa.total_questions * 100)          AS score_percent,
@@ -222,7 +222,7 @@ public class QuizAttemptRepository : IQuizAttemptRepository
                 qa.completed_at
             FROM quiz_attempts qa
             INNER JOIN quizzes    q ON q.quiz_id      = qa.quiz_id
-            INNER JOIN algorithms a ON a.AlgorithmId  = q.algorithm_id
+            INNER JOIN algorithms a ON a.algorithm_id = q.algorithm_id
             WHERE qa.user_id = @UserId
             ORDER BY qa.completed_at DESC;";
 
@@ -246,18 +246,18 @@ public class QuizAttemptRepository : IQuizAttemptRepository
     {
         const string sql = @"
             SELECT
-                a.AlgorithmId,
-                a.Name                                                              AS algorithm_name,
-                a.Category,
+                a.algorithm_id                                                       AS algorithm_id,
+                a.name                                                               AS algorithm_name,
+                a.category                                                           AS category,
                 COUNT(qa.attempt_id)                                                AS total_attempts,
                 SUM(CASE WHEN qa.passed = 1 THEN 1 ELSE 0 END)                     AS passed_attempts,
                 MAX(qa.score / qa.total_questions * 100)                            AS best_score_percent,
                 MAX(CASE WHEN qa.passed = 1 THEN 1 ELSE 0 END)                     AS has_passed_quiz
             FROM algorithms a
-            LEFT JOIN quizzes       q  ON q.algorithm_id = a.AlgorithmId AND q.is_active = 1
+            LEFT JOIN quizzes       q  ON q.algorithm_id = a.algorithm_id AND q.is_active = 1
             LEFT JOIN quiz_attempts qa ON qa.quiz_id      = q.quiz_id    AND qa.user_id  = @UserId
-            GROUP BY a.AlgorithmId, a.Name, a.Category
-            ORDER BY a.Name ASC;";
+            GROUP BY a.algorithm_id, a.name, a.category
+            ORDER BY a.name ASC;";
 
         await using var connection = await _db.OpenConnectionAsync();
         await using var cmd = new MySqlCommand(sql, connection);
@@ -322,7 +322,7 @@ public class QuizAttemptRepository : IQuizAttemptRepository
             AlgorithmName = (string)reader["algorithm_name"],
             Score         = Convert.ToInt32(reader["score"]),
             TotalQuestions = Convert.ToInt32(reader["total_questions"]),
-            ScorePercent  = Math.Round(Convert.ToDouble(reader["score_percent"]), 2),
+            ScorePercent  = reader["score_percent"] == DBNull.Value ? 0.0 : Math.Round(Convert.ToDouble(reader["score_percent"]), 2),
             XpEarned      = Convert.ToInt32(reader["xp_earned"]),
             Passed        = Convert.ToBoolean(reader["passed"]),
             CompletedAt   = reader["completed_at"] == DBNull.Value
@@ -335,9 +335,9 @@ public class QuizAttemptRepository : IQuizAttemptRepository
     {
         return new AlgorithmCoverageItemDto
         {
-            AlgorithmId      = Convert.ToInt32(reader["AlgorithmId"]),
+            AlgorithmId      = Convert.ToInt32(reader["algorithm_id"]),
             AlgorithmName    = (string)reader["algorithm_name"],
-            Category         = (string)reader["Category"],
+            Category         = (string)reader["category"],
             TotalAttempts    = Convert.ToInt32(reader["total_attempts"]),
             PassedAttempts   = reader["passed_attempts"]    == DBNull.Value ? 0   : Convert.ToInt32(reader["passed_attempts"]),
             BestScorePercent = reader["best_score_percent"] == DBNull.Value ? 0.0 : Math.Round(Convert.ToDouble(reader["best_score_percent"]), 2),
