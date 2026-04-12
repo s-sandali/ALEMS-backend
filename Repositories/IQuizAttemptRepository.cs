@@ -1,3 +1,4 @@
+using backend.DTOs;
 using backend.Models;
 
 namespace backend.Repositories;
@@ -36,4 +37,22 @@ public interface IQuizAttemptRepository
         QuizAttempt attempt,
         IEnumerable<AttemptAnswer> answers,
         int xpToAward);
+
+    /// <summary>
+    /// Returns all quiz attempts for a student ordered by completion date descending.
+    /// Each row is enriched with the quiz title and algorithm name for display purposes.
+    /// </summary>
+    Task<IEnumerable<QuizAttemptHistoryItemDto>> GetAttemptHistoryByUserIdAsync(int userId);
+
+    /// <summary>
+    /// Returns one row per algorithm showing the student's aggregate quiz performance.
+    /// Algorithms the student has never attempted are included with zero counts.
+    /// </summary>
+    Task<IEnumerable<AlgorithmCoverageItemDto>> GetAlgorithmCoverageByUserIdAsync(int userId);
+
+    /// <summary>
+    /// Returns a single aggregate row with overall quiz performance statistics for the student.
+    /// All numeric fields are zero when the student has no attempts.
+    /// </summary>
+    Task<PerformanceSummaryDto> GetPerformanceSummaryByUserIdAsync(int userId);
 }
