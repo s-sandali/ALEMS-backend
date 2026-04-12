@@ -21,18 +21,21 @@ public class StudentController : ControllerBase
     private readonly IUserService _userService;
     private readonly IBadgeService _badgeService;
     private readonly ILevelingService _levelingService;
+    private readonly IStudentDashboardService _dashboardService;
     private readonly ILogger<StudentController> _logger;
 
     public StudentController(
         IUserService userService,
         IBadgeService badgeService,
         ILevelingService levelingService,
+        IStudentDashboardService dashboardService,
         ILogger<StudentController> logger)
     {
-        _userService = userService;
-        _badgeService = badgeService;
-        _levelingService = levelingService;
-        _logger = logger;
+        _userService      = userService;
+        _badgeService     = badgeService;
+        _levelingService  = levelingService;
+        _dashboardService = dashboardService;
+        _logger           = logger;
     }
 
     // ── GET /api/students/{id}/dashboard ──────────────────────────────
@@ -60,98 +63,41 @@ public class StudentController : ControllerBase
         try
         {
             _logger.LogInformation("📊 GetStudentDashboard called for StudentId={StudentId}", id);
-            
-            // ── Authorization: Ensure user is reading their own dashboard or is an Admin ──
+
+            // ── Authorization: student can only read their own dashboard; admins are unrestricted ──
             var clerkUserId = User.FindFirst("sub")?.Value;
-            if (clerkUserId == null || (!clerkUserId.Equals(id.ToString(), StringComparison.OrdinalIgnoreCase) && !User.IsInRole("Admin")))
+            if (clerkUserId == null ||
+                (!clerkUserId.Equals(id.ToString(), StringComparison.OrdinalIgnoreCase) &&
+                 !User.IsInRole("Admin")))
             {
-                _logger.LogWarning("❌ Unauthorized access attempt: user {ClerkUserId} tried to access student dashboard for ID {StudentId}", clerkUserId, id);
+                _logger.LogWarning(
+                    "❌ Unauthorized access attempt: user {ClerkUserId} tried to access student dashboard for ID {StudentId}",
+                    clerkUserId, id);
                 return Forbid();
             }
-            
-            // Fetch the user
-            var user = await _userService.GetUserByIdAsync(id);
-            if (user is null)
+
+            var dashboard = await _dashboardService.GetStudentDashboardAsync(id);
+
+            if (dashboard is null)
             {
                 _logger.LogWarning("❌ Student not found: {StudentId}", id);
                 return NotFound(new
                 {
-                    status = "error",
+                    status  = "error",
                     message = $"Student with ID {id} not found."
                 });
             }
 
-            _logger.LogInformation("✅ Student found: {StudentId}, XpTotal={XpTotal}", id, user.XpTotal);
-
-            // Award any badges the user qualifies for but hasn't received yet
-            await _badgeService.AwardUnlockedBadgesAsync(id);
-
-            // Fetch earned badges with award dates
-            var earnedBadgesWithDates = await _badgeService.GetEarnedBadgesWithAwardDateAsync(id);
-            _logger.LogInformation("✅ Earned badges count: {Count}", earnedBadgesWithDates.Count());
-
-            // Fetch all available badges
-            var allBadges = await _badgeService.GetAllBadgesAsync();
-            var allBadgesCount = allBadges.Count();
-            _logger.LogInformation("✅ All badges count: {Count}", allBadgesCount);
-            
-            if (allBadgesCount == 0)
-            {
-                _logger.LogWarning("⚠️  WARNING: No badges found in database!");
-            }
-
-            // Create a set of earned badge IDs for quick lookup
-            var earnedBadgeIds = new HashSet<int>(earnedBadgesWithDates.Select(b => b.Id));
-
-            // Map earned badges with styling properties
-            var earnedBadges = earnedBadgesWithDates
-                .Select(b => new EarnedBadgeDto
-                {
-                    Id = b.Id,
-                    Name = b.Name,
-                    Description = b.Description,
-                    XpThreshold = b.XpThreshold,
-                    IconType = b.IconType,
-                    IconColor = b.IconColor,
-                    AwardDate = b.AwardDate
-                })
-                .ToList();
-            
-            _logger.LogInformation("✅ Mapped earned badges: {Count}", earnedBadges.Count);
-
-            // Map all badges with earned status and styling properties
-            var allBadgesList = allBadges
-                .Select(b => new BadgeDashboardDto
-                {
-                    Id = b.BadgeId,
-                    Name = b.BadgeName,
-                    Description = b.BadgeDescription,
-                    XpThreshold = b.XpThreshold,
-                    IconType = b.IconType,
-                    IconColor = b.IconColor,
-                    UnlockHint = b.UnlockHint,
-                    Earned = earnedBadgeIds.Contains(b.BadgeId)
-                })
-                .ToList();
-            
-            _logger.LogInformation("✅ Mapped all badges: {Count}", allBadgesList.Count);
-
-            // Construct the dashboard DTO
-            var dashboard = new StudentDashboardDto
-            {
-                StudentId = id,
-                XpTotal = user.XpTotal,
-                EarnedBadges = earnedBadges,
-                AllBadges = allBadgesList
-            };
-
-            _logger.LogInformation("✅ Dashboard constructed: StudentId={StudentId}, EarnedBadges={EarnedCount}, AllBadges={AllCount}", 
-                id, earnedBadges.Count, allBadgesList.Count);
+            _logger.LogInformation(
+                "✅ Dashboard built: StudentId={StudentId}, XpTotal={XpTotal}, EarnedBadges={EarnedCount}, AllBadges={AllCount}",
+                id, dashboard.XpTotal,
+                dashboard.EarnedBadges.Count(),
+                dashboard.AllBadges.Count());
 
             return Ok(new
             {
                 status = "success",
-                data = dashboard
+                data   = dashboard
             });
         }
         catch (Exception ex)
@@ -159,7 +105,7 @@ public class StudentController : ControllerBase
             _logger.LogError(ex, "❌ Error retrieving student dashboard for ID {StudentId}", id);
             return StatusCode(StatusCodes.Status500InternalServerError, new
             {
-                status = "error",
+                status  = "error",
                 message = "An unexpected error occurred while retrieving the dashboard."
             });
         }
