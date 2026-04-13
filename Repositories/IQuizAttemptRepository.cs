@@ -55,4 +55,19 @@ public interface IQuizAttemptRepository
     /// All numeric fields are zero when the student has no attempts.
     /// </summary>
     Task<PerformanceSummaryDto> GetPerformanceSummaryByUserIdAsync(int userId);
+
+    /// <summary>
+    /// Returns the most recent activity events for a student across quiz completions and badge awards,
+    /// ordered by event timestamp descending. Combines both sources via a single UNION ALL query.
+    /// </summary>
+    /// <param name="userId">Internal auto-increment user ID.</param>
+    /// <param name="limit">Maximum number of events to return.</param>
+    Task<IEnumerable<ActivityItemDto>> GetRecentActivityAsync(int userId, int limit);
+
+    /// <summary>
+    /// Returns one row per calendar day on which the student completed at least one quiz attempt.
+    /// Used to populate the activity heatmap on the dashboard.
+    /// </summary>
+    /// <param name="userId">Internal auto-increment user ID.</param>
+    Task<IEnumerable<ActivityHeatmapDto>> GetDailyActivityAsync(int userId);
 }
