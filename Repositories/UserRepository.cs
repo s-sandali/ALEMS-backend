@@ -1,4 +1,5 @@
 using backend.Data;
+using backend.DTOs;
 using backend.Models;
 using MySql.Data.MySqlClient;
 
@@ -202,6 +203,66 @@ public class UserRepository : IUserRepository
         return rowsAffected > 0;
     }
 
+    /// <inheritdoc />
+    public async Task<IEnumerable<LeaderboardEntryDto>> GetTopUsersAsync(int limit)
+    {
+        const string sql = @"
+            SELECT Id, Email, ClerkUserId, XpTotal
+            FROM Users
+            WHERE IsActive = 1
+            ORDER BY XpTotal DESC, Id ASC
+            LIMIT @Limit;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@Limit", limit);
+
+        var entries = new List<LeaderboardEntryDto>();
+        await using var reader = (MySqlDataReader)await cmd.ExecuteReaderAsync();
+
+        int rank = 1;
+        while (await reader.ReadAsync())
+        {
+            var userId = reader.GetInt32("Id");
+            var email = reader.IsDBNull(reader.GetOrdinal("Email"))
+                ? null
+                : reader.GetString("Email");
+            var clerkUserId = reader.IsDBNull(reader.GetOrdinal("ClerkUserId"))
+                ? null
+                : reader.GetString("ClerkUserId");
+
+            entries.Add(new LeaderboardEntryDto
+            {
+                UserId   = userId,
+                Username = BuildDisplayName(email, userId, clerkUserId),
+                XpTotal  = reader.GetInt32("XpTotal"),
+                Rank     = rank++
+            });
+        }
+
+        return entries;
+    }
+
+    /// <inheritdoc />
+    public async Task<int> GetUserRankAsync(int userId)
+    {
+        const string sql = @"
+            SELECT COUNT(*) + 1 AS user_rank
+            FROM Users
+            WHERE IsActive = 1
+              AND XpTotal > (
+                  SELECT XpTotal FROM Users WHERE Id = @UserId AND IsActive = 1
+              );";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@UserId", userId);
+
+        // ExecuteScalar returns 1 when the user is not found (sub-query returns NULL → no rows match)
+        var result = await cmd.ExecuteScalarAsync();
+        return result == DBNull.Value ? 1 : Convert.ToInt32(result);
+    }
+
     /// <summary>
     /// Maps the current row of a <see cref="MySqlDataReader"/> to a <see cref="User"/> object.
     /// Handles nullable clerk_user_id for admin-created users.
@@ -209,18 +270,37 @@ public class UserRepository : IUserRepository
     private static User MapUser(MySqlDataReader reader)
     {
         var clerkOrdinal = reader.GetOrdinal("ClerkUserId");
+        var userId = reader.GetInt32("Id");
+        var clerkUserId = reader.IsDBNull(clerkOrdinal) ? string.Empty : reader.GetString(clerkOrdinal);
+        var email = reader.GetString("Email");
 
         return new User
         {
-            UserId = reader.GetInt32("Id"),
-            ClerkUserId = reader.IsDBNull(clerkOrdinal) ? string.Empty : reader.GetString(clerkOrdinal),
-            Email = reader.GetString("Email"),
-            Username = string.Empty,
+            UserId = userId,
+            ClerkUserId = clerkUserId,
+            Email = email,
+            Username = BuildDisplayName(email, userId, clerkUserId),
             Role = reader.GetString("Role"),
             XpTotal = reader.GetInt32("XpTotal"),
             IsActive = reader.GetBoolean("IsActive"),
             CreatedAt = reader.GetDateTime("CreatedAt"),
             UpdatedAt = DateTime.UtcNow
         };
+    }
+
+    private static string BuildDisplayName(string? email, int userId, string? clerkUserId)
+    {
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            var atIndex = email.IndexOf('@');
+            var prefix = atIndex > 0 ? email[..atIndex] : email;
+            if (!string.IsNullOrWhiteSpace(prefix))
+                return prefix;
+        }
+
+        if (!string.IsNullOrWhiteSpace(clerkUserId))
+            return clerkUserId;
+
+        return $"user{userId}";
     }
 }
