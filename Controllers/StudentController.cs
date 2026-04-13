@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using backend.DTOs;
+using backend.Repositories;
 using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,19 +20,28 @@ namespace backend.Controllers;
 public class StudentController : ControllerBase
 {
     private readonly IUserService _userService;
-    private readonly IBadgeService _badgeService;
+    private readonly IUserRepository _userRepository;
     private readonly ILevelingService _levelingService;
+    private readonly IActivityService _activityService;
+    private readonly IStudentDashboardService _dashboardService;
+    private readonly IActivityHeatmapService _heatmapService;
     private readonly ILogger<StudentController> _logger;
 
     public StudentController(
         IUserService userService,
-        IBadgeService badgeService,
+        IUserRepository userRepository,
         ILevelingService levelingService,
+        IActivityService activityService,
+        IStudentDashboardService dashboardService,
+        IActivityHeatmapService heatmapService,
         ILogger<StudentController> logger)
     {
         _userService = userService;
-        _badgeService = badgeService;
+        _userRepository = userRepository;
         _levelingService = levelingService;
+        _activityService = activityService;
+        _dashboardService = dashboardService;
+        _heatmapService = heatmapService;
         _logger = logger;
     }
 
@@ -60,18 +70,14 @@ public class StudentController : ControllerBase
         try
         {
             _logger.LogInformation("📊 GetStudentDashboard called for StudentId={StudentId}", id);
-            
-            // ── Authorization: Ensure user is reading their own dashboard or is an Admin ──
-            var clerkUserId = User.FindFirst("sub")?.Value;
-            if (clerkUserId == null || (!clerkUserId.Equals(id.ToString(), StringComparison.OrdinalIgnoreCase) && !User.IsInRole("Admin")))
-            {
-                _logger.LogWarning("❌ Unauthorized access attempt: user {ClerkUserId} tried to access student dashboard for ID {StudentId}", clerkUserId, id);
-                return Forbid();
-            }
-            
-            // Fetch the user
-            var user = await _userService.GetUserByIdAsync(id);
-            if (user is null)
+
+            var authorizationResult = await AuthorizeStudentAccessAsync(id);
+            if (authorizationResult is not null)
+                return authorizationResult;
+
+            var dashboard = await _dashboardService.GetStudentDashboardAsync(id);
+
+            if (dashboard is null)
             {
                 _logger.LogWarning("❌ Student not found: {StudentId}", id);
                 return NotFound(new
@@ -81,72 +87,8 @@ public class StudentController : ControllerBase
                 });
             }
 
-            _logger.LogInformation("✅ Student found: {StudentId}, XpTotal={XpTotal}", id, user.XpTotal);
-
-            // Award any badges the user qualifies for but hasn't received yet
-            await _badgeService.AwardUnlockedBadgesAsync(id);
-
-            // Fetch earned badges with award dates
-            var earnedBadgesWithDates = await _badgeService.GetEarnedBadgesWithAwardDateAsync(id);
-            _logger.LogInformation("✅ Earned badges count: {Count}", earnedBadgesWithDates.Count());
-
-            // Fetch all available badges
-            var allBadges = await _badgeService.GetAllBadgesAsync();
-            var allBadgesCount = allBadges.Count();
-            _logger.LogInformation("✅ All badges count: {Count}", allBadgesCount);
-            
-            if (allBadgesCount == 0)
-            {
-                _logger.LogWarning("⚠️  WARNING: No badges found in database!");
-            }
-
-            // Create a set of earned badge IDs for quick lookup
-            var earnedBadgeIds = new HashSet<int>(earnedBadgesWithDates.Select(b => b.Id));
-
-            // Map earned badges with styling properties
-            var earnedBadges = earnedBadgesWithDates
-                .Select(b => new EarnedBadgeDto
-                {
-                    Id = b.Id,
-                    Name = b.Name,
-                    Description = b.Description,
-                    XpThreshold = b.XpThreshold,
-                    IconType = b.IconType,
-                    IconColor = b.IconColor,
-                    AwardDate = b.AwardDate
-                })
-                .ToList();
-            
-            _logger.LogInformation("✅ Mapped earned badges: {Count}", earnedBadges.Count);
-
-            // Map all badges with earned status and styling properties
-            var allBadgesList = allBadges
-                .Select(b => new BadgeDashboardDto
-                {
-                    Id = b.BadgeId,
-                    Name = b.BadgeName,
-                    Description = b.BadgeDescription,
-                    XpThreshold = b.XpThreshold,
-                    IconType = b.IconType,
-                    IconColor = b.IconColor,
-                    UnlockHint = b.UnlockHint,
-                    Earned = earnedBadgeIds.Contains(b.BadgeId)
-                })
-                .ToList();
-            
-            _logger.LogInformation("✅ Mapped all badges: {Count}", allBadgesList.Count);
-
-            // Construct the dashboard DTO
-            var dashboard = new StudentDashboardDto
-            {
-                StudentId = id,
-                XpTotal = user.XpTotal,
-                EarnedBadges = earnedBadges,
-                AllBadges = allBadgesList
-            };
-
-            _logger.LogInformation("✅ Dashboard constructed: StudentId={StudentId}, EarnedBadges={EarnedCount}, AllBadges={AllCount}", 
-                id, earnedBadges.Count, allBadgesList.Count);
+            _logger.LogInformation("✅ Dashboard constructed: StudentId={StudentId}, EarnedBadges={EarnedCount}, AttemptHistory={HistoryCount}",
+                id, dashboard.EarnedBadges.Count(), dashboard.QuizAttemptHistory.Count());
 
             return Ok(new
             {
@@ -194,7 +136,11 @@ public class StudentController : ControllerBase
         try
         {
             _logger.LogInformation("📈 GetUserProgression called for UserId={UserId}", id);
-            
+
+            var authorizationResult = await AuthorizeStudentAccessAsync(id);
+            if (authorizationResult is not null)
+                return authorizationResult;
+
             // Fetch the user
             var user = await _userService.GetUserByIdAsync(id);
             if (user is null)
@@ -250,5 +196,144 @@ public class StudentController : ControllerBase
                 message = "An unexpected error occurred while retrieving progression data."
             });
         }
+    }
+
+    // ── GET /api/students/{id}/activity ───────────────────────────────
+
+    /// <summary>
+    /// GET /api/students/{id}/activity — Returns the student's most recent activity events
+    /// (quiz completions and badge awards), ordered by date descending.
+    /// </summary>
+    /// <param name="id">The student user ID.</param>
+    /// <param name="limit">Maximum number of events to return (default 10, max 50).</param>
+    /// <response code="200">Activity list returned successfully.</response>
+    /// <response code="400">Invalid limit parameter.</response>
+    /// <response code="500">Unexpected server error.</response>
+    [HttpGet("{id:int}/activity")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetRecentActivity(int id, [FromQuery] int limit = 10)
+    {
+        if (limit < 1 || limit > 50)
+        {
+            return BadRequest(new
+            {
+                status = "error",
+                message = "limit must be between 1 and 50."
+            });
+        }
+
+        try
+        {
+            _logger.LogInformation(
+                "📋 GetRecentActivity called for StudentId={StudentId}, Limit={Limit}", id, limit);
+
+            var authorizationResult = await AuthorizeStudentAccessAsync(id);
+            if (authorizationResult is not null)
+                return authorizationResult;
+
+            var activity = await _activityService.GetRecentActivityAsync(id, limit);
+
+            return Ok(new
+            {
+                status = "success",
+                data = activity
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Error retrieving recent activity for StudentId={StudentId}", id);
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                status = "error",
+                message = "An unexpected error occurred while retrieving recent activity."
+            });
+        }
+    }
+
+    // ── GET /api/students/{id}/activity-heatmap ───────────────────────
+
+    /// <summary>
+    /// GET /api/students/{id}/activity-heatmap — Returns per-day quiz attempt counts
+    /// for the student's contribution heatmap. Only completed attempts are counted.
+    /// Days with no activity are omitted; the frontend fills the gaps.
+    /// </summary>
+    /// <param name="id">The student user ID.</param>
+    /// <response code="200">Heatmap data returned successfully.</response>
+    /// <response code="500">Unexpected server error.</response>
+    [HttpGet("{id:int}/activity-heatmap")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetActivityHeatmap(int id)
+    {
+        try
+        {
+            _logger.LogInformation(
+                "🗓️ GetActivityHeatmap called for StudentId={StudentId}", id);
+
+            var authorizationResult = await AuthorizeStudentAccessAsync(id);
+            if (authorizationResult is not null)
+                return authorizationResult;
+
+            var heatmap = await _heatmapService.GetDailyActivityAsync(id);
+
+            return Ok(new
+            {
+                status = "success",
+                data = heatmap
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Error retrieving activity heatmap for StudentId={StudentId}", id);
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                status = "error",
+                message = "An unexpected error occurred while retrieving the activity heatmap."
+            });
+        }
+    }
+
+    private async Task<IActionResult?> AuthorizeStudentAccessAsync(int requestedUserId)
+    {
+        if (User.IsInRole("Admin"))
+            return null;
+
+        var clerkUserId = User.FindFirstValue("sub")
+            ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(clerkUserId))
+        {
+            _logger.LogWarning("❌ Student endpoint access denied: missing authenticated Clerk user id claim.");
+            return Unauthorized(new
+            {
+                status = "error",
+                message = "Unable to identify the authenticated user."
+            });
+        }
+
+        var currentUser = await _userRepository.GetByClerkUserIdAsync(clerkUserId);
+        if (currentUser is null)
+        {
+            _logger.LogWarning(
+                "❌ Student endpoint access denied: no local user found for ClerkId={ClerkUserId}",
+                clerkUserId);
+            return NotFound(new
+            {
+                status = "error",
+                message = "User account not found."
+            });
+        }
+
+        if (currentUser.UserId != requestedUserId)
+        {
+            _logger.LogWarning(
+                "❌ Unauthorized student access attempt: ClerkId={ClerkUserId}, LocalUserId={LocalUserId}, RequestedUserId={RequestedUserId}",
+                clerkUserId, currentUser.UserId, requestedUserId);
+            return Forbid();
+        }
+
+        return null;
     }
 }
