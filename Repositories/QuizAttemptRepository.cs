@@ -213,7 +213,7 @@ public class QuizAttemptRepository : IQuizAttemptRepository
                 qa.attempt_id,
                 qa.quiz_id,
                 q.title                                        AS quiz_title,
-                a.Name                                         AS algorithm_name,
+                a.name                                         AS algorithm_name,
                 qa.score,
                 qa.total_questions,
                 CASE
@@ -435,7 +435,7 @@ public class QuizAttemptRepository : IQuizAttemptRepository
             AlgorithmName = (string)reader["algorithm_name"],
             Score         = Convert.ToInt32(reader["score"]),
             TotalQuestions = Convert.ToInt32(reader["total_questions"]),
-            ScorePercent  = Math.Round(Convert.ToDouble(reader["score_percent"]), 2),
+            ScorePercent  = reader["score_percent"] == DBNull.Value ? 0.0 : Math.Round(Convert.ToDouble(reader["score_percent"]), 2),
             XpEarned      = Convert.ToInt32(reader["xp_earned"]),
             Passed        = Convert.ToBoolean(reader["passed"]),
             CompletedAt   = reader["completed_at"] == DBNull.Value
@@ -448,9 +448,9 @@ public class QuizAttemptRepository : IQuizAttemptRepository
     {
         return new AlgorithmCoverageItemDto
         {
-            AlgorithmId      = Convert.ToInt32(reader["AlgorithmId"]),
+            AlgorithmId      = Convert.ToInt32(reader["algorithm_id"]),
             AlgorithmName    = (string)reader["algorithm_name"],
-            Category         = (string)reader["Category"],
+            Category         = (string)reader["category"],
             TotalAttempts    = Convert.ToInt32(reader["total_attempts"]),
             PassedAttempts   = reader["passed_attempts"]    == DBNull.Value ? 0   : Convert.ToInt32(reader["passed_attempts"]),
             BestScorePercent = reader["best_score_percent"] == DBNull.Value ? 0.0 : Math.Round(Convert.ToDouble(reader["best_score_percent"]), 2),

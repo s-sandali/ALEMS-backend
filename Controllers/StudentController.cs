@@ -82,7 +82,7 @@ public class StudentController : ControllerBase
                 _logger.LogWarning("❌ Student not found: {StudentId}", id);
                 return NotFound(new
                 {
-                    status = "error",
+                    status  = "error",
                     message = $"Student with ID {id} not found."
                 });
             }
@@ -93,7 +93,7 @@ public class StudentController : ControllerBase
             return Ok(new
             {
                 status = "success",
-                data = dashboard
+                data   = dashboard
             });
         }
         catch (Exception ex)
@@ -101,7 +101,7 @@ public class StudentController : ControllerBase
             _logger.LogError(ex, "❌ Error retrieving student dashboard for ID {StudentId}", id);
             return StatusCode(StatusCodes.Status500InternalServerError, new
             {
-                status = "error",
+                status  = "error",
                 message = "An unexpected error occurred while retrieving the dashboard."
             });
         }
