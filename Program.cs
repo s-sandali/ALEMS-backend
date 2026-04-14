@@ -370,15 +370,16 @@ app.UseHttpsRedirection();
 // ── Correlation ID (must be first — enriches all downstream logs) ─
 app.UseMiddleware<backend.Middleware.CorrelationIdMiddleware>();
 
+app.UseCors("AllowFrontend");
+
+app.UseAuthentication();   // Must come before request logging so UserId can be read from JWT
+
+app.UseMiddleware<backend.Middleware.RequestLoggingMiddleware>();
+
 // ── Global Exception Handler (must be early in the pipeline) ──────
 app.UseMiddleware<backend.Middleware.GlobalExceptionMiddleware>();
 
 // ── Request Logging (logs method, path, status, duration) ─────────
-app.UseMiddleware<backend.Middleware.RequestLoggingMiddleware>();
-
-app.UseCors("AllowFrontend");
-
-app.UseAuthentication();   // Must come before UseAuthorization
 app.UseAuthorization();
 
 app.MapControllers();
