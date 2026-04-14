@@ -19,6 +19,8 @@ public class RequestLoggingMiddleware
         _logger = logger;
     }
 
+    private const long SlowRequestThresholdMs = 2000;
+
     public async Task InvokeAsync(HttpContext context)
     {
         var stopwatch = Stopwatch.StartNew();
@@ -29,32 +31,41 @@ public class RequestLoggingMiddleware
             try
             {
                 await _next(context);
+                stopwatch.Stop();
+
+                LogCompleted(context, stopwatch.ElapsedMilliseconds);
             }
-            finally
+            catch (Exception)
             {
                 stopwatch.Stop();
-                var durationMs = stopwatch.ElapsedMilliseconds;
 
-                if (durationMs > 2000)
-                {
-                    _logger.LogWarning(
-                        "HTTP {Method} {Path} responded {StatusCode} in {Duration}ms",
-                        context.Request.Method,
-                        context.Request.Path,
-                        context.Response.StatusCode,
-                        durationMs);
-                }
-                else
-                {
-                    _logger.LogInformation(
-                        "HTTP {Method} {Path} responded {StatusCode} in {Duration}ms",
-                        context.Request.Method,
-                        context.Request.Path,
-                        context.Response.StatusCode,
-                        durationMs);
-                }
+                // Status code is unreliable when an exception escapes (response hasn't started).
+                // Log the duration only; GlobalExceptionMiddleware owns the error details.
+                _logger.LogWarning(
+                    "HTTP {Method} {Path} threw exception after {Duration}ms",
+                    context.Request.Method,
+                    context.Request.Path,
+                    stopwatch.ElapsedMilliseconds);
+
+                throw;
             }
         }
+    }
+
+    private void LogCompleted(HttpContext context, long durationMs)
+    {
+        var method     = context.Request.Method;
+        var path       = context.Request.Path;
+        var statusCode = context.Response.StatusCode;
+
+        if (durationMs > SlowRequestThresholdMs)
+            _logger.LogWarning(
+                "HTTP {Method} {Path} responded {StatusCode} in {Duration}ms",
+                method, path, statusCode, durationMs);
+        else
+            _logger.LogInformation(
+                "HTTP {Method} {Path} responded {StatusCode} in {Duration}ms",
+                method, path, statusCode, durationMs);
     }
 
     private static string ResolveUserId(ClaimsPrincipal? user)
