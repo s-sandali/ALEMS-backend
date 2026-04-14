@@ -6,7 +6,9 @@ using backend.Services;
 using backend.Services.Simulations;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.ApplicationInsights.Extensibility;
 using Serilog;
+using Serilog.Sinks.ApplicationInsights.TelemetryConverters;
 
 // ── Serilog Bootstrap ─────────────────────────────────────────────
 Log.Logger = new LoggerConfiguration()
@@ -22,8 +24,33 @@ try
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Replace default logging with Serilog
-builder.Host.UseSerilog();
+// ── Application Insights connection string ────────────────────────────────
+// Declared early so the UseSerilog lambda closure can capture it.
+// Priority: env var → appsettings.json → absent (graceful no-op when not configured)
+var appInsightsConnectionString =
+    Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING")
+    ?? builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+
+// Replace default logging with Serilog (callback form so we can resolve TelemetryClient from DI)
+builder.Host.UseSerilog((ctx, services, cfg) =>
+{
+    cfg
+        .ReadFrom.Configuration(ctx.Configuration)
+        .ReadFrom.Services(services)
+        .MinimumLevel.Information()
+        .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
+        .Enrich.FromLogContext()
+        .WriteTo.Console(outputTemplate:
+            "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}");
+
+    // Only wire the App Insights sink when a connection string is present.
+    // When absent (local dev without AI), the app continues with console-only logging.
+    if (!string.IsNullOrWhiteSpace(appInsightsConnectionString))
+    {
+        var telemetryClient = services.GetRequiredService<Microsoft.ApplicationInsights.TelemetryClient>();
+        cfg.WriteTo.ApplicationInsights(telemetryClient, TelemetryConverter.Traces);
+    }
+});
 
 // ── Services ───────────────────────────────────────────────────────
 builder.Services.AddControllers()
@@ -69,6 +96,12 @@ builder.Services.AddCors(options =>
                   .AllowAnyMethod()
                   .AllowCredentials();
         });
+});
+
+// ── Application Insights ──────────────────────────────────────────────────
+builder.Services.AddApplicationInsightsTelemetry(options =>
+{
+    options.ConnectionString = appInsightsConnectionString;
 });
 
 builder.Services.AddEndpointsApiExplorer();
