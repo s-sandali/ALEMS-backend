@@ -14,7 +14,11 @@ namespace backend.Controllers;
 /// **Judge0 mode**: <c>wait=true</c> (synchronous) — one request, no polling, result returned immediately.
 ///
 /// **Unexpected errors** bubble to <c>GlobalExceptionMiddleware</c> which returns
-/// <c>{ statusCode, message, traceId }</c> — raw exception details are never exposed.
+/// <c>{ statusCode, message, correlationId, traceId }</c> — raw exception details are never exposed.
+///
+/// Judge0-specific exceptions are mapped automatically:
+///   <c>Judge0RateLimitException</c>    → 429 Too Many Requests
+///   <c>Judge0UnavailableException</c>  → 503 Service Unavailable
 /// </remarks>
 [ApiController]
 [Route("api/code")]
@@ -22,7 +26,7 @@ namespace backend.Controllers;
 [Produces("application/json")]
 public class CodeExecutionController : ControllerBase
 {
-    private readonly ICodeExecutionService         _executionService;
+    private readonly ICodeExecutionService _executionService;
     private readonly ILogger<CodeExecutionController> _logger;
 
     public CodeExecutionController(
@@ -75,44 +79,20 @@ public class CodeExecutionController : ControllerBase
         [FromBody] CodeExecutionRequestDto dto,
         CancellationToken ct)
     {
-        try
-        {
-            var result = await _executionService.ExecuteAsync(dto, ct);
+        // ArgumentException           → 400 via GlobalExceptionMiddleware
+        // Judge0RateLimitException    → 429 via GlobalExceptionMiddleware
+        // Judge0UnavailableException  → 503 via GlobalExceptionMiddleware
+        // OperationCanceledException  → 400 (client disconnected, no error log)
+        var result = await _executionService.ExecuteAsync(dto, ct);
 
-            _logger.LogInformation(
-                "POST /api/code/execute — LanguageId={LanguageId} StatusId={StatusId}",
-                dto.LanguageId, result.StatusId);
+        _logger.LogInformation(
+            "POST /api/code/execute — LanguageId={LanguageId} StatusId={StatusId}",
+            dto.LanguageId, result.StatusId);
 
-            return Ok(new
-            {
-                status = "success",
-                data   = result
-            });
-        }
-        catch (ArgumentException ae)
+        return Ok(new
         {
-            return BadRequest(new
-            {
-                status  = "error",
-                message = ae.Message
-            });
-        }
-        catch (Judge0RateLimitException rle)
-        {
-            return StatusCode(StatusCodes.Status429TooManyRequests, new
-            {
-                status  = "error",
-                message = rle.Message
-            });
-        }
-        catch (Judge0UnavailableException jue)
-        {
-            return StatusCode(StatusCodes.Status503ServiceUnavailable, new
-            {
-                status  = "error",
-                message = jue.Message
-            });
-        }
-        // All other exceptions bubble to GlobalExceptionMiddleware → 500
+            status = "success",
+            data   = result
+        });
     }
 }
