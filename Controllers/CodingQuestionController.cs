@@ -16,8 +16,8 @@ namespace backend.Controllers;
 /// the action body runs (via <c>InvalidModelStateResponseFactory</c>).
 ///
 /// **Unexpected errors** bubble to <c>GlobalExceptionMiddleware</c> which
-/// returns <c>{ statusCode, message, traceId }</c> — raw exception details
-/// are never exposed to the client.
+/// returns <c>{ statusCode, message, correlationId, traceId }</c> — raw
+/// exception details are never exposed to the client.
 /// </remarks>
 [ApiController]
 [Route("api/coding-questions")]
@@ -25,7 +25,7 @@ namespace backend.Controllers;
 [Produces("application/json")]
 public class CodingQuestionController : ControllerBase
 {
-    private readonly ICodingQuestionService      _service;
+    private readonly ICodingQuestionService _service;
     private readonly ILogger<CodingQuestionController> _logger;
 
     public CodingQuestionController(ICodingQuestionService service, ILogger<CodingQuestionController> logger)
@@ -125,27 +125,16 @@ public class CodingQuestionController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateCodingQuestionDto dto)
     {
-        try
-        {
-            var result = await _service.UpdateAsync(id, dto);
+        // KeyNotFoundException → 404 via GlobalExceptionMiddleware
+        var result = await _service.UpdateAsync(id, dto);
 
-            _logger.LogInformation("PUT /api/coding-questions/{Id} — updated", id);
-            return Ok(new
-            {
-                status  = "success",
-                message = "Coding question updated successfully.",
-                data    = result
-            });
-        }
-        catch (KeyNotFoundException knfe)
+        _logger.LogInformation("PUT /api/coding-questions/{Id} — updated", id);
+        return Ok(new
         {
-            return NotFound(new
-            {
-                status  = "error",
-                message = knfe.Message
-            });
-        }
-        // All other exceptions bubble to GlobalExceptionMiddleware
+            status  = "success",
+            message = "Coding question updated successfully.",
+            data    = result
+        });
     }
 
     /// <summary>
@@ -173,6 +162,5 @@ public class CodingQuestionController : ControllerBase
         }
 
         return NoContent(); // 204
-        // All other exceptions bubble to GlobalExceptionMiddleware
     }
 }
