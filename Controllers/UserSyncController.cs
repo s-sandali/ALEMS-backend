@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using backend.Services;
+using Microsoft.ApplicationInsights;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -23,15 +24,18 @@ public class UserSyncController : ControllerBase
     private readonly IUserService _userService;
     private readonly IClerkService _clerkService;
     private readonly ILogger<UserSyncController> _logger;
+    private readonly TelemetryClient _telemetryClient;
 
     public UserSyncController(
         IUserService userService,
         IClerkService clerkService,
-        ILogger<UserSyncController> logger)
+        ILogger<UserSyncController> logger,
+        TelemetryClient telemetryClient)
     {
         _userService  = userService;
         _clerkService = clerkService;
         _logger       = logger;
+        _telemetryClient = telemetryClient;
     }
 
     /// <summary>
@@ -85,6 +89,14 @@ public class UserSyncController : ControllerBase
             email ?? string.Empty,
             username);
 
+        _telemetryClient.TrackEvent(
+            "UserSynced",
+            new Dictionary<string, string>
+            {
+                ["userId"] = clerkUserId,
+                ["correlationId"] = ResolveCorrelationId()
+            });
+
         // If public_metadata.role was absent AND the DB role is the default "User",
         // write it to Clerk so future tokens carry the claim automatically.
         // Guard against overwriting an elevated role (e.g. Admin) that was set in
@@ -123,5 +135,10 @@ public class UserSyncController : ControllerBase
             message = "User already exists.",
             data    = dto
         });
+    }
+
+    private string ResolveCorrelationId()
+    {
+        return HttpContext.Items["CorrelationId"]?.ToString() ?? HttpContext.TraceIdentifier;
     }
 }
