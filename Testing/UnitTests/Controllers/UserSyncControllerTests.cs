@@ -3,6 +3,7 @@ using backend.Controllers;
 using backend.DTOs;
 using backend.Services;
 using FluentAssertions;
+using Microsoft.ApplicationInsights;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -45,7 +46,8 @@ public class UserSyncControllerTests
         IClerkService? clerkService = null)
     {
         var clerk = clerkService ?? new Mock<IClerkService>().Object;
-        var ctrl = new UserSyncController(svc.Object, clerk, NullLogger<UserSyncController>.Instance);
+        var telemetryClient = new TelemetryClient(new Microsoft.ApplicationInsights.Extensibility.TelemetryConfiguration());
+        var ctrl = new UserSyncController(svc.Object, clerk, NullLogger<UserSyncController>.Instance, telemetryClient);
         ctrl.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext { User = user }
