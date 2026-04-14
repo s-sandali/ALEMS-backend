@@ -39,52 +39,25 @@ public class UserController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> CreateUser([FromBody] CreateUserDto dto)
     {
-        try
+        var result = await _userService.CreateUserAsync(dto.Email, dto.Username, dto.Role);
+
+        if (result is null)
         {
-            if (!ModelState.IsValid)
+            _logger.LogWarning("POST /api/users — duplicate email: {Email}", dto.Email);
+            return BadRequest(new
             {
-                return BadRequest(new
-                {
-                    status = "error",
-                    message = "Validation failed.",
-                    errors = ModelState
-                        .Where(e => e.Value?.Errors.Count > 0)
-                        .ToDictionary(
-                            e => e.Key,
-                            e => e.Value!.Errors.Select(err => err.ErrorMessage).ToArray())
-                });
-            }
-
-            var result = await _userService.CreateUserAsync(dto.Email, dto.Username, dto.Role);
-
-            if (result is null)
-            {
-                _logger.LogWarning("POST /api/users — duplicate email: {Email}", dto.Email);
-                return BadRequest(new
-                {
-                    status = "error",
-                    message = $"A user with email '{dto.Email}' already exists."
-                });
-            }
-
-            _logger.LogInformation("POST /api/users — created user {UserId}", result.UserId);
-            return StatusCode(StatusCodes.Status201Created, new
-            {
-                status = "success",
-                message = "User created successfully.",
-                data = result
+                status  = "error",
+                message = $"A user with email '{dto.Email}' already exists."
             });
         }
-        catch (Exception ex)
+
+        _logger.LogInformation("POST /api/users — created user {UserId}", result.UserId);
+        return StatusCode(StatusCodes.Status201Created, new
         {
-            _logger.LogError(ex, "Unhandled error in POST /api/users");
-            return StatusCode(StatusCodes.Status500InternalServerError, new
-            {
-                status = "error",
-                message = "An unexpected error occurred while creating the user.",
-                detail = ex.Message
-            });
-        }
+            status  = "success",
+            message = "User created successfully.",
+            data    = result
+        });
     }
 
     /// <summary>
@@ -97,25 +70,12 @@ public class UserController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetAllUsers()
     {
-        try
+        var users = await _userService.GetAllUsersAsync();
+        return Ok(new
         {
-            var users = await _userService.GetAllUsersAsync();
-            return Ok(new
-            {
-                status = "success",
-                data = users
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unhandled error in GET /api/users");
-            return StatusCode(StatusCodes.Status500InternalServerError, new
-            {
-                status = "error",
-                message = "An unexpected error occurred while retrieving users.",
-                detail = ex.Message
-            });
-        }
+            status = "success",
+            data   = users
+        });
     }
 
     /// <summary>
@@ -131,34 +91,21 @@ public class UserController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetUserById(int id)
     {
-        try
+        var user = await _userService.GetUserByIdAsync(id);
+        if (user is null)
         {
-            var user = await _userService.GetUserByIdAsync(id);
-            if (user is null)
+            return NotFound(new
             {
-                return NotFound(new
-                {
-                    status = "error",
-                    message = $"User with ID {id} not found."
-                });
-            }
+                status  = "error",
+                message = $"User with ID {id} not found."
+            });
+        }
 
-            return Ok(new
-            {
-                status = "success",
-                data = user
-            });
-        }
-        catch (Exception ex)
+        return Ok(new
         {
-            _logger.LogError(ex, "Unhandled error in GET /api/users/{id}", id);
-            return StatusCode(StatusCodes.Status500InternalServerError, new
-            {
-                status = "error",
-                message = "An unexpected error occurred while retrieving the user.",
-                detail = ex.Message
-            });
-        }
+            status = "success",
+            data   = user
+        });
     }
 
     /// <summary>
@@ -177,50 +124,16 @@ public class UserController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> UpdateUser(int id, [FromBody] UpdateUserDto dto)
     {
-        try
-        {
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(new
-                {
-                    status = "error",
-                    message = "Validation failed.",
-                    errors = ModelState
-                        .Where(e => e.Value?.Errors.Count > 0)
-                        .ToDictionary(
-                            e => e.Key,
-                            e => e.Value!.Errors.Select(err => err.ErrorMessage).ToArray())
-                });
-            }
+        // KeyNotFoundException from the service bubbles to GlobalExceptionMiddleware → 404
+        var result = await _userService.UpdateUserAsync(id, dto.Role, dto.IsActive.GetValueOrDefault());
 
-            var result = await _userService.UpdateUserAsync(id, dto.Role, dto.IsActive.GetValueOrDefault());
-
-            _logger.LogInformation("POST /api/users/{Id} — updated user", id);
-            return Ok(new
-            {
-                status = "success",
-                message = "User updated successfully.",
-                data = result
-            });
-        }
-        catch (KeyNotFoundException knfe)
+        _logger.LogInformation("PUT /api/users/{Id} — updated user", id);
+        return Ok(new
         {
-            return NotFound(new
-            {
-                status = "error",
-                message = knfe.Message
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unhandled error in PUT /api/users/{id}", id);
-            return StatusCode(StatusCodes.Status500InternalServerError, new
-            {
-                status = "error",
-                message = "An unexpected error occurred while updating the user.",
-                detail = ex.Message
-            });
-        }
+            status  = "success",
+            message = "User updated successfully.",
+            data    = result
+        });
     }
 
     /// <summary>
@@ -236,30 +149,17 @@ public class UserController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> DeleteUser(int id)
     {
-        try
-        {
-            var success = await _userService.DeleteUserAsync(id);
+        var success = await _userService.DeleteUserAsync(id);
 
-            if (!success)
-            {
-                return NotFound(new
-                {
-                    status = "error",
-                    message = $"User with ID {id} not found."
-                });
-            }
-
-            return NoContent(); // 204
-        }
-        catch (Exception ex)
+        if (!success)
         {
-            _logger.LogError(ex, "Unhandled error in DELETE /api/users/{id}", id);
-            return StatusCode(StatusCodes.Status500InternalServerError, new
+            return NotFound(new
             {
-                status = "error",
-                message = "An unexpected error occurred while deleting the user.",
-                detail = ex.Message
+                status  = "error",
+                message = $"User with ID {id} not found."
             });
         }
+
+        return NoContent(); // 204
     }
 }

@@ -3,6 +3,7 @@ using backend.Controllers;
 using backend.DTOs;
 using backend.Services;
 using FluentAssertions;
+using Microsoft.ApplicationInsights;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -89,11 +90,13 @@ public class StudentQuizControllerTests
         Mock<IQuizAttemptService>  attemptSvc,
         string? clerkUserId = "clerk_001")
     {
+        var telemetryClient = new TelemetryClient(new Microsoft.ApplicationInsights.Extensibility.TelemetryConfiguration());
         var ctrl = new StudentQuizController(
             quizSvc.Object,
             questionSvc.Object,
             attemptSvc.Object,
-            NullLogger<StudentQuizController>.Instance);
+            NullLogger<StudentQuizController>.Instance,
+            telemetryClient);
 
         ctrl.ControllerContext = new ControllerContext
         {
@@ -207,8 +210,8 @@ public class StudentQuizControllerTests
         data.First().GetType().GetProperty("CorrectOption").Should().BeNull();
     }
 
-    [Fact(DisplayName = "Scenario 5 — GetActiveQuestions: returns 404 when quiz inactive or not found")]
-    public async Task Should_Return404_When_QuizInactiveForStudentQuestions()
+    [Fact(DisplayName = "Scenario 5 — GetActiveQuestions: propagates KeyNotFoundException to middleware when quiz missing")]
+    public async Task Should_PropagateKeyNotFoundException_When_QuizInactiveForStudentQuestions()
     {
         // Arrange
         var quizSvc     = new Mock<IQuizService>();
@@ -218,12 +221,11 @@ public class StudentQuizControllerTests
         questionSvc.Setup(s => s.GetActiveQuestionsForStudentAsync(99))
                    .ThrowsAsync(new KeyNotFoundException("Quiz with ID 99 does not exist."));
 
-        // Act
-        var result = await BuildController(quizSvc, questionSvc, attemptSvc)
-                         .GetActiveQuestions(99) as NotFoundObjectResult;
-
-        // Assert
-        result!.StatusCode.Should().Be(404);
+        // Act & Assert — GlobalExceptionMiddleware maps KeyNotFoundException → 404
+        await FluentActions.Invoking(() =>
+                BuildController(quizSvc, questionSvc, attemptSvc).GetActiveQuestions(99))
+            .Should().ThrowAsync<KeyNotFoundException>()
+            .WithMessage("Quiz with ID 99 does not exist.");
     }
 
     // -----------------------------------------------------------------------
@@ -284,8 +286,8 @@ public class StudentQuizControllerTests
         result!.StatusCode.Should().Be(401);
     }
 
-    [Fact(DisplayName = "Scenario 8 — SubmitAttempt: returns 400 Bad Request on invalid submission")]
-    public async Task Should_Return400_When_SubmissionIsInvalid()
+    [Fact(DisplayName = "Scenario 8 — SubmitAttempt: propagates ArgumentException to middleware on invalid submission")]
+    public async Task Should_PropagateArgumentException_When_SubmissionIsInvalid()
     {
         // Arrange
         var quizSvc     = new Mock<IQuizService>();
@@ -303,19 +305,15 @@ public class StudentQuizControllerTests
             }
         };
 
-        // Act
-        var result = await BuildController(quizSvc, questionSvc, attemptSvc)
-                         .SubmitAttempt(1, dto) as BadRequestObjectResult;
-
-        // Assert
-        result!.StatusCode.Should().Be(400);
-
-        var message = result.Value!.GetType().GetProperty("message")!.GetValue(result.Value) as string;
-        message.Should().Contain("3 answers");
+        // Act & Assert — GlobalExceptionMiddleware maps ArgumentException → 400
+        await FluentActions.Invoking(() =>
+                BuildController(quizSvc, questionSvc, attemptSvc).SubmitAttempt(1, dto))
+            .Should().ThrowAsync<ArgumentException>()
+            .WithMessage("*3 answers*");
     }
 
-    [Fact(DisplayName = "Scenario 9 — SubmitAttempt: returns 404 when quiz or user not found")]
-    public async Task Should_Return404_When_QuizOrUserNotFoundOnSubmit()
+    [Fact(DisplayName = "Scenario 9 — SubmitAttempt: propagates KeyNotFoundException to middleware when quiz or user not found")]
+    public async Task Should_PropagateKeyNotFoundException_When_QuizOrUserNotFoundOnSubmit()
     {
         // Arrange
         var quizSvc     = new Mock<IQuizService>();
@@ -333,11 +331,10 @@ public class StudentQuizControllerTests
             }
         };
 
-        // Act
-        var result = await BuildController(quizSvc, questionSvc, attemptSvc)
-                         .SubmitAttempt(99, dto) as NotFoundObjectResult;
-
-        // Assert
-        result!.StatusCode.Should().Be(404);
+        // Act & Assert — GlobalExceptionMiddleware maps KeyNotFoundException → 404
+        await FluentActions.Invoking(() =>
+                BuildController(quizSvc, questionSvc, attemptSvc).SubmitAttempt(99, dto))
+            .Should().ThrowAsync<KeyNotFoundException>()
+            .WithMessage("Quiz with ID 99 does not exist.");
     }
 }

@@ -6,7 +6,9 @@ using backend.Services;
 using backend.Services.Simulations;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.ApplicationInsights.Extensibility;
 using Serilog;
+using Serilog.Sinks.ApplicationInsights.TelemetryConverters;
 
 // ── Serilog Bootstrap ─────────────────────────────────────────────
 Log.Logger = new LoggerConfiguration()
@@ -22,8 +24,33 @@ try
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Replace default logging with Serilog
-builder.Host.UseSerilog();
+// ── Application Insights connection string ────────────────────────────────
+// Declared early so the UseSerilog lambda closure can capture it.
+// Priority: env var → appsettings.json → absent (graceful no-op when not configured)
+var appInsightsConnectionString =
+    Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING")
+    ?? builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+
+// Replace default logging with Serilog (callback form so we can resolve TelemetryClient from DI)
+builder.Host.UseSerilog((ctx, services, cfg) =>
+{
+    cfg
+        .ReadFrom.Configuration(ctx.Configuration)
+        .ReadFrom.Services(services)
+        .MinimumLevel.Information()
+        .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
+        .Enrich.FromLogContext()
+        .WriteTo.Console(outputTemplate:
+            "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}");
+
+    // Only wire the App Insights sink when a connection string is present.
+    // When absent (local dev without AI), the app continues with console-only logging.
+    if (!string.IsNullOrWhiteSpace(appInsightsConnectionString))
+    {
+        var telemetryClient = services.GetRequiredService<Microsoft.ApplicationInsights.TelemetryClient>();
+        cfg.WriteTo.ApplicationInsights(telemetryClient, TelemetryConverter.Traces);
+    }
+});
 
 // ── Services ───────────────────────────────────────────────────────
 builder.Services.AddControllers()
@@ -69,6 +96,12 @@ builder.Services.AddCors(options =>
                   .AllowAnyMethod()
                   .AllowCredentials();
         });
+});
+
+// ── Application Insights ──────────────────────────────────────────────────
+builder.Services.AddApplicationInsightsTelemetry(options =>
+{
+    options.ConnectionString = appInsightsConnectionString;
 });
 
 builder.Services.AddEndpointsApiExplorer();
@@ -276,6 +309,12 @@ builder.Services.AddScoped<IAlgorithmSimulationEngine, HeapSortSimulationEngine>
 builder.Services.AddScoped<IAlgorithmSimulationEngine, MergeSortSimulationEngine>();
 builder.Services.AddSingleton<ISimulationSessionStore, InMemorySimulationSessionStore>();
 
+// ── Outbound HTTP Correlation ──────────────────────────────────────
+// IHttpContextAccessor lets DelegatingHandlers read the current request context.
+// CorrelationIdHandler is transient so each HttpClient pipeline gets its own instance.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddTransient<backend.Middleware.CorrelationIdHandler>();
+
 // ── Clerk Backend API Client ───────────────────────────────────────
 // Used to set public_metadata.role on first sign-up via PATCH /v1/users/{id}/metadata.
 var clerkSecretKey = Environment.GetEnvironmentVariable("CLERK_SECRET_KEY")
@@ -300,7 +339,8 @@ builder.Services.AddHttpClient<IClerkService, ClerkService>(client =>
     client.BaseAddress = new Uri("https://api.clerk.com");
     client.DefaultRequestHeaders.Authorization =
         new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", clerkSecretKey);
-});
+})
+.AddHttpMessageHandler<backend.Middleware.CorrelationIdHandler>();
 
 // ── Judge0 Code Execution Client (self-hosted) ─────────────────────
 // Self-hosted Judge0 has no auth by default.
@@ -320,7 +360,8 @@ builder.Services.AddHttpClient<ICodeExecutionService, CodeExecutionService>(clie
     if (!string.IsNullOrWhiteSpace(judge0AuthToken))
         client.DefaultRequestHeaders.Add("X-Auth-Token", judge0AuthToken);
     client.Timeout = TimeSpan.FromSeconds(15);
-});
+})
+.AddHttpMessageHandler<backend.Middleware.CorrelationIdHandler>();
 
 var app = builder.Build();
 
@@ -337,15 +378,16 @@ app.UseHttpsRedirection();
 // ── Correlation ID (must be first — enriches all downstream logs) ─
 app.UseMiddleware<backend.Middleware.CorrelationIdMiddleware>();
 
+app.UseCors("AllowFrontend");
+
+app.UseAuthentication();   // Must come before request logging so UserId can be read from JWT
+
+app.UseMiddleware<backend.Middleware.RequestLoggingMiddleware>();
+
 // ── Global Exception Handler (must be early in the pipeline) ──────
 app.UseMiddleware<backend.Middleware.GlobalExceptionMiddleware>();
 
 // ── Request Logging (logs method, path, status, duration) ─────────
-app.UseMiddleware<backend.Middleware.RequestLoggingMiddleware>();
-
-app.UseCors("AllowFrontend");
-
-app.UseAuthentication();   // Must come before UseAuthorization
 app.UseAuthorization();
 
 app.MapControllers();

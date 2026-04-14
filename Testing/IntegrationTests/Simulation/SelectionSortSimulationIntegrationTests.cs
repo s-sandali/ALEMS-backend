@@ -197,8 +197,7 @@ public class SelectionSortSimulationIntegrationTests : IClassFixture<CustomWebAp
         using var doc = await ParseBodyAsync(response);
         doc.RootElement.GetProperty("status").GetString().Should().Be("error");
         doc.RootElement.GetProperty("message").GetString().Should()
-            .Be("An unexpected error occurred while running the simulation.");
-        doc.RootElement.GetProperty("detail").GetString().Should().Contain("simulated run failure");
+            .Be("An unexpected error occurred. Please try again later.");
     }
 
     // ---- POST /api/simulation/start ----

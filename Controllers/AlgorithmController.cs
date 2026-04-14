@@ -35,25 +35,12 @@ public class AlgorithmController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetAllAlgorithms()
     {
-        try
+        var algorithms = await _algorithmService.GetAllAlgorithmsAsync();
+        return Ok(new
         {
-            var algorithms = await _algorithmService.GetAllAlgorithmsAsync();
-            return Ok(new
-            {
-                status = "success",
-                data = algorithms
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unhandled error in GET /api/algorithms");
-            return StatusCode(StatusCodes.Status500InternalServerError, new
-            {
-                status = "error",
-                message = "An unexpected error occurred while retrieving algorithms.",
-                detail = ex.Message
-            });
-        }
+            status = "success",
+            data = algorithms
+        });
     }
 
     /// <summary>
@@ -69,34 +56,21 @@ public class AlgorithmController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetAlgorithmById(int id)
     {
-        try
+        var algorithm = await _algorithmService.GetAlgorithmByIdAsync(id);
+
+        if (algorithm is null)
         {
-            var algorithm = await _algorithmService.GetAlgorithmByIdAsync(id);
-
-            if (algorithm is null)
+            return NotFound(new
             {
-                return NotFound(new
-                {
-                    status = "error",
-                    message = $"Algorithm with ID {id} not found."
-                });
-            }
-
-            return Ok(new
-            {
-                status = "success",
-                data = algorithm
+                status  = "error",
+                message = $"Algorithm with ID {id} not found."
             });
         }
-        catch (Exception ex)
+
+        return Ok(new
         {
-            _logger.LogError(ex, "Unhandled error in GET /api/algorithms/{id}", id);
-            return StatusCode(StatusCodes.Status500InternalServerError, new
-            {
-                status = "error",
-                message = "An unexpected error occurred while retrieving the algorithm.",
-                detail = ex.Message
-            });
-        }
+            status = "success",
+            data = algorithm
+        });
     }
 }

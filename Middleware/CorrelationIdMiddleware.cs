@@ -6,6 +6,7 @@ namespace backend.Middleware;
 /// Generates or reads a correlation ID for every HTTP request.
 /// The ID is stored in HttpContext.Items, echoed back in the response header,
 /// and pushed into the Serilog LogContext so every log entry includes it.
+/// A default anonymous UserId is also seeded until authentication-aware middleware enriches it.
 /// </summary>
 public class CorrelationIdMiddleware
 {
@@ -33,8 +34,9 @@ public class CorrelationIdMiddleware
             return Task.CompletedTask;
         });
 
-        // 4. Push into Serilog LogContext so every log entry includes it automatically
+        // 4. Push baseline request properties so every log entry is enriched automatically
         using (LogContext.PushProperty("CorrelationId", correlationId))
+        using (LogContext.PushProperty("UserId", "anonymous"))
         {
             await _next(context);
         }
