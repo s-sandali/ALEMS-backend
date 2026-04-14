@@ -119,17 +119,17 @@ public class UserSyncControllerTests
     // Scenario 4 — Service throws → 500
     // -----------------------------------------------------------------------
 
-    [Fact(DisplayName = "Scenario 4 — Service throws returns 500")]
-    public async Task SyncUser_ServiceThrows_Returns500()
+    [Fact(DisplayName = "Scenario 4 — Service throws propagates to middleware")]
+    public async Task SyncUser_ServiceThrows_PropagatesException()
     {
         var svc = new Mock<IUserService>();
         svc.Setup(s => s.SyncUserAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
            .ThrowsAsync(new Exception("DB error"));
 
-        var ctrl   = BuildController(svc, BuildPrincipal());
-        var result = await ctrl.SyncUser() as ObjectResult;
+        var ctrl = BuildController(svc, BuildPrincipal());
 
-        result!.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        await FluentActions.Invoking(() => ctrl.SyncUser())
+            .Should().ThrowAsync<Exception>().WithMessage("DB error");
     }
 
     // -----------------------------------------------------------------------

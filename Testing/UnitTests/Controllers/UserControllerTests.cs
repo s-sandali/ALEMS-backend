@@ -94,17 +94,17 @@ public class UserControllerTests
         result!.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
     }
 
-    [Fact(DisplayName = "Scenario 3 — CreateUser: service throws returns 500")]
-    public async Task CreateUser_ServiceThrows_Returns500()
+    [Fact(DisplayName = "Scenario 3 — CreateUser: service throws propagates to middleware")]
+    public async Task CreateUser_ServiceThrows_PropagatesException()
     {
         var svc = new Mock<IUserService>();
         svc.Setup(s => s.CreateUserAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
            .ThrowsAsync(new Exception("DB error"));
 
         var dto = new CreateUserDto { Email = "alice@example.com", Username = "alice", Role = "User" };
-        var result = await BuildController(svc).CreateUser(dto) as ObjectResult;
 
-        result!.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        await FluentActions.Invoking(() => BuildController(svc).CreateUser(dto))
+            .Should().ThrowAsync<Exception>().WithMessage("DB error");
     }
 
     // -----------------------------------------------------------------------
@@ -122,15 +122,14 @@ public class UserControllerTests
         result!.StatusCode.Should().Be(StatusCodes.Status200OK);
     }
 
-    [Fact(DisplayName = "Scenario 5 — GetAllUsers: service throws returns 500")]
-    public async Task GetAllUsers_ServiceThrows_Returns500()
+    [Fact(DisplayName = "Scenario 5 — GetAllUsers: service throws propagates to middleware")]
+    public async Task GetAllUsers_ServiceThrows_PropagatesException()
     {
         var svc = new Mock<IUserService>();
         svc.Setup(s => s.GetAllUsersAsync()).ThrowsAsync(new Exception("DB error"));
 
-        var result = await BuildController(svc).GetAllUsers() as ObjectResult;
-
-        result!.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        await FluentActions.Invoking(() => BuildController(svc).GetAllUsers())
+            .Should().ThrowAsync<Exception>().WithMessage("DB error");
     }
 
     // -----------------------------------------------------------------------
@@ -159,15 +158,14 @@ public class UserControllerTests
         result!.StatusCode.Should().Be(StatusCodes.Status404NotFound);
     }
 
-    [Fact(DisplayName = "Scenario 8 — GetUserById: service throws returns 500")]
-    public async Task GetUserById_ServiceThrows_Returns500()
+    [Fact(DisplayName = "Scenario 8 — GetUserById: service throws propagates to middleware")]
+    public async Task GetUserById_ServiceThrows_PropagatesException()
     {
         var svc = new Mock<IUserService>();
         svc.Setup(s => s.GetUserByIdAsync(It.IsAny<int>())).ThrowsAsync(new Exception("DB error"));
 
-        var result = await BuildController(svc).GetUserById(1) as ObjectResult;
-
-        result!.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        await FluentActions.Invoking(() => BuildController(svc).GetUserById(1))
+            .Should().ThrowAsync<Exception>().WithMessage("DB error");
     }
 
     // -----------------------------------------------------------------------
@@ -186,30 +184,30 @@ public class UserControllerTests
         result!.StatusCode.Should().Be(StatusCodes.Status200OK);
     }
 
-    [Fact(DisplayName = "Scenario 10 — UpdateUser: user not found returns 404")]
-    public async Task UpdateUser_NotFound_Returns404()
+    [Fact(DisplayName = "Scenario 10 — UpdateUser: user not found propagates KeyNotFoundException to middleware")]
+    public async Task UpdateUser_NotFound_PropagatesKeyNotFoundException()
     {
         var svc = new Mock<IUserService>();
         svc.Setup(s => s.UpdateUserAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<bool>()))
            .ThrowsAsync(new KeyNotFoundException("User with ID 99 was not found."));
 
         var dto = new UpdateUserDto { Role = "Admin", IsActive = false };
-        var result = await BuildController(svc).UpdateUser(99, dto) as ObjectResult;
 
-        result!.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+        await FluentActions.Invoking(() => BuildController(svc).UpdateUser(99, dto))
+            .Should().ThrowAsync<KeyNotFoundException>().WithMessage("User with ID 99 was not found.");
     }
 
-    [Fact(DisplayName = "Scenario 11 — UpdateUser: service throws returns 500")]
-    public async Task UpdateUser_ServiceThrows_Returns500()
+    [Fact(DisplayName = "Scenario 11 — UpdateUser: service throws propagates to middleware")]
+    public async Task UpdateUser_ServiceThrows_PropagatesException()
     {
         var svc = new Mock<IUserService>();
         svc.Setup(s => s.UpdateUserAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<bool>()))
            .ThrowsAsync(new Exception("DB error"));
 
         var dto = new UpdateUserDto { Role = "Admin", IsActive = true };
-        var result = await BuildController(svc).UpdateUser(1, dto) as ObjectResult;
 
-        result!.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        await FluentActions.Invoking(() => BuildController(svc).UpdateUser(1, dto))
+            .Should().ThrowAsync<Exception>().WithMessage("DB error");
     }
 
     // -----------------------------------------------------------------------
@@ -238,21 +236,22 @@ public class UserControllerTests
         result!.StatusCode.Should().Be(StatusCodes.Status404NotFound);
     }
 
-    [Fact(DisplayName = "Scenario 14 — DeleteUser: service throws returns 500")]
-    public async Task DeleteUser_ServiceThrows_Returns500()
+    [Fact(DisplayName = "Scenario 14 — DeleteUser: service throws propagates to middleware")]
+    public async Task DeleteUser_ServiceThrows_PropagatesException()
     {
         var svc = new Mock<IUserService>();
         svc.Setup(s => s.DeleteUserAsync(It.IsAny<int>())).ThrowsAsync(new Exception("DB error"));
 
-        var result = await BuildController(svc).DeleteUser(1) as ObjectResult;
-
-        result!.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        await FluentActions.Invoking(() => BuildController(svc).DeleteUser(1))
+            .Should().ThrowAsync<Exception>().WithMessage("DB error");
     }
 
     // -----------------------------------------------------------------------
     // ModelState.IsValid fallback branches
-    // These cover the manual validation guard inside CreateUser / UpdateUser
-    // that acts as a safety net when [ApiController] auto-validation is bypassed.
+    // CreateUser has a null-return check that incidentally returns 400 for
+    // duplicate email. UpdateUser relies entirely on InvalidModelStateResponseFactory
+    // (registered globally in Program.cs) — there is no manual ModelState guard
+    // in the controller, so this is only exercised in integration tests.
     // -----------------------------------------------------------------------
 
     [Fact(DisplayName = "Scenario 15 — CreateUser: invalid ModelState returns 400 with validation errors")]
@@ -266,21 +265,6 @@ public class UserControllerTests
 
         var dto    = new CreateUserDto { Email = "", Username = "alice", Role = "User" };
         var result = await ctrl.CreateUser(dto) as ObjectResult;
-
-        result!.StatusCode.Should().Be(StatusCodes.Status400BadRequest,
-            because: "a controller with invalid ModelState must return 400");
-    }
-
-    [Fact(DisplayName = "Scenario 16 — UpdateUser: invalid ModelState returns 400 with validation errors")]
-    public async Task UpdateUser_InvalidModelState_Returns400()
-    {
-        var svc  = new Mock<IUserService>();
-        var ctrl = BuildController(svc);
-
-        ctrl.ModelState.AddModelError("Role", "Role is required.");
-
-        var dto    = new UpdateUserDto { Role = "", IsActive = true };
-        var result = await ctrl.UpdateUser(1, dto) as ObjectResult;
 
         result!.StatusCode.Should().Be(StatusCodes.Status400BadRequest,
             because: "a controller with invalid ModelState must return 400");

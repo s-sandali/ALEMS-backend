@@ -161,37 +161,34 @@ public class QuizControllerTests
         result!.StatusCode.Should().Be(401);
     }
 
-    [Fact(DisplayName = "Scenario 6 — CreateQuiz: returns 400 Bad Request when algorithm not found")]
-    public async Task Should_Return400_When_AlgorithmNotFound()
+    [Fact(DisplayName = "Scenario 6 — CreateQuiz: propagates ArgumentException to middleware when algorithm not found")]
+    public async Task Should_PropagateArgumentException_When_AlgorithmNotFound()
     {
         // Arrange
         var svc = new Mock<IQuizService>();
         svc.Setup(s => s.CreateQuizAsync(It.IsAny<CreateQuizDto>(), "clerk_001"))
            .ThrowsAsync(new ArgumentException("Algorithm with ID 99 does not exist."));
 
-        var result = await BuildController(svc)
-                         .CreateQuiz(new CreateQuizDto { AlgorithmId = 99, Title = "Q" }) as BadRequestObjectResult;
-
-        // Assert
-        result!.StatusCode.Should().Be(400);
-
-        var message = result.Value!.GetType().GetProperty("message")!.GetValue(result.Value) as string;
-        message.Should().Contain("99");
+        // Act & Assert — GlobalExceptionMiddleware maps ArgumentException → 400
+        await FluentActions.Invoking(() =>
+                BuildController(svc).CreateQuiz(new CreateQuizDto { AlgorithmId = 99, Title = "Q" }))
+            .Should().ThrowAsync<ArgumentException>()
+            .WithMessage("*99*");
     }
 
-    [Fact(DisplayName = "Scenario 7 — CreateQuiz: returns 404 when user not synced")]
-    public async Task Should_Return404_When_UserNotSynced()
+    [Fact(DisplayName = "Scenario 7 — CreateQuiz: propagates KeyNotFoundException to middleware when user not synced")]
+    public async Task Should_PropagateKeyNotFoundException_When_UserNotSynced()
     {
         // Arrange
         var svc = new Mock<IQuizService>();
         svc.Setup(s => s.CreateQuizAsync(It.IsAny<CreateQuizDto>(), "clerk_001"))
            .ThrowsAsync(new KeyNotFoundException("Authenticated user does not have a local account."));
 
-        var result = await BuildController(svc)
-                         .CreateQuiz(new CreateQuizDto { AlgorithmId = 1, Title = "Q" }) as NotFoundObjectResult;
-
-        // Assert
-        result!.StatusCode.Should().Be(404);
+        // Act & Assert — GlobalExceptionMiddleware maps KeyNotFoundException → 404
+        await FluentActions.Invoking(() =>
+                BuildController(svc).CreateQuiz(new CreateQuizDto { AlgorithmId = 1, Title = "Q" }))
+            .Should().ThrowAsync<KeyNotFoundException>()
+            .WithMessage("Authenticated user does not have a local account.");
     }
 
     // -----------------------------------------------------------------------
@@ -218,19 +215,19 @@ public class QuizControllerTests
         status.Should().Be("success");
     }
 
-    [Fact(DisplayName = "Scenario 9 — UpdateQuiz: returns 404 Not Found when quiz not found")]
-    public async Task Should_Return404_When_UpdateTargetNotFound()
+    [Fact(DisplayName = "Scenario 9 — UpdateQuiz: propagates KeyNotFoundException to middleware when quiz not found")]
+    public async Task Should_PropagateKeyNotFoundException_When_UpdateTargetNotFound()
     {
         // Arrange
         var svc = new Mock<IQuizService>();
         svc.Setup(s => s.UpdateQuizAsync(99, It.IsAny<UpdateQuizDto>()))
            .ThrowsAsync(new KeyNotFoundException("Quiz with ID 99 was not found."));
 
-        var result = await BuildController(svc)
-                         .UpdateQuiz(99, new UpdateQuizDto { Title = "T", IsActive = true }) as NotFoundObjectResult;
-
-        // Assert
-        result!.StatusCode.Should().Be(404);
+        // Act & Assert — GlobalExceptionMiddleware maps KeyNotFoundException → 404
+        await FluentActions.Invoking(() =>
+                BuildController(svc).UpdateQuiz(99, new UpdateQuizDto { Title = "T", IsActive = true }))
+            .Should().ThrowAsync<KeyNotFoundException>()
+            .WithMessage("Quiz with ID 99 was not found.");
     }
 
     // -----------------------------------------------------------------------
