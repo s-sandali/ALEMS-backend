@@ -1,10 +1,12 @@
 using System.Diagnostics;
+using System.Security.Claims;
+using Serilog.Context;
 
 namespace backend.Middleware;
 
 /// <summary>
-/// Logs every HTTP request with method, path, status code, and duration.
-/// Works alongside Serilog for structured, queryable log output.
+/// Logs every HTTP request with method, path, status code, duration, and user identity.
+/// Pushes UserId into the Serilog LogContext so downstream logs are correlated per request.
 /// </summary>
 public class RequestLoggingMiddleware
 {
@@ -20,31 +22,45 @@ public class RequestLoggingMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         var stopwatch = Stopwatch.StartNew();
+        var userId = ResolveUserId(context.User);
 
-        try
+        using (LogContext.PushProperty("UserId", userId))
         {
-            await _next(context);
-            stopwatch.Stop();
+            try
+            {
+                await _next(context);
+                stopwatch.Stop();
 
-            _logger.LogInformation(
-                "HTTP {Method} {Path} responded {StatusCode} in {Duration}ms",
-                context.Request.Method,
-                context.Request.Path,
-                context.Response.StatusCode,
-                stopwatch.ElapsedMilliseconds);
+                _logger.LogInformation(
+                    "HTTP {Method} {Path} responded {StatusCode} in {Duration}ms",
+                    context.Request.Method,
+                    context.Request.Path,
+                    context.Response.StatusCode,
+                    stopwatch.ElapsedMilliseconds);
+            }
+            catch (Exception)
+            {
+                stopwatch.Stop();
+
+                _logger.LogWarning(
+                    "HTTP {Method} {Path} threw exception after {Duration}ms",
+                    context.Request.Method,
+                    context.Request.Path,
+                    stopwatch.ElapsedMilliseconds);
+
+                // Re-throw so GlobalExceptionMiddleware handles the actual error response
+                throw;
+            }
         }
-        catch (Exception)
+    }
+
+    private static string ResolveUserId(ClaimsPrincipal? user)
+    {
+        if (user?.Identity?.IsAuthenticated != true)
         {
-            stopwatch.Stop();
-
-            _logger.LogWarning(
-                "HTTP {Method} {Path} threw exception after {Duration}ms",
-                context.Request.Method,
-                context.Request.Path,
-                stopwatch.ElapsedMilliseconds);
-
-            // Re-throw so GlobalExceptionMiddleware handles the actual error response
-            throw;
+            return "anonymous";
         }
+
+        return user.FindFirstValue("sub") ?? "anonymous";
     }
 }
