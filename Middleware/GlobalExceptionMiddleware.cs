@@ -86,16 +86,16 @@ public class GlobalExceptionMiddleware
         context.Response.StatusCode  = statusCode;
         context.Response.ContentType = "application/json";
 
-        // For 5xx responses, hide the internal message — never leak stack details.
-        // For 4xx and known service errors, the exception message is safe to return
-        // because it was deliberately composed by service/domain code.
-        var message = statusCode >= StatusCodes.Status500InternalServerError
-                      && statusCode != StatusCodes.Status503ServiceUnavailable
+        // Only hide the message for unexpected 500 errors — never leak internal details.
+        // All other codes (400, 401, 404, 429, 501, 503) use the exception's own message
+        // because it was deliberately composed by service/domain code and is safe to expose.
+        var message = statusCode == StatusCodes.Status500InternalServerError
             ? "An unexpected error occurred. Please try again later."
             : exception.Message;
 
         var body = new
         {
+            status = "error",
             statusCode,
             message,
             correlationId,
