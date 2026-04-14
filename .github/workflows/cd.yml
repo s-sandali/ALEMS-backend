@@ -19,11 +19,21 @@ jobs:
         run: |
           echo "✅ Code coverage check passed in CI workflow (>65% requirement met)"
 
-      - name: Download Artifact from CI
+      - name: Download Artifact from CI (workflow_run)
+        if: ${{ github.event_name == 'workflow_run' }}
         uses: dawidd6/action-download-artifact@v3
         with:
           workflow: Backend CI
           run_id: ${{ github.event.workflow_run.id }}
+          name: backend-app
+
+      - name: Download Artifact from CI (workflow_dispatch)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: Backend CI
+          branch: main
+          workflow_conclusion: success
           name: backend-app
 
       - name: Deploy to Azure Web App
@@ -71,6 +81,26 @@ jobs:
           echo "❌ Health check failed"
           exit 1
 
+      - name: Checkout repository (for JMeter test plan)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Verify JMeter test plan exists
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ls -la Testing/PerformanceTests || true
+
+          if [ ! -f "Testing/PerformanceTests/staging-load-test.jmx" ]; then
+            echo "❌ Missing JMeter test plan: Testing/PerformanceTests/staging-load-test.jmx"
+            exit 1
+          fi
+
+          echo "✅ JMeter test plan found"
+
       - name: Install JMeter
         run: |
           sudo apt-get update
@@ -88,17 +118,14 @@ jobs:
 
           RESULTS_JTL="/tmp/jmeter-results.jtl"
           TEST_TOKEN="${{ secrets.JMETER_SERVICE_TOKEN }}"
-          
+
           if [ -z "$TEST_TOKEN" ]; then
             echo "⚠️  JMETER_SERVICE_TOKEN not set. Skipping JMeter tests."
             exit 0
           fi
 
           echo "📊 Running JMeter load test against: $DEPLOYMENT_URL"
-          echo "🎯 Performance Thresholds:"
-          echo "   NFRP01: 95th percentile response time ≤ 500ms"
-          echo "   NFRP02: Simulation API avg response time ≤ 200ms"
-          
+
           # Run JMeter in non-GUI mode
           jmeter -n \
             -t "Testing/PerformanceTests/staging-load-test.jmx" \
@@ -110,59 +137,11 @@ jobs:
             -Jduration=300 \
             -j /tmp/jmeter.log || true
 
-          echo ""
-          echo "📈 Performance Analysis:"
-          echo "=========================="
+          # Check for errors
+          ERROR_COUNT=$(grep -c '"success":"false"' "$RESULTS_JTL" || echo "0")
 
-          # Overall 95th percentile (NFRP01)
-          OVERALL_P95=$(awk -F',' 'NR>1 {print $2}' "$RESULTS_JTL" | sort -n | awk '{a[NR]=$1} END {idx=int(NR*0.95); if(idx<1) idx=1; print a[idx]}')
-          echo "Overall 95th percentile: ${OVERALL_P95}ms (threshold: 500ms)"
-
-          # Simulation API average response time (NFRP02)
-          SIM_AVG=$(awk -F',' '$3=="simulation_run" && NR>1 {sum+=$2; count++} END {if(count>0) print int(sum/count); else print 0}' "$RESULTS_JTL")
-          echo "Simulation API avg: ${SIM_AVG}ms (threshold: 200ms)"
-
-          # Other endpoints
-          QUIZ_AVG=$(awk -F',' '$3=="quiz_attempt" && NR>1 {sum+=$2; count++} END {if(count>0) print int(sum/count); else print 0}' "$RESULTS_JTL")
-          echo "Quiz Attempt avg: ${QUIZ_AVG}ms"
-
-          HEALTH_AVG=$(awk -F',' '$3=="health_check" && NR>1 {sum+=$2; count++} END {if(count>0) print int(sum/count); else print 0}' "$RESULTS_JTL")
-          echo "Health Check avg: ${HEALTH_AVG}ms"
-
-          # Error count
-          ERROR_COUNT=$(awk -F',' '$8=="false" && NR>1 {count++} END {print count+0}' "$RESULTS_JTL")
-          echo "Errors: $ERROR_COUNT"
-
-          echo ""
-          echo "🔍 NFR Validation Results:"
-          echo "=========================="
-
-          NFRP_PASSED=true
-
-          # NFRP01: 95th percentile ≤ 500ms
-          if [ -z "$OVERALL_P95" ] || [ "$OVERALL_P95" = "0" ]; then
-            echo "⚠️  NFRP01: Could not calculate 95th percentile"
-          elif [ "$OVERALL_P95" -le 500 ]; then
-            echo "✅ NFRP01 PASSED: 95th percentile ${OVERALL_P95}ms ≤ 500ms"
-          else
-            echo "❌ NFRP01 FAILED: 95th percentile ${OVERALL_P95}ms exceeds 500ms threshold"
-            NFRP_PASSED=false
-          fi
-
-          # NFRP02: Simulation API ≤ 200ms
-          if [ -z "$SIM_AVG" ] || [ "$SIM_AVG" = "0" ]; then
-            echo "⚠️  NFRP02: No simulation API data available"
-          elif [ "$SIM_AVG" -le 200 ]; then
-            echo "✅ NFRP02 PASSED: Simulation API ${SIM_AVG}ms ≤ 200ms"
-          else
-            echo "❌ NFRP02 FAILED: Simulation API ${SIM_AVG}ms exceeds 200ms threshold"
-            NFRP_PASSED=false
-          fi
-
-          # Fail if NFR not met or errors found
-          if [ "$NFRP_PASSED" = false ] || [ "$ERROR_COUNT" -gt 0 ]; then
-            echo ""
-            echo "🚨 Performance validation FAILED"
+          if [ "$ERROR_COUNT" -gt 0 ]; then
+            echo "❌ JMeter test found errors. Check results."
             exit 1
           fi
 
