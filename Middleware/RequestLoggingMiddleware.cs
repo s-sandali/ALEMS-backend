@@ -29,27 +29,30 @@ public class RequestLoggingMiddleware
             try
             {
                 await _next(context);
-                stopwatch.Stop();
-
-                _logger.LogInformation(
-                    "HTTP {Method} {Path} responded {StatusCode} in {Duration}ms",
-                    context.Request.Method,
-                    context.Request.Path,
-                    context.Response.StatusCode,
-                    stopwatch.ElapsedMilliseconds);
             }
-            catch (Exception)
+            finally
             {
                 stopwatch.Stop();
+                var durationMs = stopwatch.ElapsedMilliseconds;
 
-                _logger.LogWarning(
-                    "HTTP {Method} {Path} threw exception after {Duration}ms",
-                    context.Request.Method,
-                    context.Request.Path,
-                    stopwatch.ElapsedMilliseconds);
-
-                // Re-throw so GlobalExceptionMiddleware handles the actual error response
-                throw;
+                if (durationMs > 2000)
+                {
+                    _logger.LogWarning(
+                        "HTTP {Method} {Path} responded {StatusCode} in {Duration}ms",
+                        context.Request.Method,
+                        context.Request.Path,
+                        context.Response.StatusCode,
+                        durationMs);
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "HTTP {Method} {Path} responded {StatusCode} in {Duration}ms",
+                        context.Request.Method,
+                        context.Request.Path,
+                        context.Response.StatusCode,
+                        durationMs);
+                }
             }
         }
     }
