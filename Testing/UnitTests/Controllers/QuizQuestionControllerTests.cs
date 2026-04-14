@@ -88,19 +88,18 @@ public class QuizQuestionControllerTests
         data!.Should().HaveCount(2);
     }
 
-    [Fact(DisplayName = "Scenario 2 — GetQuestions: returns 404 Not Found when quiz does not exist")]
-    public async Task Should_Return404_When_QuizNotFoundForGetQuestions()
+    [Fact(DisplayName = "Scenario 2 — GetQuestions: propagates KeyNotFoundException to middleware when quiz does not exist")]
+    public async Task Should_PropagateKeyNotFoundException_When_QuizNotFoundForGetQuestions()
     {
         // Arrange
         var svc = new Mock<IQuizQuestionService>();
         svc.Setup(s => s.GetByQuizIdAsync(99))
            .ThrowsAsync(new KeyNotFoundException("Quiz with ID 99 does not exist."));
 
-        // Act
-        var result = await BuildController(svc).GetQuestions(99) as NotFoundObjectResult;
-
-        // Assert
-        result!.StatusCode.Should().Be(404);
+        // Act & Assert — GlobalExceptionMiddleware maps KeyNotFoundException → 404
+        await FluentActions.Invoking(() => BuildController(svc).GetQuestions(99))
+            .Should().ThrowAsync<KeyNotFoundException>()
+            .WithMessage("Quiz with ID 99 does not exist.");
     }
 
     // -----------------------------------------------------------------------
@@ -180,8 +179,8 @@ public class QuizQuestionControllerTests
         status.Should().Be("success");
     }
 
-    [Fact(DisplayName = "Scenario 7 — CreateQuestion: returns 404 Not Found when quiz does not exist")]
-    public async Task Should_Return404_When_QuizNotFoundOnCreateQuestion()
+    [Fact(DisplayName = "Scenario 7 — CreateQuestion: propagates KeyNotFoundException to middleware when quiz does not exist")]
+    public async Task Should_PropagateKeyNotFoundException_When_QuizNotFoundOnCreateQuestion()
     {
         // Arrange
         var svc = new Mock<IQuizQuestionService>();
@@ -195,11 +194,10 @@ public class QuizQuestionControllerTests
             CorrectOption = "A", Difficulty = "easy"
         };
 
-        // Act
-        var result = await BuildController(svc).CreateQuestion(99, dto) as NotFoundObjectResult;
-
-        // Assert
-        result!.StatusCode.Should().Be(404);
+        // Act & Assert — GlobalExceptionMiddleware maps KeyNotFoundException → 404
+        await FluentActions.Invoking(() => BuildController(svc).CreateQuestion(99, dto))
+            .Should().ThrowAsync<KeyNotFoundException>()
+            .WithMessage("Quiz with ID 99 does not exist.");
     }
 
     // -----------------------------------------------------------------------
@@ -255,8 +253,8 @@ public class QuizQuestionControllerTests
         svc.Verify(s => s.UpdateAsync(It.IsAny<int>(), It.IsAny<UpdateQuizQuestionDto>()), Times.Never);
     }
 
-    [Fact(DisplayName = "Scenario 10 — UpdateQuestion: returns 404 when service throws KeyNotFoundException")]
-    public async Task Should_Return404_When_ServiceThrowsKeyNotFoundOnUpdate()
+    [Fact(DisplayName = "Scenario 10 — UpdateQuestion: propagates KeyNotFoundException to middleware when service throws")]
+    public async Task Should_PropagateKeyNotFoundException_When_ServiceThrowsKeyNotFoundOnUpdate()
     {
         // Arrange
         var svc = new Mock<IQuizQuestionService>();
@@ -271,11 +269,10 @@ public class QuizQuestionControllerTests
             CorrectOption = "A", Difficulty = "easy", IsActive = true
         };
 
-        // Act
-        var result = await BuildController(svc).UpdateQuestion(quizId: 1, id: 1, dto) as NotFoundObjectResult;
-
-        // Assert
-        result!.StatusCode.Should().Be(404);
+        // Act & Assert — GlobalExceptionMiddleware maps KeyNotFoundException → 404
+        await FluentActions.Invoking(() => BuildController(svc).UpdateQuestion(quizId: 1, id: 1, dto))
+            .Should().ThrowAsync<KeyNotFoundException>()
+            .WithMessage("Question with ID 1 was not found.");
     }
 
     // -----------------------------------------------------------------------
