@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using backend.DTOs;
 using backend.Services;
+using Microsoft.ApplicationInsights;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -27,17 +28,20 @@ public class StudentQuizController : ControllerBase
     private readonly IQuizQuestionService _questionService;
     private readonly IQuizAttemptService  _attemptService;
     private readonly ILogger<StudentQuizController> _logger;
+    private readonly TelemetryClient _telemetryClient;
 
     public StudentQuizController(
         IQuizService quizService,
         IQuizQuestionService questionService,
         IQuizAttemptService attemptService,
-        ILogger<StudentQuizController> logger)
+        ILogger<StudentQuizController> logger,
+        TelemetryClient telemetryClient)
     {
         _quizService     = quizService;
         _questionService = questionService;
         _attemptService  = attemptService;
         _logger          = logger;
+        _telemetryClient = telemetryClient;
     }
 
     // ── GET /api/student/quizzes ─────────────────────────────────────
@@ -127,6 +131,16 @@ public class StudentQuizController : ControllerBase
         // KeyNotFoundException (quiz/user)    → 404 via GlobalExceptionMiddleware
         var result = await _attemptService.SubmitAttemptAsync(quizId, clerkUserId, dto);
 
+        _telemetryClient.TrackEvent(
+            "QuizSubmitted",
+            new Dictionary<string, string>
+            {
+                ["userId"] = clerkUserId,
+                ["quizId"] = quizId.ToString(),
+                ["score"] = result.Score.ToString(),
+                ["correlationId"] = ResolveCorrelationId()
+            });
+
         _logger.LogInformation(
             "POST /api/student/quizzes/{QuizId}/attempt — submitted for ClerkId={ClerkId}",
             quizId, clerkUserId);
@@ -137,5 +151,10 @@ public class StudentQuizController : ControllerBase
             message = "Quiz attempt submitted successfully.",
             data    = result
         });
+    }
+
+    private string ResolveCorrelationId()
+    {
+        return HttpContext.Items["CorrelationId"]?.ToString() ?? HttpContext.TraceIdentifier;
     }
 }
