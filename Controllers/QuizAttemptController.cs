@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using backend.DTOs;
 using backend.Services;
+using Microsoft.ApplicationInsights;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -27,13 +28,16 @@ public class QuizAttemptController : ControllerBase
 {
     private readonly IQuizAttemptService _attemptService;
     private readonly ILogger<QuizAttemptController> _logger;
+    private readonly TelemetryClient _telemetryClient;
 
     public QuizAttemptController(
         IQuizAttemptService attemptService,
-        ILogger<QuizAttemptController> logger)
+        ILogger<QuizAttemptController> logger,
+        TelemetryClient telemetryClient)
     {
         _attemptService = attemptService;
         _logger = logger;
+        _telemetryClient = telemetryClient;
     }
 
     /// <summary>
@@ -68,6 +72,16 @@ public class QuizAttemptController : ControllerBase
         // KeyNotFoundException (quiz/user)    → 404 via GlobalExceptionMiddleware
         var result = await _attemptService.SubmitAttemptAsync(quizId, clerkUserId, dto);
 
+        _telemetryClient.TrackEvent(
+            "QuizSubmitted",
+            new Dictionary<string, string>
+            {
+                ["userId"] = clerkUserId,
+                ["quizId"] = quizId.ToString(),
+                ["score"] = result.Score.ToString(),
+                ["correlationId"] = ResolveCorrelationId()
+            });
+
         _logger.LogInformation(
             "POST /api/quizzes/{QuizId}/attempts — attempt submitted for ClerkId={ClerkId}",
             quizId,
@@ -79,5 +93,10 @@ public class QuizAttemptController : ControllerBase
             message = "Quiz attempt submitted successfully.",
             data    = result
         });
+    }
+
+    private string ResolveCorrelationId()
+    {
+        return HttpContext.Items["CorrelationId"]?.ToString() ?? HttpContext.TraceIdentifier;
     }
 }
