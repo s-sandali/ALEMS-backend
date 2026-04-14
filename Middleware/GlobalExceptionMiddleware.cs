@@ -1,12 +1,23 @@
 using System.Net;
 using System.Text.Json;
+using backend.Services;
 
 namespace backend.Middleware;
 
 /// <summary>
-/// Catches all unhandled exceptions across the HTTP pipeline and returns
-/// a standardised JSON error response. Full exception details are logged
-/// internally but never exposed to the client.
+/// Catches all unhandled exceptions across the HTTP pipeline and maps them to
+/// appropriate HTTP status codes. Full exception details are logged internally
+/// but never exposed to the client.
+///
+/// Mapping:
+///   KeyNotFoundException        → 404
+///   ArgumentException           → 400
+///   UnauthorizedAccessException → 401
+///   NotSupportedException       → 501
+///   Judge0RateLimitException    → 429
+///   Judge0UnavailableException  → 503
+///   OperationCanceledException  → 400  (no error log — client disconnected)
+///   Everything else             → 500
 /// </summary>
 public class GlobalExceptionMiddleware
 {
@@ -15,7 +26,7 @@ public class GlobalExceptionMiddleware
 
     public GlobalExceptionMiddleware(RequestDelegate next, ILogger<GlobalExceptionMiddleware> logger)
     {
-        _next = next;
+        _next   = next;
         _logger = logger;
     }
 
@@ -25,33 +36,73 @@ public class GlobalExceptionMiddleware
         {
             await _next(context);
         }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            // Client disconnected — not an application error, no log noise
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex,
-                "Unhandled exception caught by GlobalExceptionMiddleware — " +
-                "Method={Method} Path={Path} TraceId={TraceId}",
-                context.Request.Method,
-                context.Request.Path,
-                context.TraceIdentifier);
+            var correlationId = context.Items["CorrelationId"]?.ToString()
+                                ?? context.TraceIdentifier;
 
-            await HandleExceptionAsync(context, ex);
+            var (statusCode, logLevel) = ClassifyException(ex);
+
+            _logger.Log(
+                logLevel,
+                ex,
+                "Unhandled {ExceptionType} — CorrelationId={CorrelationId} Method={Method} Path={Path}",
+                ex.GetType().Name,
+                correlationId,
+                context.Request.Method,
+                context.Request.Path);
+
+            await WriteErrorResponseAsync(context, ex, statusCode, correlationId);
         }
     }
 
-    private static async Task HandleExceptionAsync(HttpContext context, Exception exception)
+    // ── Exception → (HTTP status code, log level) ────────────────────────────
+    private static (int StatusCode, LogLevel LogLevel) ClassifyException(Exception exception) =>
+        exception switch
+        {
+            KeyNotFoundException        => (StatusCodes.Status404NotFound,            LogLevel.Warning),
+            ArgumentException           => (StatusCodes.Status400BadRequest,          LogLevel.Warning),
+            UnauthorizedAccessException => (StatusCodes.Status401Unauthorized,        LogLevel.Warning),
+            NotSupportedException       => (StatusCodes.Status501NotImplemented,      LogLevel.Warning),
+            Judge0RateLimitException    => (StatusCodes.Status429TooManyRequests,     LogLevel.Warning),
+            Judge0UnavailableException  => (StatusCodes.Status503ServiceUnavailable,  LogLevel.Error),
+            _                           => (StatusCodes.Status500InternalServerError, LogLevel.Error)
+        };
+
+    // ── Write standardised JSON error response ────────────────────────────────
+    private static async Task WriteErrorResponseAsync(
+        HttpContext context,
+        Exception   exception,
+        int         statusCode,
+        string      correlationId)
     {
-        // Always return 500 for unhandled exceptions
-        context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+        if (context.Response.HasStarted) return;
+
+        context.Response.StatusCode  = statusCode;
         context.Response.ContentType = "application/json";
 
-        var response = new
+        // For 5xx responses, hide the internal message — never leak stack details.
+        // For 4xx and known service errors, the exception message is safe to return
+        // because it was deliberately composed by service/domain code.
+        var message = statusCode >= StatusCodes.Status500InternalServerError
+                      && statusCode != StatusCodes.Status503ServiceUnavailable
+            ? "An unexpected error occurred. Please try again later."
+            : exception.Message;
+
+        var body = new
         {
-            statusCode = context.Response.StatusCode,
-            message = "An unexpected error occurred. Please try again later.",
+            statusCode,
+            message,
+            correlationId,
             traceId = context.TraceIdentifier
         };
 
-        var json = JsonSerializer.Serialize(response, new JsonSerializerOptions
+        var json = JsonSerializer.Serialize(body, new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         });
