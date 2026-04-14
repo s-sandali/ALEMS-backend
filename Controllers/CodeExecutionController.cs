@@ -1,5 +1,7 @@
+using System.Security.Claims;
 using backend.DTOs;
 using backend.Services;
+using Microsoft.ApplicationInsights;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -28,13 +30,16 @@ public class CodeExecutionController : ControllerBase
 {
     private readonly ICodeExecutionService _executionService;
     private readonly ILogger<CodeExecutionController> _logger;
+    private readonly TelemetryClient _telemetryClient;
 
     public CodeExecutionController(
         ICodeExecutionService executionService,
-        ILogger<CodeExecutionController> logger)
+        ILogger<CodeExecutionController> logger,
+        TelemetryClient telemetryClient)
     {
         _executionService = executionService;
         _logger           = logger;
+        _telemetryClient  = telemetryClient;
     }
 
     /// <summary>
@@ -84,6 +89,19 @@ public class CodeExecutionController : ControllerBase
         // Judge0UnavailableException  → 503 via GlobalExceptionMiddleware
         // OperationCanceledException  → 400 (client disconnected, no error log)
         var result = await _executionService.ExecuteAsync(dto, ct);
+        var clerkUserId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub") ?? "anonymous";
+
+        _telemetryClient.TrackEvent(
+            "CodeExecuted",
+            new Dictionary<string, string>
+            {
+                ["userId"] = clerkUserId,
+                ["language"] = dto.LanguageId.ToString(),
+                ["status"] = string.IsNullOrWhiteSpace(result.StatusDescription)
+                    ? result.StatusId.ToString()
+                    : result.StatusDescription,
+                ["correlationId"] = ResolveCorrelationId()
+            });
 
         _logger.LogInformation(
             "POST /api/code/execute — LanguageId={LanguageId} StatusId={StatusId}",
@@ -94,5 +112,10 @@ public class CodeExecutionController : ControllerBase
             status = "success",
             data   = result
         });
+    }
+
+    private string ResolveCorrelationId()
+    {
+        return HttpContext.Items["CorrelationId"]?.ToString() ?? HttpContext.TraceIdentifier;
     }
 }
