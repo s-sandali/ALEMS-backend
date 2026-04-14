@@ -13,6 +13,7 @@ public class QuizAttemptService : IQuizAttemptService
     private readonly IQuizQuestionRepository  _questionRepository;
     private readonly IUserRepository          _userRepository;
     private readonly IQuizAttemptRepository   _attemptRepository;
+    private readonly IBadgeService            _badgeService;
     private readonly ILogger<QuizAttemptService> _logger;
 
     public QuizAttemptService(
@@ -20,12 +21,14 @@ public class QuizAttemptService : IQuizAttemptService
         IQuizQuestionRepository questionRepository,
         IUserRepository userRepository,
         IQuizAttemptRepository attemptRepository,
+        IBadgeService badgeService,
         ILogger<QuizAttemptService> logger)
     {
         _quizRepository     = quizRepository;
         _questionRepository = questionRepository;
         _userRepository     = userRepository;
         _attemptRepository  = attemptRepository;
+        _badgeService       = badgeService;
         _logger             = logger;
     }
 
@@ -99,6 +102,12 @@ public class QuizAttemptService : IQuizAttemptService
                 IsCorrect      = a.IsCorrect
             }),
             xpToAward);
+
+        // Check and award any newly unlocked badges after XP is awarded
+        if (xpToAward > 0)
+        {
+            await _badgeService.AwardUnlockedBadgesAsync(user.UserId);
+        }
 
         gradingResult.AttemptId      = attempt.AttemptId;
         gradingResult.QuizId         = quizId;
