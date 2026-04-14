@@ -309,6 +309,12 @@ builder.Services.AddScoped<IAlgorithmSimulationEngine, HeapSortSimulationEngine>
 builder.Services.AddScoped<IAlgorithmSimulationEngine, MergeSortSimulationEngine>();
 builder.Services.AddSingleton<ISimulationSessionStore, InMemorySimulationSessionStore>();
 
+// ── Outbound HTTP Correlation ──────────────────────────────────────
+// IHttpContextAccessor lets DelegatingHandlers read the current request context.
+// CorrelationIdHandler is transient so each HttpClient pipeline gets its own instance.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddTransient<backend.Middleware.CorrelationIdHandler>();
+
 // ── Clerk Backend API Client ───────────────────────────────────────
 // Used to set public_metadata.role on first sign-up via PATCH /v1/users/{id}/metadata.
 var clerkSecretKey = Environment.GetEnvironmentVariable("CLERK_SECRET_KEY")
@@ -333,7 +339,8 @@ builder.Services.AddHttpClient<IClerkService, ClerkService>(client =>
     client.BaseAddress = new Uri("https://api.clerk.com");
     client.DefaultRequestHeaders.Authorization =
         new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", clerkSecretKey);
-});
+})
+.AddHttpMessageHandler<backend.Middleware.CorrelationIdHandler>();
 
 // ── Judge0 Code Execution Client (self-hosted) ─────────────────────
 // Self-hosted Judge0 has no auth by default.
@@ -353,7 +360,8 @@ builder.Services.AddHttpClient<ICodeExecutionService, CodeExecutionService>(clie
     if (!string.IsNullOrWhiteSpace(judge0AuthToken))
         client.DefaultRequestHeaders.Add("X-Auth-Token", judge0AuthToken);
     client.Timeout = TimeSpan.FromSeconds(15);
-});
+})
+.AddHttpMessageHandler<backend.Middleware.CorrelationIdHandler>();
 
 var app = builder.Build();
 
