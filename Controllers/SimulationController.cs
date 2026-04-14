@@ -1,5 +1,7 @@
+using System.Security.Claims;
 using backend.DTOs;
 using backend.Services;
+using Microsoft.ApplicationInsights;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -23,13 +25,16 @@ public class SimulationController : ControllerBase
 {
     private readonly ISimulationService _simulationService;
     private readonly ILogger<SimulationController> _logger;
+    private readonly TelemetryClient _telemetryClient;
 
     public SimulationController(
         ISimulationService simulationService,
-        ILogger<SimulationController> logger)
+        ILogger<SimulationController> logger,
+        TelemetryClient telemetryClient)
     {
         _simulationService = simulationService;
         _logger = logger;
+        _telemetryClient = telemetryClient;
     }
 
     /// <summary>
@@ -48,6 +53,16 @@ public class SimulationController : ControllerBase
         // NotSupportedException → 501 via GlobalExceptionMiddleware
         var input = array is { Length: > 0 } ? array : [5, 2, 4, 6, 1, 3];
         var response = await _simulationService.RunAsync("insertion-sort", input, null);
+
+        _telemetryClient.TrackEvent(
+            "AlgorithmSimulation",
+            new Dictionary<string, string>
+            {
+                ["userId"] = ResolveUserId(),
+                ["algorithm"] = "insertion-sort",
+                ["correlationId"] = ResolveCorrelationId()
+            });
+
         return Ok(response);
     }
 
@@ -83,6 +98,16 @@ public class SimulationController : ControllerBase
 
         // NotSupportedException → 501 via GlobalExceptionMiddleware
         var response = await _simulationService.RunAsync(dto.Algorithm, dto.Array!, dto.Target);
+
+        _telemetryClient.TrackEvent(
+            "AlgorithmSimulation",
+            new Dictionary<string, string>
+            {
+                ["userId"] = ResolveUserId(),
+                ["algorithm"] = dto.Algorithm,
+                ["correlationId"] = ResolveCorrelationId()
+            });
+
         return Ok(response);
     }
 
@@ -111,6 +136,16 @@ public class SimulationController : ControllerBase
 
         // NotSupportedException → 501 via GlobalExceptionMiddleware
         var session = await _simulationService.StartSessionAsync(dto.Algorithm, dto.Array!, dto.Target);
+
+        _telemetryClient.TrackEvent(
+            "AlgorithmSimulation",
+            new Dictionary<string, string>
+            {
+                ["userId"] = ResolveUserId(),
+                ["algorithm"] = dto.Algorithm,
+                ["correlationId"] = ResolveCorrelationId()
+            });
+
         return Ok(session);
     }
 
@@ -175,5 +210,17 @@ public class SimulationController : ControllerBase
             validatedAction.Indices ?? Array.Empty<int>());
 
         return Ok(response);
+    }
+
+    private string ResolveCorrelationId()
+    {
+        return HttpContext.Items["CorrelationId"]?.ToString() ?? HttpContext.TraceIdentifier;
+    }
+
+    private string ResolveUserId()
+    {
+        return User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue("sub")
+            ?? "anonymous";
     }
 }
