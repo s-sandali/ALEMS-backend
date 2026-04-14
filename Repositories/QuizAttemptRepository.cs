@@ -249,9 +249,9 @@ public class QuizAttemptRepository : IQuizAttemptRepository
     {
         const string sql = @"
             SELECT
-                a.algorithm_id                                                       AS AlgorithmId,
+                a.algorithm_id                                                       AS algorithm_id,
                 a.Name                                                              AS algorithm_name,
-                a.Category,
+                a.Category                                                          AS category,
                 COUNT(qa.attempt_id)                                                AS total_attempts,
                 SUM(CASE WHEN qa.passed = 1 THEN 1 ELSE 0 END)                     AS passed_attempts,
                 MAX(CASE
