@@ -1,3 +1,4 @@
+using backend.DTOs;
 using backend.Models;
 
 namespace backend.Repositories;
@@ -54,4 +55,17 @@ public interface IUserRepository
     /// Returns true if the user was updated, false if not found.
     /// </summary>
     Task<bool> AddXpAsync(int userId, int xpEarned);
+
+    /// <summary>
+    /// Returns the top <paramref name="limit"/> active users ordered by XP descending.
+    /// Each entry carries a 1-based rank derived from its position in the result set.
+    /// </summary>
+    Task<IEnumerable<LeaderboardEntryDto>> GetTopUsersAsync(int limit);
+
+    /// <summary>
+    /// Returns the 1-based rank of an active user by counting how many active users
+    /// have strictly more XP. A user with the highest XP gets rank 1.
+    /// Returns 1 when the user is not found (safe default).
+    /// </summary>
+    Task<int> GetUserRankAsync(int userId);
 }
