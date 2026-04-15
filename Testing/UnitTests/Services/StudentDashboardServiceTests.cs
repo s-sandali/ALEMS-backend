@@ -277,4 +277,98 @@ public class StudentDashboardServiceTests
         result!.Progression.XpNeededForLevel.Should().Be(0);
         result.Progression.ProgressPercentage.Should().Be(0);
     }
+
+    [Fact(DisplayName = "Scenario 4 - Preserves most-recent-first attempt history order for deterministic paging")]
+    public async Task GetStudentDashboardAsync_AttemptHistoryOrder_IsStableForPaging()
+    {
+        const int userId = 99;
+
+        var userRepository = new Mock<IUserRepository>();
+        var levelingService = new Mock<ILevelingService>();
+        var badgeService = new Mock<IBadgeService>();
+        var quizAttemptRepository = new Mock<IQuizAttemptRepository>();
+
+        userRepository
+            .Setup(r => r.GetByIdAsync(userId))
+            .ReturnsAsync(BuildUser(userId, 300));
+
+        badgeService
+            .Setup(s => s.AwardUnlockedBadgesAsync(userId))
+            .ReturnsAsync(Array.Empty<BadgeResponseDto>());
+        badgeService
+            .Setup(s => s.GetEarnedBadgesWithAwardDateAsync(userId))
+            .ReturnsAsync(Array.Empty<EarnedBadgeDto>());
+        badgeService
+            .Setup(s => s.GetAllBadgesAsync())
+            .ReturnsAsync(Array.Empty<BadgeResponseDto>());
+
+        levelingService.Setup(s => s.CalculateLevel(300)).Returns(4);
+        levelingService.Setup(s => s.GetXpForPreviousLevel(4)).Returns(300);
+        levelingService.Setup(s => s.GetXpForNextLevel(4)).Returns(500);
+
+        var orderedHistory = new List<QuizAttemptHistoryItemDto>
+        {
+            new()
+            {
+                AttemptId = 2003,
+                QuizId = 12,
+                QuizTitle = "Newest Attempt",
+                AlgorithmName = "Quick Sort",
+                Score = 9,
+                TotalQuestions = 10,
+                ScorePercent = 90,
+                XpEarned = 50,
+                Passed = true,
+                CompletedAt = new DateTime(2026, 4, 13, 9, 0, 0, DateTimeKind.Utc)
+            },
+            new()
+            {
+                AttemptId = 2002,
+                QuizId = 12,
+                QuizTitle = "Middle Attempt",
+                AlgorithmName = "Quick Sort",
+                Score = 8,
+                TotalQuestions = 10,
+                ScorePercent = 80,
+                XpEarned = 40,
+                Passed = true,
+                CompletedAt = new DateTime(2026, 4, 12, 9, 0, 0, DateTimeKind.Utc)
+            },
+            new()
+            {
+                AttemptId = 2001,
+                QuizId = 12,
+                QuizTitle = "Oldest Attempt",
+                AlgorithmName = "Quick Sort",
+                Score = 7,
+                TotalQuestions = 10,
+                ScorePercent = 70,
+                XpEarned = 30,
+                Passed = true,
+                CompletedAt = new DateTime(2026, 4, 11, 9, 0, 0, DateTimeKind.Utc)
+            }
+        };
+
+        quizAttemptRepository
+            .Setup(r => r.GetPerformanceSummaryByUserIdAsync(userId))
+            .ReturnsAsync(new PerformanceSummaryDto());
+        quizAttemptRepository
+            .Setup(r => r.GetAttemptHistoryByUserIdAsync(userId))
+            .ReturnsAsync(orderedHistory);
+        quizAttemptRepository
+            .Setup(r => r.GetAlgorithmCoverageByUserIdAsync(userId))
+            .ReturnsAsync(Array.Empty<AlgorithmCoverageItemDto>());
+
+        var sut = BuildSut(userRepository, levelingService, badgeService, quizAttemptRepository);
+
+        var result = await sut.GetStudentDashboardAsync(userId);
+
+        result.Should().NotBeNull();
+        var history = result!.QuizAttemptHistory.ToList();
+        history.Select(h => h.AttemptId).Should().Equal(2003, 2002, 2001);
+
+        const int pageSize = 2;
+        history.Take(pageSize).Select(h => h.AttemptId).Should().Equal(2003, 2002);
+        history.Skip(pageSize).Take(pageSize).Select(h => h.AttemptId).Should().Equal(2001);
+    }
 }
