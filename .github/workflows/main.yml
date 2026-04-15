@@ -121,6 +121,7 @@ jobs:
 
     env:
       ConnectionStrings__DefaultConnection: Server=127.0.0.1;Port=3306;Database=alems_test;Uid=root;Pwd=root;SslMode=None;AllowPublicKeyRetrieval=True
+      COVERAGE_THRESHOLD: '70'
 
     steps:
       - name: Checkout code
@@ -164,10 +165,48 @@ jobs:
         run: dotnet build BigO.sln --configuration Release --no-restore
 
       - name: Run Unit Tests
-        run: dotnet test Testing/UnitTests/UnitTests.csproj --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
+        run: dotnet test Testing/UnitTests/UnitTests.csproj --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --results-directory Testing/UnitTests/TestResults
 
       - name: Run Integration Tests
-        run: dotnet test Testing/IntegrationTests/IntegrationTests.csproj --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
+        run: dotnet test Testing/IntegrationTests/IntegrationTests.csproj --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --results-directory Testing/IntegrationTests/TestResults
+
+      - name: Enforce 70% combined line coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - << 'PY'
+          import glob
+          import os
+          import sys
+          import xml.etree.ElementTree as ET
+
+          threshold = float(os.environ.get("COVERAGE_THRESHOLD", "70"))
+          files = glob.glob("Testing/**/TestResults/**/coverage.cobertura.xml", recursive=True)
+
+          if not files:
+              print("No coverage.cobertura.xml files found.")
+              sys.exit(1)
+
+          covered = 0
+          valid = 0
+          for path in files:
+              root = ET.parse(path).getroot()
+              covered += int(root.attrib.get("lines-covered", 0))
+              valid += int(root.attrib.get("lines-valid", 0))
+
+          if valid == 0:
+              print("Coverage XML files were found, but lines-valid is 0.")
+              sys.exit(1)
+
+          coverage = (covered / valid) * 100.0
+          print(f"Combined line coverage: {coverage:.2f}% (threshold: {threshold:.2f}%)")
+
+          if coverage < threshold:
+              print("Coverage threshold not met.")
+              sys.exit(1)
+
+          print("Coverage threshold met.")
+          PY
 
       - name: Upload Coverage Report
         if: always()
