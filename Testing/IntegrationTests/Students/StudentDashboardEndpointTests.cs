@@ -107,6 +107,72 @@ public class StudentDashboardEndpointTests : IClassFixture<StudentDashboardWebAp
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
+    [Fact(DisplayName = "BE-IT-SD-04 — GET /api/students/{id}/dashboard returns attempt history most-recent-first and page-ready slices")]
+    public async Task GetDashboard_AttemptHistory_IsMostRecentFirstAndPageReady()
+    {
+        var tag = BuildTag("sd04");
+        var clerkSub = $"{tag}_student_clerk";
+        await using var db = await OpenConnectionAsync();
+
+        try
+        {
+            var studentId = await InsertUserAsync(db, clerkSub, $"{tag}.student@example.com", xpTotal: 90);
+            var adminId = await InsertUserAsync(db, $"{tag}_admin_clerk", $"{tag}.admin@example.com", xpTotal: 0, role: "Admin");
+
+            var algorithmId = await InsertAlgorithmAsync(db, tag);
+            var quizId = await InsertQuizAsync(db, tag, algorithmId, adminId);
+
+            var oldestCompletedAt = new DateTime(2026, 04, 10, 8, 0, 0, DateTimeKind.Utc);
+            var middleCompletedAt = new DateTime(2026, 04, 11, 8, 0, 0, DateTimeKind.Utc);
+            var newestCompletedAt = new DateTime(2026, 04, 12, 8, 0, 0, DateTimeKind.Utc);
+
+            var middleAttemptId = await InsertQuizAttemptAsync(db, studentId, quizId, score: 7, totalQuestions: 10, xpEarned: 30, passed: true, completedAtUtc: middleCompletedAt);
+            var oldestAttemptId = await InsertQuizAttemptAsync(db, studentId, quizId, score: 6, totalQuestions: 10, xpEarned: 20, passed: false, completedAtUtc: oldestCompletedAt);
+            var newestAttemptId = await InsertQuizAttemptAsync(db, studentId, quizId, score: 9, totalQuestions: 10, xpEarned: 40, passed: true, completedAtUtc: newestCompletedAt);
+
+            var client = BuildAuthorizedClient(clerkSub);
+            var response = await client.GetAsync($"/api/students/{studentId}/dashboard");
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var history = body.RootElement
+                .GetProperty("data")
+                .GetProperty("quizAttemptHistory")
+                .EnumerateArray()
+                .ToList();
+
+            history.Should().HaveCount(3);
+
+            var attemptIds = history
+                .Select(item => item.GetProperty("attemptId").GetInt32())
+                .ToList();
+
+            attemptIds.Should().Equal(newestAttemptId, middleAttemptId, oldestAttemptId);
+
+            var completedAt = history
+                .Select(item => item.GetProperty("completedAt").GetDateTime())
+                .ToList();
+
+            completedAt[0].Should().BeOnOrAfter(completedAt[1]);
+            completedAt[1].Should().BeOnOrAfter(completedAt[2]);
+
+            const int pageSize = 2;
+            var firstPage = history.Take(pageSize).ToList();
+            var secondPage = history.Skip(pageSize).Take(pageSize).ToList();
+
+            firstPage.Should().HaveCount(pageSize);
+            secondPage.Should().HaveCount(1);
+
+            firstPage.Last().GetProperty("completedAt").GetDateTime()
+                .Should().BeOnOrAfter(secondPage.First().GetProperty("completedAt").GetDateTime());
+        }
+        finally
+        {
+            await CleanupAsync(db, tag);
+        }
+    }
+
     private HttpClient BuildAuthorizedClient(string clerkSub)
     {
         var client = _factory.CreateClient();
@@ -124,17 +190,78 @@ public class StudentDashboardEndpointTests : IClassFixture<StudentDashboardWebAp
         return await db.OpenConnectionAsync();
     }
 
-    private static async Task<int> InsertUserAsync(MySqlConnection db, string clerkSub, string email, int xpTotal)
+    private static async Task<int> InsertUserAsync(MySqlConnection db, string clerkSub, string email, int xpTotal, string role = "User")
     {
         const string sql = @"
             INSERT INTO Users (ClerkUserId, Email, Role, XpTotal, IsActive, CreatedAt)
-            VALUES (@ClerkSub, @Email, 'User', @XpTotal, 1, UTC_TIMESTAMP());
+            VALUES (@ClerkSub, @Email, @Role, @XpTotal, 1, UTC_TIMESTAMP());
             SELECT LAST_INSERT_ID();";
 
         await using var cmd = new MySqlCommand(sql, db);
         cmd.Parameters.AddWithValue("@ClerkSub", clerkSub);
         cmd.Parameters.AddWithValue("@Email", email);
+        cmd.Parameters.AddWithValue("@Role", role);
         cmd.Parameters.AddWithValue("@XpTotal", xpTotal);
+
+        return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+    }
+
+    private static async Task<int> InsertAlgorithmAsync(MySqlConnection db, string tag)
+    {
+        const string sql = @"
+            INSERT INTO algorithms
+                (name, category, description, time_complexity_best, time_complexity_average, time_complexity_worst, created_at)
+            VALUES
+                (@Name, 'Sorting', 'Integration-test algorithm', 'O(n)', 'O(n log n)', 'O(n^2)', UTC_TIMESTAMP());
+            SELECT LAST_INSERT_ID();";
+
+        await using var cmd = new MySqlCommand(sql, db);
+        cmd.Parameters.AddWithValue("@Name", $"{tag}-algorithm");
+        return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+    }
+
+    private static async Task<int> InsertQuizAsync(MySqlConnection db, string tag, int algorithmId, int adminUserId)
+    {
+        const string sql = @"
+            INSERT INTO quizzes
+                (algorithm_id, created_by, title, description, time_limit_mins, pass_score, is_active, created_at, updated_at)
+            VALUES
+                (@AlgorithmId, @CreatedBy, @Title, 'Integration test quiz', NULL, 70, 1, UTC_TIMESTAMP(), UTC_TIMESTAMP());
+            SELECT LAST_INSERT_ID();";
+
+        await using var cmd = new MySqlCommand(sql, db);
+        cmd.Parameters.AddWithValue("@AlgorithmId", algorithmId);
+        cmd.Parameters.AddWithValue("@CreatedBy", adminUserId);
+        cmd.Parameters.AddWithValue("@Title", $"{tag}-quiz");
+        return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+    }
+
+    private static async Task<int> InsertQuizAttemptAsync(
+        MySqlConnection db,
+        int userId,
+        int quizId,
+        int score,
+        int totalQuestions,
+        int xpEarned,
+        bool passed,
+        DateTime completedAtUtc)
+    {
+        const string sql = @"
+            INSERT INTO quiz_attempts
+                (user_id, quiz_id, score, total_questions, xp_earned, passed, started_at, completed_at)
+            VALUES
+                (@UserId, @QuizId, @Score, @TotalQuestions, @XpEarned, @Passed, @StartedAt, @CompletedAt);
+            SELECT LAST_INSERT_ID();";
+
+        await using var cmd = new MySqlCommand(sql, db);
+        cmd.Parameters.AddWithValue("@UserId", userId);
+        cmd.Parameters.AddWithValue("@QuizId", quizId);
+        cmd.Parameters.AddWithValue("@Score", score);
+        cmd.Parameters.AddWithValue("@TotalQuestions", totalQuestions);
+        cmd.Parameters.AddWithValue("@XpEarned", xpEarned);
+        cmd.Parameters.AddWithValue("@Passed", passed);
+        cmd.Parameters.AddWithValue("@StartedAt", completedAtUtc.AddMinutes(-5));
+        cmd.Parameters.AddWithValue("@CompletedAt", completedAtUtc);
 
         return Convert.ToInt32(await cmd.ExecuteScalarAsync());
     }
@@ -157,6 +284,16 @@ public class StudentDashboardEndpointTests : IClassFixture<StudentDashboardWebAp
     {
         var prefix = $"{tag}%";
 
+        const string deleteAttemptsSql = @"
+            DELETE qa
+            FROM quiz_attempts qa
+            INNER JOIN quizzes q ON q.quiz_id = qa.quiz_id
+            WHERE q.title LIKE @Prefix;";
+
+        const string deleteQuizzesSql = "DELETE FROM quizzes WHERE title LIKE @Prefix;";
+
+        const string deleteAlgorithmsSql = "DELETE FROM algorithms WHERE name LIKE @Prefix;";
+
         const string deleteUserBadgesSql = @"
             DELETE ub
             FROM user_badges ub
@@ -170,7 +307,15 @@ public class StudentDashboardEndpointTests : IClassFixture<StudentDashboardWebAp
 
         const string deleteBadgesSql = "DELETE FROM badges WHERE badge_name LIKE @Prefix;";
 
-        foreach (var sql in new[] { deleteUserBadgesSql, deleteUsersSql, deleteBadgesSql })
+        foreach (var sql in new[]
+                 {
+                     deleteAttemptsSql,
+                     deleteQuizzesSql,
+                     deleteAlgorithmsSql,
+                     deleteUserBadgesSql,
+                     deleteUsersSql,
+                     deleteBadgesSql
+                 })
         {
             await using var cmd = new MySqlCommand(sql, db);
             cmd.Parameters.AddWithValue("@Prefix", prefix);
