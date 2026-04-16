@@ -268,6 +268,7 @@ builder.Services.AddScoped<IQuizAttemptService, QuizAttemptService>();
 builder.Services.AddScoped<IReportRepository, ReportRepository>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<IReportCsvExportService, ReportCsvExportService>();
+builder.Services.AddScoped<IReportPdfExportService, ReportPdfExportService>();
 builder.Services.AddScoped<ICodingQuestionRepository, CodingQuestionRepository>();
 builder.Services.AddScoped<ICodingQuestionService, CodingQuestionService>();
 builder.Services.AddScoped<IBadgeRepository, BadgeRepository>();
