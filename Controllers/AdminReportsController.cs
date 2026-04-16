@@ -18,11 +18,16 @@ namespace backend.Controllers;
 public class AdminReportsController : ControllerBase
 {
     private readonly IReportService _reportService;
+    private readonly IReportCsvExportService _reportCsvExportService;
     private readonly ILogger<AdminReportsController> _logger;
 
-    public AdminReportsController(IReportService reportService, ILogger<AdminReportsController> logger)
+    public AdminReportsController(
+        IReportService reportService,
+        IReportCsvExportService reportCsvExportService,
+        ILogger<AdminReportsController> logger)
     {
         _reportService = reportService;
+        _reportCsvExportService = reportCsvExportService;
         _logger = logger;
     }
 
@@ -63,8 +68,8 @@ public class AdminReportsController : ControllerBase
 
         if (normalizedFormat == "csv")
         {
-            var csv = BuildCsv(bundle, parsedStartDate, parsedEndDate);
-            return File(Encoding.UTF8.GetBytes(csv), "text/csv", $"admin-report-{parsedStartDate:yyyyMMdd}-{parsedEndDate:yyyyMMdd}.csv");
+            var csvStream = _reportCsvExportService.CreateAdminReportCsv(bundle, parsedStartDate, parsedEndDate);
+            return File(csvStream, "text/csv", $"admin-report-{parsedStartDate:yyyyMMdd}-{parsedEndDate:yyyyMMdd}.csv");
         }
 
         if (normalizedFormat == "pdf")
@@ -74,44 +79,6 @@ public class AdminReportsController : ControllerBase
         }
 
         return BadRequest(new { message = "Invalid format" });
-    }
-
-    private static string BuildCsv(AdminReportBundleDto bundle, DateTime startDate, DateTime endDate)
-    {
-        var builder = new StringBuilder();
-
-        builder.AppendLine($"Admin Report,{startDate:yyyy-MM-dd},{endDate:yyyy-MM-dd}");
-        builder.AppendLine();
-
-        builder.AppendLine("Summary Statistics");
-        builder.AppendLine("total_attempts,total_students,avg_score,total_xp");
-        builder.AppendLine($"{bundle.Summary.TotalAttempts},{bundle.Summary.TotalStudents},{bundle.Summary.AverageScore:F2},{bundle.Summary.TotalXp}");
-        builder.AppendLine();
-
-        builder.AppendLine("Per Student Breakdown");
-        builder.AppendLine("student_id,student_name,total_attempts,avg_score,best_score,total_xp,algorithms_attempted");
-        foreach (var item in bundle.PerStudent)
-        {
-            builder.AppendLine($"{item.StudentId},\"{EscapeCsv(item.StudentName)}\",{item.TotalAttempts},{item.AverageScore:F2},{item.BestScore},{item.TotalXp},{item.AlgorithmsAttempted}");
-        }
-        builder.AppendLine();
-
-        builder.AppendLine("Per Algorithm Breakdown");
-        builder.AppendLine("algorithm_type,attempt_count,avg_score,pass_rate");
-        foreach (var item in bundle.PerAlgorithm)
-        {
-            builder.AppendLine($"\"{EscapeCsv(item.AlgorithmType)}\",{item.AttemptCount},{item.AverageScore:F2},{item.PassRate:F2}");
-        }
-        builder.AppendLine();
-
-        builder.AppendLine("Per Quiz Breakdown");
-        builder.AppendLine("title,attempt_count,avg_score,highest_score,lowest_score");
-        foreach (var item in bundle.PerQuiz)
-        {
-            builder.AppendLine($"\"{EscapeCsv(item.Title)}\",{item.AttemptCount},{item.AverageScore:F2},{item.HighestScore},{item.LowestScore}");
-        }
-
-        return builder.ToString();
     }
 
     private static byte[] BuildPdf(AdminReportBundleDto bundle, DateTime startDate, DateTime endDate)
@@ -210,8 +177,6 @@ public class AdminReportsController : ControllerBase
 
         return stream.ToArray();
     }
-
-    private static string EscapeCsv(string value) => value.Replace("\"", "\"\"");
 
     private static string EscapePdf(string value)
     {
