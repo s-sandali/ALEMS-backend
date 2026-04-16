@@ -9,6 +9,14 @@ namespace backend.Services;
 public interface IReportService
 {
     /// <summary>
+    /// Generates the full admin report bundle for export.
+    /// </summary>
+    /// <param name="startDate">Inclusive start date for the date range filter.</param>
+    /// <param name="endDate">Inclusive end date for the date range filter.</param>
+    /// <returns>Aggregated report bundle containing summary and breakdown datasets.</returns>
+    Task<AdminReportBundleDto> GetAdminReportBundleAsync(DateTime startDate, DateTime endDate);
+
+    /// <summary>
     /// Generates a per-student breakdown of quiz attempts and performance metrics for a date range.
     /// </summary>
     /// <param name="startDate">Inclusive start date for the date range filter.</param>
