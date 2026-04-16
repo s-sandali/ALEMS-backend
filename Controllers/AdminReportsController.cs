@@ -54,33 +54,66 @@ public class AdminReportsController : ControllerBase
             return BadRequest(new { message = "Missing parameters" });
         }
 
-        if (!DateTime.TryParse(startDate, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsedStartDate) ||
-            !DateTime.TryParse(endDate, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsedEndDate))
+        if (!TryParseDate(startDate, out var parsedStartDate) ||
+            !TryParseDate(endDate, out var parsedEndDate))
         {
-            return BadRequest(new { message = "Invalid date format" });
+            return BadRequest(new { error = "Invalid date range" });
         }
 
         if (parsedStartDate > parsedEndDate)
         {
-            return BadRequest(new { message = "startDate must not be greater than endDate." });
+            return BadRequest(new { error = "Invalid date range" });
         }
 
         var bundle = await _reportService.GetAdminReportBundleAsync(parsedStartDate, parsedEndDate);
+        var isEmptyResult = bundle.Summary.TotalAttempts == 0
+            && !bundle.PerStudent.Any()
+            && !bundle.PerAlgorithm.Any()
+            && !bundle.PerQuiz.Any();
+
         var normalizedFormat = format.Trim().ToLowerInvariant();
 
         if (normalizedFormat == "csv")
         {
+            if (isEmptyResult)
+            {
+                return File(Array.Empty<byte>(), "text/csv", $"admin-report-{parsedStartDate:yyyyMMdd}-{parsedEndDate:yyyyMMdd}.csv");
+            }
+
             var csvStream = _reportCsvExportService.CreateAdminReportCsv(bundle, parsedStartDate, parsedEndDate);
             return File(csvStream, "text/csv", $"admin-report-{parsedStartDate:yyyyMMdd}-{parsedEndDate:yyyyMMdd}.csv");
         }
 
         if (normalizedFormat == "pdf")
         {
+            if (isEmptyResult)
+            {
+                return File(Array.Empty<byte>(), "application/pdf", $"admin-report-{parsedStartDate:yyyyMMdd}-{parsedEndDate:yyyyMMdd}.pdf");
+            }
+
             var pdf = _reportPdfExportService.CreateAdminReportPdf(bundle, parsedStartDate, parsedEndDate);
             return File(pdf, "application/pdf", $"admin-report-{parsedStartDate:yyyyMMdd}-{parsedEndDate:yyyyMMdd}.pdf");
         }
 
         return BadRequest(new { message = "Invalid format" });
+    }
+
+    private static bool TryParseDate(string value, out DateTime parsedDate)
+    {
+        var formats = new[]
+        {
+            "yyyy-MM-dd",
+            "yyyy-MM-ddTHH:mm:ss",
+            "yyyy-MM-ddTHH:mm:ssZ",
+            "O"
+        };
+
+        return DateTime.TryParseExact(
+            value,
+            formats,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out parsedDate);
     }
 
 }
