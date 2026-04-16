@@ -10,6 +10,18 @@ namespace backend.Controllers;
 /// Admin-only report export endpoint.
 /// Returns a combined report bundle as CSV or PDF.
 /// </summary>
+/// <remarks>
+/// Generate a downloadable report file for a date range.
+///
+/// Example query string:
+/// <c>?format=csv&amp;startDate=2026-04-01&amp;endDate=2026-04-30</c>
+///
+/// Supported formats:
+/// <list type="bullet">
+/// <item><description><c>csv</c> - response content type <c>text/csv</c></description></item>
+/// <item><description><c>pdf</c> - response content type <c>application/pdf</c></description></item>
+/// </list>
+/// </remarks>
 [ApiController]
 [Route("api/admin")]
 [Authorize(Roles = "Admin")]
@@ -36,11 +48,11 @@ public class AdminReportsController : ControllerBase
     /// <summary>
     /// Exports report data in CSV or PDF format for an admin user.
     /// </summary>
-    /// <param name="format">Output format: csv or pdf.</param>
-    /// <param name="startDate">Inclusive start date.</param>
-    /// <param name="endDate">Inclusive end date.</param>
+    /// <param name="format">Output format. Allowed values: <c>csv</c> or <c>pdf</c>. Example: <c>csv</c>.</param>
+    /// <param name="startDate">Inclusive start date in ISO format. Example: <c>2026-04-01</c>.</param>
+    /// <param name="endDate">Inclusive end date in ISO format. Example: <c>2026-04-30</c>.</param>
     [HttpGet("reports")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
