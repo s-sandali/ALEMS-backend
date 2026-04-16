@@ -19,6 +19,38 @@ public class ReportService : IReportService
     }
 
     /// <inheritdoc />
+    public async Task<AdminReportBundleDto> GetAdminReportBundleAsync(DateTime startDate, DateTime endDate)
+    {
+        _logger.LogInformation(
+            "Fetching admin report bundle for date range: {StartDate:yyyy-MM-dd} to {EndDate:yyyy-MM-dd}",
+            startDate, endDate);
+
+        try
+        {
+            var summaryTask = _reportRepository.GetSummaryStatisticsAsync(startDate, endDate);
+            var perStudentTask = _reportRepository.GetPerStudentReportAsync(startDate, endDate);
+            var perAlgorithmTask = _reportRepository.GetPerAlgorithmReportAsync(startDate, endDate);
+            var perQuizTask = _reportRepository.GetPerQuizReportAsync(startDate, endDate);
+
+            await Task.WhenAll(summaryTask, perStudentTask, perAlgorithmTask, perQuizTask);
+
+            return new AdminReportBundleDto
+            {
+                Summary = await summaryTask,
+                PerStudent = await perStudentTask,
+                PerAlgorithm = await perAlgorithmTask,
+                PerQuiz = await perQuizTask
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching admin report bundle for date range {StartDate:yyyy-MM-dd} to {EndDate:yyyy-MM-dd}",
+                startDate, endDate);
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<IEnumerable<PerStudentReportDto>> GetPerStudentReportAsync(DateTime startDate, DateTime endDate)
     {
         _logger.LogInformation(
