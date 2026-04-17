@@ -1,4 +1,5 @@
 using backend.Data;
+using backend.DTOs;
 using backend.Models;
 using MySql.Data.MySqlClient;
 
@@ -285,5 +286,258 @@ public class QuizAttemptRepository : IQuizAttemptRepository
         }
 
         return (attempts, totalCount);
+    }
+
+    /// <inheritdoc />
+    public async Task<IEnumerable<QuizAttemptHistoryItemDto>> GetAttemptHistoryByUserIdAsync(int userId)
+    {
+        const string sql = @"
+            SELECT
+                qa.attempt_id,
+                qa.quiz_id,
+                q.title                                        AS quiz_title,
+                a.name                                         AS algorithm_name,
+                qa.score,
+                qa.total_questions,
+                CASE
+                    WHEN qa.total_questions > 0 THEN (qa.score * 100.0 / qa.total_questions)
+                    ELSE 0
+                END                                            AS score_percent,
+                qa.xp_earned,
+                qa.passed,
+                qa.completed_at
+            FROM quiz_attempts qa
+            INNER JOIN quizzes    q ON q.quiz_id      = qa.quiz_id
+            INNER JOIN algorithms a ON a.algorithm_id = q.algorithm_id
+            WHERE qa.user_id = @UserId
+            ORDER BY qa.completed_at DESC;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@UserId", userId);
+
+        var history = new List<QuizAttemptHistoryItemDto>();
+        await using var reader = (MySqlDataReader)await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            history.Add(MapAttemptHistoryItem(reader));
+        }
+
+        return history;
+    }
+
+    /// <inheritdoc />
+    public async Task<IEnumerable<AlgorithmCoverageItemDto>> GetAlgorithmCoverageByUserIdAsync(int userId)
+    {
+        const string sql = @"
+            SELECT
+                a.algorithm_id                                                       AS AlgorithmId,
+                a.Name                                                              AS algorithm_name,
+                a.Category,
+                COUNT(qa.attempt_id)                                                AS total_attempts,
+                SUM(CASE WHEN qa.passed = 1 THEN 1 ELSE 0 END)                     AS passed_attempts,
+                MAX(CASE
+                        WHEN qa.total_questions > 0 THEN (qa.score * 100.0 / qa.total_questions)
+                        ELSE NULL
+                    END)                                                            AS best_score_percent,
+                MAX(CASE WHEN qa.passed = 1 THEN 1 ELSE 0 END)                     AS has_passed_quiz
+            FROM algorithms a
+            LEFT JOIN quizzes       q  ON q.algorithm_id = a.algorithm_id AND q.is_active = 1
+            LEFT JOIN quiz_attempts qa ON qa.quiz_id      = q.quiz_id    AND qa.user_id  = @UserId
+            GROUP BY a.algorithm_id, a.Name, a.Category
+            ORDER BY a.Name ASC;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@UserId", userId);
+
+        var coverage = new List<AlgorithmCoverageItemDto>();
+        await using var reader = (MySqlDataReader)await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            coverage.Add(MapAlgorithmCoverageItem(reader));
+        }
+
+        return coverage;
+    }
+
+    /// <inheritdoc />
+    public async Task<PerformanceSummaryDto> GetPerformanceSummaryByUserIdAsync(int userId)
+    {
+        const string sql = @"
+            SELECT
+                COUNT(*)                                                AS total_attempts,
+                SUM(CASE WHEN passed = 1 THEN 1 ELSE 0 END)            AS total_passed,
+                AVG(CASE
+                        WHEN total_questions > 0 THEN (score * 100.0 / total_questions)
+                        ELSE NULL
+                    END)                                                AS average_score,
+                SUM(xp_earned)                                          AS total_xp_from_quizzes
+            FROM quiz_attempts
+            WHERE user_id = @UserId;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@UserId", userId);
+
+        await using var reader = (MySqlDataReader)await cmd.ExecuteReaderAsync();
+        await reader.ReadAsync();
+
+        var totalAttempts = Convert.ToInt32(reader["total_attempts"]);
+        var totalPassed   = reader["total_passed"]           == DBNull.Value ? 0   : Convert.ToInt32(reader["total_passed"]);
+        var averageScore  = reader["average_score"]          == DBNull.Value ? 0.0 : Convert.ToDouble(reader["average_score"]);
+        var totalXp       = reader["total_xp_from_quizzes"]  == DBNull.Value ? 0   : Convert.ToInt32(reader["total_xp_from_quizzes"]);
+
+        return new PerformanceSummaryDto
+        {
+            TotalAttempts      = totalAttempts,
+            TotalPassed        = totalPassed,
+            PassRate           = totalAttempts > 0 ? Math.Round((double)totalPassed / totalAttempts * 100, 2) : 0.0,
+            AverageScore       = Math.Round(averageScore, 2),
+            TotalXpFromQuizzes = totalXp
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<IEnumerable<ActivityItemDto>> GetRecentActivityAsync(int userId, int limit)
+    {
+        await using var connection = await _db.OpenConnectionAsync();
+        var items = new List<ActivityItemDto>();
+
+        const string quizSql = @"
+            SELECT
+                q.title         AS title,
+                qa.xp_earned    AS xp_earned,
+                qa.completed_at AS created_at
+            FROM quiz_attempts qa
+            JOIN quizzes q ON q.quiz_id = qa.quiz_id
+            WHERE qa.user_id = @UserId
+              AND qa.completed_at IS NOT NULL
+            ORDER BY qa.completed_at DESC
+            LIMIT @Limit;";
+
+        await using (var quizCmd = new MySqlCommand(quizSql, connection))
+        {
+            quizCmd.Parameters.AddWithValue("@UserId", userId);
+            quizCmd.Parameters.AddWithValue("@Limit", limit);
+
+            await using var quizReader = (MySqlDataReader)await quizCmd.ExecuteReaderAsync();
+            while (await quizReader.ReadAsync())
+            {
+                items.Add(new ActivityItemDto
+                {
+                    Type = "quiz",
+                    Title = (string)quizReader["title"],
+                    XpEarned = Convert.ToInt32(quizReader["xp_earned"]),
+                    CreatedAt = Convert.ToDateTime(quizReader["created_at"]),
+                    Metadata = null
+                });
+            }
+        }
+
+        const string badgeSql = @"
+            SELECT
+                b.badge_name  AS title,
+                ub.awarded_at AS created_at
+            FROM user_badges ub
+            JOIN badges b ON b.badge_id = ub.badge_id
+            WHERE ub.user_id = @UserId
+            ORDER BY ub.awarded_at DESC
+            LIMIT @Limit;";
+
+        await using (var badgeCmd = new MySqlCommand(badgeSql, connection))
+        {
+            badgeCmd.Parameters.AddWithValue("@UserId", userId);
+            badgeCmd.Parameters.AddWithValue("@Limit", limit);
+
+            await using var badgeReader = (MySqlDataReader)await badgeCmd.ExecuteReaderAsync();
+            while (await badgeReader.ReadAsync())
+            {
+                items.Add(new ActivityItemDto
+                {
+                    Type = "badge",
+                    Title = (string)badgeReader["title"],
+                    XpEarned = 0,
+                    CreatedAt = Convert.ToDateTime(badgeReader["created_at"]),
+                    Metadata = null
+                });
+            }
+        }
+
+        return items
+            .OrderByDescending(item => item.CreatedAt)
+            .Take(limit)
+            .ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task<IEnumerable<ActivityHeatmapDto>> GetDailyActivityAsync(int userId)
+    {
+        const string sql = @"
+            SELECT
+                DATE(completed_at) AS date,
+                COUNT(*)           AS count
+            FROM quiz_attempts
+            WHERE user_id      = @UserId
+              AND completed_at IS NOT NULL
+            GROUP BY DATE(completed_at)
+            ORDER BY date ASC;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@UserId", userId);
+
+        var results = new List<ActivityHeatmapDto>();
+        await using var reader = (MySqlDataReader)await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            results.Add(new ActivityHeatmapDto
+            {
+                Date  = Convert.ToDateTime(reader["date"]),
+                Count = Convert.ToInt32(reader["count"])
+            });
+        }
+
+        return results;
+    }
+
+    // -------------------------------------------------------------------------
+    // Private mapping helpers
+    // -------------------------------------------------------------------------
+
+    private static QuizAttemptHistoryItemDto MapAttemptHistoryItem(MySqlDataReader reader)
+    {
+        return new QuizAttemptHistoryItemDto
+        {
+            AttemptId     = Convert.ToInt32(reader["attempt_id"]),
+            QuizId        = Convert.ToInt32(reader["quiz_id"]),
+            QuizTitle     = (string)reader["quiz_title"],
+            AlgorithmName = (string)reader["algorithm_name"],
+            Score         = Convert.ToInt32(reader["score"]),
+            TotalQuestions = Convert.ToInt32(reader["total_questions"]),
+            ScorePercent  = reader["score_percent"] == DBNull.Value ? 0.0 : Math.Round(Convert.ToDouble(reader["score_percent"]), 2),
+            XpEarned      = Convert.ToInt32(reader["xp_earned"]),
+            Passed        = Convert.ToBoolean(reader["passed"]),
+            CompletedAt   = reader["completed_at"] == DBNull.Value
+                                ? (DateTime?)null
+                                : Convert.ToDateTime(reader["completed_at"])
+        };
+    }
+
+    private static AlgorithmCoverageItemDto MapAlgorithmCoverageItem(MySqlDataReader reader)
+    {
+        return new AlgorithmCoverageItemDto
+        {
+            AlgorithmId      = Convert.ToInt32(reader["algorithm_id"]),
+            AlgorithmName    = (string)reader["algorithm_name"],
+            Category         = (string)reader["category"],
+            TotalAttempts    = Convert.ToInt32(reader["total_attempts"]),
+            PassedAttempts   = reader["passed_attempts"]    == DBNull.Value ? 0   : Convert.ToInt32(reader["passed_attempts"]),
+            BestScorePercent = reader["best_score_percent"] == DBNull.Value ? 0.0 : Math.Round(Convert.ToDouble(reader["best_score_percent"]), 2),
+            HasPassedQuiz    = reader["has_passed_quiz"]    == DBNull.Value ? false : Convert.ToBoolean(reader["has_passed_quiz"])
+        };
     }
 }

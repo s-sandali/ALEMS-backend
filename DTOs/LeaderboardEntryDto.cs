@@ -6,12 +6,12 @@ namespace backend.DTOs;
 public class LeaderboardEntryDto
 {
     /// <summary>
-    /// Unique identifier for the user.
+    /// Internal auto-increment user ID.
     /// </summary>
     public int UserId { get; set; }
 
     /// <summary>
-    /// Username of the user.
+    /// Public display name of the user.
     /// </summary>
     public string Username { get; set; } = string.Empty;
 
@@ -37,7 +37,14 @@ public class LeaderboardEntryDto
     public double AverageScore { get; set; }
 
     /// <summary>
-    /// The rank of the user on the leaderboard (1-based).
+    /// 1-based rank position ordered by XpTotal descending.
+    /// Users with the same XP receive different consecutive ranks (competition ranking).
     /// </summary>
     public int Rank { get; set; }
+
+    /// <summary>
+    /// True when this entry belongs to the authenticated user making the request.
+    /// Used by the frontend to highlight the current user's row.
+    /// </summary>
+    public bool IsCurrentUser { get; set; }
 }
