@@ -43,21 +43,30 @@ public class StudentController : ControllerBase
     /// <summary>
     /// GET /api/students/{id}/dashboard — Retrieve the student dashboard with XP, earned badges, and all available badges.
     /// </summary>
-    /// <param name="id">The student user ID.</param>
+    /// <remarks>
+    /// Returns comprehensive dashboard data including:
+    /// - StudentId: The student's user ID
+    /// - XpTotal: Total experience points earned
+    /// - EarnedBadges: Array of badges earned with award dates and styling (icons, colors)
+    /// - AllBadges: Complete badge catalog with earned status indicator for UI rendering
+    /// 
+    /// **Authorization**: Student may view own dashboard; Admin may view any student.
+    /// </remarks>
+    /// <param name="id">The student user ID (path parameter). Example: 238</param>
     /// <returns>
-    /// Dashboard containing:
-    /// - StudentId: The student's user ID.
-    /// - XpTotal: Total XP earned by the student.
-    /// - EarnedBadges: List of earned badges with award dates and icons.
-    /// - AllBadges: Complete list of all available badges with earned status for rendering.
+    /// Success response with StudentDashboard object containing xpTotal (number), 
+    /// earnedBadges (array of {id, name, description, xpThreshold, earned, iconType, iconColor}),
+    /// and allBadges (array of same structure with earned boolean flag).
     /// </returns>
-    /// <response code="200">Dashboard retrieved successfully.</response>
-    /// <response code="404">Student not found.</response>
-    /// <response code="500">Unexpected server error.</response>
+    /// <response code="200">Dashboard retrieved successfully with all badge data.</response>
+    /// <response code="403">Unauthorized - insufficient permissions to view this student's dashboard.</response>
+    /// <response code="404">Student not found with the given ID.</response>
+    /// <response code="500">Server error retrieving dashboard data (badge service failure).</response>
     [HttpGet("{id:int}/dashboard")]
-    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
+    [ProducesResponseType(typeof(backend.DTOs.StudentDashboardDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetStudentDashboard(int id)
     {
         try
@@ -171,27 +180,35 @@ public class StudentController : ControllerBase
     // ── GET /api/students/{id}/progression ─────────────────────────────
 
     /// <summary>
-    /// GET /api/students/{id}/progression — Retrieve the student's XP progression data.
+    /// GET /api/students/{id}/progression — Retrieve the student's XP progression data for level display and progress bars.
     /// </summary>
-    /// <param name="id">The student user ID.</param>
+    /// <remarks>
+    /// Returns detailed XP progression information for rendering progress bars and level indicators:
+    /// - UserId: The student identifier
+    /// - XpTotal: Total accumulated experience points
+    /// - CurrentLevel: Current player level (1-indexed)
+    /// - XpPrevLevel: Cumulative XP threshold for current level (floor)
+    /// - XpForNextLevel: Cumulative XP threshold for next level (ceiling)
+    /// - XpInCurrentLevel: XP earned toward next level (current - floor)
+    /// - XpNeededForLevel: Total XP required between levels (ceiling - floor)
+    /// - ProgressPercentage: Percentage progress (0-100) within current level
+    /// 
+    /// Example: At 20 total XP with Level 1 = 0-99 XP:
+    /// CurrentLevel: 1, XpInCurrentLevel: 20, XpNeededForLevel: 100, ProgressPercentage: 20.0
+    /// </remarks>
+    /// <param name="id">The student user ID (path parameter). Example: 238</param>
     /// <returns>
-    /// Progression data containing:
-    /// - UserId: The student's user ID.
-    /// - XpTotal: Total XP earned by the student.
-    /// - CurrentLevel: The student's current level.
-    /// - XpPrevLevel: Cumulative XP required to reach current level.
-    /// - XpForNextLevel: Cumulative XP required to reach next level.
-    /// - XpInCurrentLevel: XP earned within the current level progression.
-    /// - XpNeededForLevel: Total XP needed to advance to next level.
-    /// - ProgressPercentage: Progress percentage (0-100) for current level.
+    /// Success response with UserProgressionDto containing userId (int), xpTotal (int), 
+    /// currentLevel (int), xpInCurrentLevel (int), xpNeededForLevel (int), 
+    /// progressPercentage (0-100 double).
     /// </returns>
     /// <response code="200">Progression data retrieved successfully.</response>
-    /// <response code="404">Student not found.</response>
-    /// <response code="500">Unexpected server error.</response>
+    /// <response code="404">Student not found with the given ID.</response>
+    /// <response code="500">Server error calculating progression data.</response>
     [HttpGet("{id:int}/progression")]
-    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
+    [ProducesResponseType(typeof(backend.DTOs.UserProgressionDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetUserProgression(int id)
     {
         try
@@ -260,27 +277,42 @@ public class StudentController : ControllerBase
     /// <summary>
     /// GET /api/students/{id}/attempts — Retrieve paginated quiz attempt history for a student.
     /// </summary>
-    /// <param name="id">The student user ID.</param>
-    /// <param name="page">The page number (1-indexed). Defaults to 1.</param>
-    /// <param name="pageSize">The number of attempts per page. Defaults to 10, capped at 100.</param>
+    /// <remarks>
+    /// Returns paginated list of all quiz attempts with enriched metadata (quiz title, algorithm name).
+    /// Results are ordered by completion date (most recent first).
+    /// 
+    /// Each attempt includes:
+    /// - attemptId: Unique attempt identifier
+    /// - quizId, quizTitle: Quiz identification and name
+    /// - algorithmName: Algorithm being tested (derived from quiz)
+    /// - score: Score percentage (0-100)
+    /// - xpEarned: XP awarded for this attempt
+    /// - passed: Boolean indicating if passed quiz.passScore threshold
+    /// - completedAt, startedAt: Attempt timestamps (ISO 8601 UTC)
+    /// 
+    /// **Authorization**: Student may view own attempts; Admin may view any student.
+    /// </remarks>
+    /// <param name="id">The student user ID (path parameter). Example: 238</param>
+    /// <param name="page">Page number (1-indexed). Defaults to 1. Example: 2</param>
+    /// <param name="pageSize">Attempts per page, max 100. Defaults to 10. Example: 20</param>
     /// <returns>
-    /// Paginated response containing:
-    /// - Attempts: List of attempt records with quiz title, algorithm name, score, XP earned, and dates.
-    /// - Page: Current page number.
-    /// - PageSize: Number of attempts per page.
-    /// - TotalAttempts: Total number of attempts by this student.
-    /// - TotalPages: Total number of pages.
-    /// - HasNextPage: Whether there are more pages.
-    /// - HasPreviousPage: Whether there are pages before this one.
+    /// Success response with StudentAttemptHistoryResponseDto containing:
+    /// attempts (array of {attemptId, quizId, quizTitle, algorithmName, score, xpEarned, passed, startedAt, completedAt}),
+    /// page (int), pageSize (int), totalAttempts (int), totalPages (int), hasNextPage (bool), hasPreviousPage (bool).
     /// </returns>
-    /// <response code="200">Attempt history retrieved successfully.</response>
-    /// <response code="404">Student not found.</response>
-    /// <response code="500">Unexpected server error.</response>
+    /// <response code="200">Attempt history retrieved and paginated successfully.</response>
+    /// <response code="403">Unauthorized - student cannot view another student's attempts (Admin excepted).</response>
+    /// <response code="404">Student not found with the given ID.</response>
+    /// <response code="500">Server error retrieving attempt history (database or service failure).</response>
     [HttpGet("{id:int}/attempts")]
-    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
-    public async Task<IActionResult> GetStudentAttemptHistory(int id, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+    [ProducesResponseType(typeof(backend.DTOs.StudentAttemptHistoryResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetStudentAttemptHistory(
+        int id, 
+        [FromQuery(Name = "page")] int page = 1, 
+        [FromQuery(Name = "pageSize")] int pageSize = 10)
     {
         try
         {
