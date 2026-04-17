@@ -21,17 +21,20 @@ public class StudentController : ControllerBase
     private readonly IUserService _userService;
     private readonly IBadgeService _badgeService;
     private readonly ILevelingService _levelingService;
+    private readonly IQuizAttemptService _attemptService;
     private readonly ILogger<StudentController> _logger;
 
     public StudentController(
         IUserService userService,
         IBadgeService badgeService,
         ILevelingService levelingService,
+        IQuizAttemptService attemptService,
         ILogger<StudentController> logger)
     {
         _userService = userService;
         _badgeService = badgeService;
         _levelingService = levelingService;
+        _attemptService = attemptService;
         _logger = logger;
     }
 
@@ -248,6 +251,82 @@ public class StudentController : ControllerBase
             {
                 status = "error",
                 message = "An unexpected error occurred while retrieving progression data."
+            });
+        }
+    }
+
+    // ── GET /api/students/{id}/attempts ───────────────────────────────
+
+    /// <summary>
+    /// GET /api/students/{id}/attempts — Retrieve paginated quiz attempt history for a student.
+    /// </summary>
+    /// <param name="id">The student user ID.</param>
+    /// <param name="page">The page number (1-indexed). Defaults to 1.</param>
+    /// <param name="pageSize">The number of attempts per page. Defaults to 10, capped at 100.</param>
+    /// <returns>
+    /// Paginated response containing:
+    /// - Attempts: List of attempt records with quiz title, algorithm name, score, XP earned, and dates.
+    /// - Page: Current page number.
+    /// - PageSize: Number of attempts per page.
+    /// - TotalAttempts: Total number of attempts by this student.
+    /// - TotalPages: Total number of pages.
+    /// - HasNextPage: Whether there are more pages.
+    /// - HasPreviousPage: Whether there are pages before this one.
+    /// </returns>
+    /// <response code="200">Attempt history retrieved successfully.</response>
+    /// <response code="404">Student not found.</response>
+    /// <response code="500">Unexpected server error.</response>
+    [HttpGet("{id:int}/attempts")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetStudentAttemptHistory(int id, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+    {
+        try
+        {
+            _logger.LogInformation("📋 GetStudentAttemptHistory called for StudentId={StudentId}, Page={Page}, PageSize={PageSize}", id, page, pageSize);
+
+            // ── Authorization: Ensure user is reading their own history or is an Admin ──
+            var clerkUserId = User.FindFirst("sub")?.Value;
+            if (clerkUserId == null || (!clerkUserId.Equals(id.ToString(), StringComparison.OrdinalIgnoreCase) && !User.IsInRole("Admin")))
+            {
+                _logger.LogWarning("❌ Unauthorized access attempt: user {ClerkUserId} tried to access attempt history for StudentId={StudentId}", clerkUserId, id);
+                return Forbid();
+            }
+
+            // Verify student exists
+            var user = await _userService.GetUserByIdAsync(id);
+            if (user is null)
+            {
+                _logger.LogWarning("❌ Student not found: {StudentId}", id);
+                return NotFound(new
+                {
+                    status = "error",
+                    message = $"Student with ID {id} not found."
+                });
+            }
+
+            _logger.LogInformation("✅ Student found: {StudentId}", id);
+
+            // Get paginated attempt history with enriched data
+            var attemptHistory = await _attemptService.GetUserAttemptHistoryAsync(id, page, pageSize);
+
+            _logger.LogInformation("✅ Attempt history retrieved: Page={Page}, Attempts={Count}, TotalAttempts={Total}",
+                page, attemptHistory.Attempts.Count(), attemptHistory.TotalAttempts);
+
+            return Ok(new
+            {
+                status = "success",
+                data = attemptHistory
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Error retrieving attempt history for StudentId={StudentId}", id);
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                status = "error",
+                message = "An unexpected error occurred while retrieving attempt history."
             });
         }
     }

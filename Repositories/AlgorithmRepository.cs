@@ -63,6 +63,40 @@ public class AlgorithmRepository : IAlgorithmRepository
         return MapAlgorithm(reader);
     }
 
+    /// <inheritdoc />
+    public async Task<IEnumerable<Algorithm>> GetByIdsAsync(IEnumerable<int> algorithmIds)
+    {
+        var idsList = algorithmIds.Distinct().ToList();
+        if (idsList.Count == 0)
+            return new List<Algorithm>();
+
+        var placeholders = string.Join(",", idsList.Select((_, i) => $"@Id{i}"));
+        var sql = $@"
+            SELECT algorithm_id, name, category, description,
+                   time_complexity_best, time_complexity_average, time_complexity_worst,
+                   created_at
+            FROM algorithms
+            WHERE algorithm_id IN ({placeholders});";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+
+        for (int i = 0; i < idsList.Count; i++)
+        {
+            cmd.Parameters.AddWithValue($"@Id{i}", idsList[i]);
+        }
+
+        await using var reader = (MySqlDataReader)await cmd.ExecuteReaderAsync();
+
+        var algorithms = new List<Algorithm>();
+        while (await reader.ReadAsync())
+        {
+            algorithms.Add(MapAlgorithm(reader));
+        }
+
+        return algorithms;
+    }
+
     /// <summary>
     /// Maps the current row of a <see cref="MySqlDataReader"/> to an <see cref="Algorithm"/> object.
     /// </summary>
