@@ -213,4 +213,39 @@ public class QuizController : ControllerBase
         return NoContent(); // 204
         // All other exceptions bubble to GlobalExceptionMiddleware
     }
+
+    /// <summary>
+    /// GET /api/quizzes/{id}/stats — Retrieve statistics for a specific quiz.
+    /// </summary>
+    /// <param name="id">The auto-increment quiz ID.</param>
+    /// <remarks>
+    /// Returns statistics including total attempt count, average score (as percentage),
+    /// and pass rate across all student attempts.
+    /// </remarks>
+    /// <response code="200">Stats retrieved successfully.</response>
+    /// <response code="404">No quiz with the supplied ID.</response>
+    /// <response code="500">Unexpected server error.</response>
+    [HttpGet("{id:int}/stats")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetQuizStats(int id)
+    {
+        var stats = await _quizService.GetStatsAsync(id);
+        if (stats is null)
+        {
+            return NotFound(new
+            {
+                status  = "error",
+                message = $"Quiz with ID {id} not found."
+            });
+        }
+
+        _logger.LogInformation("GET /api/quizzes/{Id}/stats — returned stats", id);
+        return Ok(new
+        {
+            status = "success",
+            data   = stats
+        });
+    }
 }
