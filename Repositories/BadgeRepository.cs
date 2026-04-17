@@ -92,7 +92,7 @@ public class BadgeRepository : IBadgeRepository
             SELECT b.badge_id, b.badge_name, b.badge_description, b.xp_threshold, b.icon_type, b.icon_color, b.unlock_hint, b.algorithm_id, b.created_at
             FROM badges b
             WHERE b.algorithm_id IS NULL
-            AND b.xp_threshold <= (SELECT xp_total FROM users WHERE id = @UserId)
+            AND b.xp_threshold <= (SELECT XpTotal FROM Users WHERE Id = @UserId)
             AND b.badge_id NOT IN (
                 SELECT badge_id FROM user_badges WHERE user_id = @UserId
             )
