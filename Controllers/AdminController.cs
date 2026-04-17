@@ -60,4 +60,40 @@ public class AdminController : ControllerBase
             });
         }
     }
+
+    /// <summary>
+    /// GET /api/admin/leaderboard — Retrieve user leaderboard ranked by XP.
+    /// </summary>
+    /// <remarks>
+    /// Returns all users ranked by total XP in descending order.
+    /// Each entry includes the user's attempt count and average quiz score.
+    /// Users with the same XP receive the same rank.
+    /// </remarks>
+    /// <response code="200">Leaderboard retrieved successfully.</response>
+    /// <response code="401">Unauthorized; valid Clerk JWT required.</response>
+    /// <response code="403">Forbidden; Admin role required.</response>
+    /// <response code="500">Unexpected server error.</response>
+    [HttpGet("leaderboard")]
+    [ProducesResponseType(typeof(IEnumerable<LeaderboardEntryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetLeaderboard()
+    {
+        try
+        {
+            _logger.LogInformation("Admin requesting user leaderboard");
+            var leaderboard = await _adminService.GetLeaderboardAsync();
+            return Ok(leaderboard);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving user leaderboard");
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                status = "error",
+                message = "An unexpected error occurred while retrieving the leaderboard."
+            });
+        }
+    }
 }
