@@ -12,17 +12,20 @@ public class QuizService : IQuizService
     private readonly IQuizRepository     _quizRepository;
     private readonly IUserRepository     _userRepository;
     private readonly IAlgorithmRepository _algorithmRepository;
+    private readonly IQuizAttemptRepository _attemptRepository;
     private readonly ILogger<QuizService> _logger;
 
     public QuizService(
         IQuizRepository quizRepository,
         IUserRepository userRepository,
         IAlgorithmRepository algorithmRepository,
+        IQuizAttemptRepository attemptRepository,
         ILogger<QuizService> logger)
     {
         _quizRepository      = quizRepository;
         _userRepository      = userRepository;
         _algorithmRepository = algorithmRepository;
+        _attemptRepository   = attemptRepository;
         _logger              = logger;
     }
 
@@ -126,6 +129,57 @@ public class QuizService : IQuizService
             _logger.LogWarning("DeleteQuiz: quiz not found — QuizId={Id}", id);
 
         return success;
+    }
+
+    /// <inheritdoc />
+    public async Task<QuizStatsDto?> GetStatsAsync(int id)
+    {
+        try
+        {
+            // Verify quiz exists
+            var quiz = await _quizRepository.GetByIdAsync(id);
+            if (quiz is null)
+            {
+                return null;
+            }
+
+            // Get all attempts for this quiz
+            var allAttempts = await _attemptRepository.GetAllAsync();
+            var quizAttempts = allAttempts.Where(a => a.QuizId == id).ToList();
+
+            // If no attempts, return stats with zeros
+            if (quizAttempts.Count == 0)
+            {
+                return new QuizStatsDto
+                {
+                    AttemptCount = 0,
+                    AverageScore = 0.0,
+                    PassRate = 0.0
+                };
+            }
+
+            // Calculate statistics
+            var attemptCount = quizAttempts.Count;
+            var averageScore = quizAttempts.Average(a => a.Score);
+            var passedCount = quizAttempts.Count(a => a.Passed);
+            var passRate = (passedCount * 100.0) / attemptCount;
+
+            _logger.LogInformation(
+                "GetStats: QuizId={QuizId} Count={Count} AvgScore={AvgScore:F2} PassRate={PassRate:F2}%",
+                id, attemptCount, averageScore, passRate);
+
+            return new QuizStatsDto
+            {
+                AttemptCount = attemptCount,
+                AverageScore = averageScore,
+                PassRate = passRate
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving stats for quiz {QuizId}", id);
+            throw;
+        }
     }
 
     /// <summary>
