@@ -27,8 +27,9 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Clerk:Authority"] = "https://test.clerk.example.com",
-                ["Clerk:SecretKey"] = "sk_test_dummy_value_for_integration_tests",
+                ["Clerk:Authority"]  = "https://test.clerk.example.com",
+                ["Clerk:SecretKey"]  = "sk_test_dummy_value_for_integration_tests",
+                ["SkipMigrations"]   = "true",
                 // ConnectionStrings:DefaultConnection is intentionally NOT overridden here.
                 // In CI the workflow sets ConnectionStrings__DefaultConnection as an env var
                 // (pointing to alems_test / root / root) and ASP.NET Core picks it up via

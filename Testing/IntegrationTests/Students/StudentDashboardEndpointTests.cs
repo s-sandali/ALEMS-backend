@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -31,16 +32,17 @@ public class StudentDashboardEndpointTests : IClassFixture<StudentDashboardWebAp
     {
         var tag = BuildTag("sd01");
         var clerkSub = $"{tag}_clerk_sub";
+        const string firstStepsBadge = "First Steps";
+        const string quickLearnerBadge = "Quick Learner";
         await using var db = await OpenConnectionAsync();
 
         try
         {
             var userId = await InsertUserAsync(db, clerkSub, $"{tag}.student@example.com", xpTotal: 130);
 
-            var badge50 = $"{tag}-badge-50";
-            var badge120 = $"{tag}-badge-120";
-            await InsertXpBadgeAsync(db, badge50, 50);
-            await InsertXpBadgeAsync(db, badge120, 120);
+            // Insert extra badges to verify dashboard canonicalizes XP badges by threshold.
+            await InsertXpBadgeAsync(db, $"{tag}-badge-50", 50);
+            await InsertXpBadgeAsync(db, $"{tag}-badge-120", 120);
 
             var client = BuildAuthorizedClient(clerkSub);
             var response = await client.GetAsync($"/api/students/{userId}/dashboard");
@@ -57,16 +59,16 @@ public class StudentDashboardEndpointTests : IClassFixture<StudentDashboardWebAp
             data.GetProperty("xpTotal").GetInt32().Should().Be(130);
 
             var earnedBadges = data.GetProperty("earnedBadges").EnumerateArray().ToList();
-            earnedBadges.Any(b => string.Equals(b.GetProperty("name").GetString(), badge50, StringComparison.Ordinal)).Should().BeTrue();
-            earnedBadges.Any(b => string.Equals(b.GetProperty("name").GetString(), badge120, StringComparison.Ordinal)).Should().BeTrue();
+            earnedBadges.Any(b => string.Equals(b.GetProperty("name").GetString(), firstStepsBadge, StringComparison.Ordinal)).Should().BeTrue();
+            earnedBadges.Any(b => string.Equals(b.GetProperty("name").GetString(), quickLearnerBadge, StringComparison.Ordinal)).Should().BeFalse();
 
             var allBadges = data.GetProperty("allBadges").EnumerateArray().ToList();
             allBadges.Any(b =>
-                string.Equals(b.GetProperty("name").GetString(), badge50, StringComparison.Ordinal) &&
+                string.Equals(b.GetProperty("name").GetString(), firstStepsBadge, StringComparison.Ordinal) &&
                 b.GetProperty("earned").GetBoolean()).Should().BeTrue();
             allBadges.Any(b =>
-                string.Equals(b.GetProperty("name").GetString(), badge120, StringComparison.Ordinal) &&
-                b.GetProperty("earned").GetBoolean()).Should().BeTrue();
+                string.Equals(b.GetProperty("name").GetString(), quickLearnerBadge, StringComparison.Ordinal) &&
+                b.GetProperty("earned").GetBoolean()).Should().BeFalse();
         }
         finally
         {
@@ -332,6 +334,14 @@ public sealed class StudentDashboardWebApplicationFactory : WebApplicationFactor
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Test");
+
+        builder.ConfigureAppConfiguration((_, config) =>
+        {
+            config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SkipMigrations"] = "true"
+            });
+        });
 
         builder.ConfigureTestServices(services =>
         {
