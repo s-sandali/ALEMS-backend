@@ -155,55 +155,77 @@ public class QuizAttemptRepository : IQuizAttemptRepository
             SET XpTotal = XpTotal + @XpToAward
             WHERE Id = @UserId;";
 
-        await using var connection = await _db.OpenConnectionAsync();
-        await using var transaction = await connection.BeginTransactionAsync();
+        const int maxAttempts = 3;
 
-        try
+        for (var tryNumber = 1; tryNumber <= maxAttempts; tryNumber++)
         {
-            // 1. Insert attempt
-            await using var attemptCmd = new MySqlCommand(insertAttemptSql, connection, (MySqlTransaction)transaction);
-            attemptCmd.Parameters.AddWithValue("@UserId",         attempt.UserId);
-            attemptCmd.Parameters.AddWithValue("@QuizId",         attempt.QuizId);
-            attemptCmd.Parameters.AddWithValue("@Score",          attempt.Score);
-            attemptCmd.Parameters.AddWithValue("@TotalQuestions", attempt.TotalQuestions);
-            attemptCmd.Parameters.AddWithValue("@XpEarned",       attempt.XpEarned);
-            attemptCmd.Parameters.AddWithValue("@Passed",         attempt.Passed);
-            attemptCmd.Parameters.AddWithValue("@StartedAt",      attempt.StartedAt);
-            attemptCmd.Parameters.AddWithValue("@CompletedAt",    (object?)attempt.CompletedAt ?? DBNull.Value);
-
-            attempt.AttemptId = Convert.ToInt32(await attemptCmd.ExecuteScalarAsync());
-
-            // 2. Insert answers
+            attempt.AttemptId = 0;
             foreach (var answer in answerList)
             {
-                answer.AttemptId = attempt.AttemptId;
-                await using var answerCmd = new MySqlCommand(insertAnswerSql, connection, (MySqlTransaction)transaction);
-                answerCmd.Parameters.AddWithValue("@AttemptId",      answer.AttemptId);
-                answerCmd.Parameters.AddWithValue("@QuestionId",     answer.QuestionId);
-                answerCmd.Parameters.AddWithValue("@SelectedOption", answer.SelectedOption);
-                answerCmd.Parameters.AddWithValue("@IsCorrect",      answer.IsCorrect);
-
-                answer.AnswerId = Convert.ToInt32(await answerCmd.ExecuteScalarAsync());
+                answer.AttemptId = 0;
+                answer.AnswerId = 0;
             }
 
-            // 3. Award XP to the user (only when there is XP to award)
-            if (xpToAward > 0)
+            await using var connection = await _db.OpenConnectionAsync();
+            await using var transaction = await connection.BeginTransactionAsync();
+
+            try
             {
-                await using var xpCmd = new MySqlCommand(awardXpSql, connection, (MySqlTransaction)transaction);
-                xpCmd.Parameters.AddWithValue("@XpToAward", xpToAward);
-                xpCmd.Parameters.AddWithValue("@UserId",    attempt.UserId);
-                await xpCmd.ExecuteNonQueryAsync();
-            }
+                // 1. Insert attempt
+                await using var attemptCmd = new MySqlCommand(insertAttemptSql, connection, (MySqlTransaction)transaction);
+                attemptCmd.Parameters.AddWithValue("@UserId",         attempt.UserId);
+                attemptCmd.Parameters.AddWithValue("@QuizId",         attempt.QuizId);
+                attemptCmd.Parameters.AddWithValue("@Score",          attempt.Score);
+                attemptCmd.Parameters.AddWithValue("@TotalQuestions", attempt.TotalQuestions);
+                attemptCmd.Parameters.AddWithValue("@XpEarned",       attempt.XpEarned);
+                attemptCmd.Parameters.AddWithValue("@Passed",         attempt.Passed);
+                attemptCmd.Parameters.AddWithValue("@StartedAt",      attempt.StartedAt);
+                attemptCmd.Parameters.AddWithValue("@CompletedAt",    (object?)attempt.CompletedAt ?? DBNull.Value);
 
-            await transaction.CommitAsync();
-            return attempt;
+                attempt.AttemptId = Convert.ToInt32(await attemptCmd.ExecuteScalarAsync());
+
+                // 2. Insert answers
+                foreach (var answer in answerList)
+                {
+                    answer.AttemptId = attempt.AttemptId;
+                    await using var answerCmd = new MySqlCommand(insertAnswerSql, connection, (MySqlTransaction)transaction);
+                    answerCmd.Parameters.AddWithValue("@AttemptId",      answer.AttemptId);
+                    answerCmd.Parameters.AddWithValue("@QuestionId",     answer.QuestionId);
+                    answerCmd.Parameters.AddWithValue("@SelectedOption", answer.SelectedOption);
+                    answerCmd.Parameters.AddWithValue("@IsCorrect",      answer.IsCorrect);
+
+                    answer.AnswerId = Convert.ToInt32(await answerCmd.ExecuteScalarAsync());
+                }
+
+                // 3. Award XP to the user (only when there is XP to award)
+                if (xpToAward > 0)
+                {
+                    await using var xpCmd = new MySqlCommand(awardXpSql, connection, (MySqlTransaction)transaction);
+                    xpCmd.Parameters.AddWithValue("@XpToAward", xpToAward);
+                    xpCmd.Parameters.AddWithValue("@UserId",    attempt.UserId);
+                    await xpCmd.ExecuteNonQueryAsync();
+                }
+
+                await transaction.CommitAsync();
+                return attempt;
+            }
+            catch (MySqlException ex) when (IsTransientTransactionFailure(ex) && tryNumber < maxAttempts)
+            {
+                await transaction.RollbackAsync();
+                await Task.Delay(tryNumber * 50);
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
-        catch
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
+
+        throw new InvalidOperationException("Transaction retries exhausted unexpectedly.");
     }
+
+    private static bool IsTransientTransactionFailure(MySqlException ex)
+        => ex.Number == 1213 || ex.Number == 1205;
 
     /// <inheritdoc />
     public async Task<IEnumerable<QuizAttempt>> GetAllAsync()

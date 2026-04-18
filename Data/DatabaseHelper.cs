@@ -1,4 +1,5 @@
 using MySql.Data.MySqlClient;
+using System.Data.Common;
 
 namespace backend.Data;
 
@@ -15,11 +16,44 @@ public class DatabaseHelper
 
     public DatabaseHelper(IConfiguration configuration)
     {
-        _connectionString = configuration.GetConnectionString("DefaultConnection")
+        var rawConnectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException(
                 "Connection string 'DefaultConnection' was not found. " +
                 "Ensure it is set in appsettings.json or as the environment variable " +
                 "'ConnectionStrings__DefaultConnection' in Azure App Service.");
+
+        _connectionString = NormalizeSslMode(rawConnectionString);
+    }
+
+    private static string NormalizeSslMode(string connectionString)
+    {
+        var builder = new DbConnectionStringBuilder
+        {
+            ConnectionString = connectionString
+        };
+
+        if (TryNormalizeSslModeKey(builder, "SslMode"))
+            return builder.ConnectionString;
+
+        if (TryNormalizeSslModeKey(builder, "SSL Mode"))
+            return builder.ConnectionString;
+
+        return connectionString;
+    }
+
+    private static bool TryNormalizeSslModeKey(DbConnectionStringBuilder builder, string key)
+    {
+        if (!builder.ContainsKey(key))
+            return false;
+
+        var value = builder[key]?.ToString();
+        if (string.Equals(value, "None", StringComparison.OrdinalIgnoreCase))
+        {
+            // MySql.Data expects "Disabled"; some environments still use "None".
+            builder[key] = "Disabled";
+        }
+
+        return true;
     }
 
     /// <summary>

@@ -48,6 +48,7 @@ file sealed class HealthWebApplicationFactory : WebApplicationFactory<Program>
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Clerk:Authority"]                     = "https://test.clerk.example.com",
+                ["SkipMigrations"]                     = "true",
                 // Fake connection string — never used because PingAsync is mocked
                 ["ConnectionStrings:DefaultConnection"] =
                     "Server=127.0.0.1;Database=fake_health_db;User=fake;Password=fake;"

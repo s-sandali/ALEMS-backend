@@ -265,6 +265,10 @@ builder.Services.AddScoped<IQuizQuestionService, QuizQuestionService>();
 builder.Services.AddSingleton<IXpService, XpService>();
 builder.Services.AddScoped<IQuizAttemptRepository, QuizAttemptRepository>();
 builder.Services.AddScoped<IQuizAttemptService, QuizAttemptService>();
+builder.Services.AddScoped<IReportRepository, ReportRepository>();
+builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddScoped<IReportCsvExportService, ReportCsvExportService>();
+builder.Services.AddScoped<IReportPdfExportService, ReportPdfExportService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<ICodingQuestionRepository, CodingQuestionRepository>();
 builder.Services.AddScoped<ICodingQuestionService, CodingQuestionService>();
@@ -359,24 +363,31 @@ app.UseAuthentication();   // Must come before UseAuthorization
 app.UseAuthorization();
 
 // ── Run pending migrations ────────────────────────────────────────
-try
+// Skipped when SkipMigrations=true (set by integration test factories that
+// replace DatabaseHelper with a stub — running migrations against a stub
+// would crash the host before tests can make any HTTP calls).
+var skipMigrations = app.Configuration["SkipMigrations"] == "true";
+if (!skipMigrations)
 {
-    var logger = Log.Logger;
-    logger.Information("Checking and running pending database migrations...");
-    
-    using (var scope = app.Services.CreateScope())
+    try
     {
-        var db = scope.ServiceProvider.GetRequiredService<DatabaseHelper>();
-        await RunPendingMigrationsAsync(db, logger, failFastOnMigrationError);
+        var logger = Log.Logger;
+        logger.Information("Checking and running pending database migrations...");
+
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<DatabaseHelper>();
+            await RunPendingMigrationsAsync(db, logger, failFastOnMigrationError);
+        }
+
+        logger.Information("Migrations completed successfully.");
     }
-    
-    logger.Information("Migrations completed successfully.");
-}
-catch (Exception migrationEx)
-{
-    Log.Error(migrationEx, "Error running migrations");
-    if (failFastOnMigrationError)
-        throw;
+    catch (Exception migrationEx)
+    {
+        Log.Error(migrationEx, "Error running migrations");
+        if (failFastOnMigrationError)
+            throw;
+    }
 }
 
 app.MapControllers();
