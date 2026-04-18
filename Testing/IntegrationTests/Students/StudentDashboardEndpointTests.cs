@@ -307,16 +307,13 @@ public class StudentDashboardEndpointTests : IClassFixture<StudentDashboardWebAp
             WHERE email LIKE @Prefix
                OR clerkUserId LIKE @Prefix;";
 
-        const string deleteBadgesSql = "DELETE FROM badges WHERE badge_name LIKE @Prefix;";
-
         foreach (var sql in new[]
                  {
                      deleteAttemptsSql,
                      deleteQuizzesSql,
                      deleteAlgorithmsSql,
                      deleteUserBadgesSql,
-                     deleteUsersSql,
-                     deleteBadgesSql
+                     deleteUsersSql
                  })
         {
             await using var cmd = new MySqlCommand(sql, db);
