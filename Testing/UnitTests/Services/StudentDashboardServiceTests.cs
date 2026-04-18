@@ -81,7 +81,7 @@ public class StudentDashboardServiceTests
             {
                 Id = 1,
                 Name = "First Steps",
-                Description = "Earned at 50 XP",
+                Description = "Earned after reaching 50 XP.",
                 XpThreshold = 50,
                 IconType = "star",
                 IconColor = "#f6c945",
@@ -95,7 +95,7 @@ public class StudentDashboardServiceTests
             {
                 BadgeId = 1,
                 BadgeName = "First Steps",
-                BadgeDescription = "Earned at 50 XP",
+                BadgeDescription = "Earned after reaching 50 XP.",
                 XpThreshold = 50,
                 IconType = "star",
                 IconColor = "#f6c945",
