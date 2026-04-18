@@ -331,6 +331,8 @@ builder.Services.AddHttpClient<ICodeExecutionService, CodeExecutionService>(clie
 });
 
 var app = builder.Build();
+var failFastOnMigrationError = app.Environment.IsEnvironment("Test")
+    || string.Equals(Environment.GetEnvironmentVariable("CI"), "true", StringComparison.OrdinalIgnoreCase);
 
 // ── Middleware Pipeline ────────────────────────────────────────────
 app.UseSwagger();
@@ -365,7 +367,7 @@ try
     using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<DatabaseHelper>();
-        await RunPendingMigrationsAsync(db, logger);
+        await RunPendingMigrationsAsync(db, logger, failFastOnMigrationError);
     }
     
     logger.Information("Migrations completed successfully.");
@@ -373,6 +375,8 @@ try
 catch (Exception migrationEx)
 {
     Log.Error(migrationEx, "Error running migrations");
+    if (failFastOnMigrationError)
+        throw;
 }
 
 app.MapControllers();
@@ -391,7 +395,7 @@ finally
 
 // ── Helper method to run pending migrations ───────────────────────
 
-async Task RunPendingMigrationsAsync(backend.Data.DatabaseHelper db, Serilog.ILogger logger)
+async Task RunPendingMigrationsAsync(backend.Data.DatabaseHelper db, Serilog.ILogger logger, bool failFastOnError)
 {
     try
     {
@@ -464,7 +468,8 @@ async Task RunPendingMigrationsAsync(backend.Data.DatabaseHelper db, Serilog.ILo
     catch (Exception ex)
     {
         logger.Error(ex, "Error running migrations. Application may not function properly without the badge UI styling columns.");
-        // Don't rethrow - allow app to continue running
+        if (failFastOnError)
+            throw;
     }
 }
 
