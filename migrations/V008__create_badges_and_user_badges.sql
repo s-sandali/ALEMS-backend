@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS user_badges (
     UNIQUE KEY uq_user_badges_user_badge (user_id, badge_id),
 
     FOREIGN KEY (user_id)
-        REFERENCES users (id)
+        REFERENCES Users (Id)
         ON DELETE CASCADE
         ON UPDATE CASCADE,
 

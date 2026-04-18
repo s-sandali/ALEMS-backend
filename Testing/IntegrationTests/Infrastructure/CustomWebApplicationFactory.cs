@@ -27,10 +27,14 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Clerk:Authority"]                    = "https://test.clerk.example.com",
-                ["Clerk:SecretKey"]                    = "sk_test_dummy_value_for_integration_tests",
-                ["ConnectionStrings:DefaultConnection"] =
-                    "Server=localhost;Database=test_db;User=test;Password=test;"
+                ["Clerk:Authority"]  = "https://test.clerk.example.com",
+                ["Clerk:SecretKey"]  = "sk_test_dummy_value_for_integration_tests",
+                ["SkipMigrations"]   = "true",
+                // ConnectionStrings:DefaultConnection is intentionally NOT overridden here.
+                // In CI the workflow sets ConnectionStrings__DefaultConnection as an env var
+                // (pointing to alems_test / root / root) and ASP.NET Core picks it up via
+                // the default environment-variable config source, which runs before this
+                // in-memory addition. Leaving it absent lets that env var win.
             });
         });
 

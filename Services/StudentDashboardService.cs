@@ -10,6 +10,16 @@ namespace backend.Services;
 /// </summary>
 public class StudentDashboardService : IStudentDashboardService
 {
+    private static readonly IReadOnlyDictionary<int, (string Name, string Description, string IconType, string IconColor, string UnlockHint)> CanonicalXpBadges
+        = new Dictionary<int, (string, string, string, string, string)>
+        {
+            [50] = ("First Steps", "Earned after reaching 50 XP.", "star", "#f6c945", "Reach 50 XP"),
+            [150] = ("Quick Learner", "Earned after reaching 150 XP.", "bolt", "#7df9ff", "Reach 150 XP"),
+            [300] = ("Problem Solver", "Earned after reaching 300 XP.", "shield", "#7fe7a2", "Reach 300 XP"),
+            [600] = ("Algorithm Ace", "Earned after reaching 600 XP.", "trophy", "#c8ff3e", "Reach 600 XP"),
+            [1000] = ("Big O Master", "Earned after reaching 1000 XP.", "gauge", "#ff9f5a", "Reach 1000 XP")
+        };
+
     private readonly IUserRepository _userRepository;
     private readonly ILevelingService _levelingService;
     private readonly IBadgeService _badgeService;
@@ -44,8 +54,9 @@ public class StudentDashboardService : IStudentDashboardService
         var progression = BuildProgression(userId, user.XpTotal);
 
         // ── 4. Fetch badge data ────────────────────────────────────────────
-        var earnedBadges   = await _badgeService.GetEarnedBadgesWithAwardDateAsync(userId);
-        var allBadgesList  = await BuildAllBadgesDashboardAsync(userId, earnedBadges);
+        var earnedBadges = NormalizeEarnedBadges(
+            await _badgeService.GetEarnedBadgesWithAwardDateAsync(userId));
+        var allBadgesList = await BuildAllBadgesDashboardAsync(earnedBadges);
 
         // ── 5. Fetch quiz aggregations (run concurrently — independent queries) ──
         var performanceTask = _quizAttemptRepository.GetPerformanceSummaryByUserIdAsync(userId);
@@ -103,22 +114,90 @@ public class StudentDashboardService : IStudentDashboardService
     /// Uses a hash-set over the already-fetched <paramref name="earnedBadges"/> for O(1) lookup.
     /// </summary>
     private async Task<IEnumerable<BadgeDashboardDto>> BuildAllBadgesDashboardAsync(
-        int userId,
         IEnumerable<EarnedBadgeDto> earnedBadges)
     {
         var earnedIds = new HashSet<int>(earnedBadges.Select(b => b.Id));
-        var allBadges = await _badgeService.GetAllBadgesAsync();
+        var earnedXpThresholds = new HashSet<int>(earnedBadges
+            .Where(b => b.XpThreshold > 0)
+            .Select(b => b.XpThreshold));
 
-        return allBadges.Select(b => new BadgeDashboardDto
+        var allBadges = await _badgeService.GetAllBadgesAsync();
+        var normalized = new List<BadgeDashboardDto>();
+        var seenCanonicalXpThresholds = new HashSet<int>();
+
+        foreach (var badge in allBadges.OrderBy(b => b.XpThreshold).ThenBy(b => b.BadgeId))
         {
-            Id          = b.BadgeId,
-            Name        = b.BadgeName,
-            Description = b.BadgeDescription,
-            XpThreshold = b.XpThreshold,
-            IconType    = b.IconType,
-            IconColor   = b.IconColor,
-            UnlockHint  = b.UnlockHint,
-            Earned      = earnedIds.Contains(b.BadgeId)
-        }).ToList();
+            if (badge.XpThreshold > 0)
+            {
+                if (!CanonicalXpBadges.TryGetValue(badge.XpThreshold, out var canonical))
+                    continue;
+
+                if (!seenCanonicalXpThresholds.Add(badge.XpThreshold))
+                    continue;
+
+                normalized.Add(new BadgeDashboardDto
+                {
+                    Id = badge.BadgeId,
+                    Name = canonical.Name,
+                    Description = canonical.Description,
+                    XpThreshold = badge.XpThreshold,
+                    IconType = canonical.IconType,
+                    IconColor = canonical.IconColor,
+                    UnlockHint = canonical.UnlockHint,
+                    Earned = earnedXpThresholds.Contains(badge.XpThreshold)
+                });
+
+                continue;
+            }
+
+            normalized.Add(new BadgeDashboardDto
+            {
+                Id = badge.BadgeId,
+                Name = badge.BadgeName,
+                Description = badge.BadgeDescription,
+                XpThreshold = badge.XpThreshold,
+                IconType = badge.IconType,
+                IconColor = badge.IconColor,
+                UnlockHint = badge.UnlockHint,
+                Earned = earnedIds.Contains(badge.BadgeId)
+            });
+        }
+
+        return normalized;
+    }
+
+    private static IEnumerable<EarnedBadgeDto> NormalizeEarnedBadges(IEnumerable<EarnedBadgeDto> earnedBadges)
+    {
+        var normalized = new List<EarnedBadgeDto>();
+        var seenCanonicalXpThresholds = new HashSet<int>();
+
+        foreach (var badge in earnedBadges.OrderBy(b => b.XpThreshold).ThenBy(b => b.AwardDate))
+        {
+            if (badge.XpThreshold > 0)
+            {
+                if (!CanonicalXpBadges.TryGetValue(badge.XpThreshold, out var canonical))
+                    continue;
+
+                if (!seenCanonicalXpThresholds.Add(badge.XpThreshold))
+                    continue;
+
+                normalized.Add(new EarnedBadgeDto
+                {
+                    Id = badge.Id,
+                    Name = canonical.Name,
+                    Description = canonical.Description,
+                    XpThreshold = badge.XpThreshold,
+                    IconType = canonical.IconType,
+                    IconColor = canonical.IconColor,
+                    AwardDate = badge.AwardDate
+                });
+
+                continue;
+            }
+
+            normalized.Add(badge);
+        }
+
+        return normalized;
     }
 }

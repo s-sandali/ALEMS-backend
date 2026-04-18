@@ -200,4 +200,37 @@ public class QuizRepository : IQuizRepository
             UpdatedAt     = reader.GetDateTime("updated_at")
         };
     }
+
+    /// <inheritdoc />
+    public async Task<IEnumerable<Quiz>> GetByIdsAsync(IEnumerable<int> quizIds)
+    {
+        var idsList = quizIds.Distinct().ToList();
+        if (idsList.Count == 0)
+            return new List<Quiz>();
+
+        var placeholders = string.Join(",", idsList.Select((_, i) => $"@Id{i}"));
+        var sql = $@"
+            SELECT quiz_id, algorithm_id, created_by, title, description,
+                   time_limit_mins, pass_score, is_active, created_at, updated_at
+            FROM quizzes
+            WHERE quiz_id IN ({placeholders});";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+
+        for (int i = 0; i < idsList.Count; i++)
+        {
+            cmd.Parameters.AddWithValue($"@Id{i}", idsList[i]);
+        }
+
+        await using var reader = (MySqlDataReader)await cmd.ExecuteReaderAsync();
+
+        var quizzes = new List<Quiz>();
+        while (await reader.ReadAsync())
+        {
+            quizzes.Add(MapQuiz(reader));
+        }
+
+        return quizzes;
+    }
 }

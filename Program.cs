@@ -269,6 +269,7 @@ builder.Services.AddScoped<IReportRepository, ReportRepository>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<IReportCsvExportService, ReportCsvExportService>();
 builder.Services.AddScoped<IReportPdfExportService, ReportPdfExportService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<ICodingQuestionRepository, CodingQuestionRepository>();
 builder.Services.AddScoped<ICodingQuestionService, CodingQuestionService>();
 builder.Services.AddScoped<IBadgeRepository, BadgeRepository>();
@@ -334,6 +335,8 @@ builder.Services.AddHttpClient<ICodeExecutionService, CodeExecutionService>(clie
 });
 
 var app = builder.Build();
+var failFastOnMigrationError = app.Environment.IsEnvironment("Test")
+    || string.Equals(Environment.GetEnvironmentVariable("CI"), "true", StringComparison.OrdinalIgnoreCase);
 
 // ── Middleware Pipeline ────────────────────────────────────────────
 app.UseSwagger();
@@ -360,22 +363,31 @@ app.UseAuthentication();   // Must come before UseAuthorization
 app.UseAuthorization();
 
 // ── Run pending migrations ────────────────────────────────────────
-try
+// Skipped when SkipMigrations=true (set by integration test factories that
+// replace DatabaseHelper with a stub — running migrations against a stub
+// would crash the host before tests can make any HTTP calls).
+var skipMigrations = app.Configuration["SkipMigrations"] == "true";
+if (!skipMigrations)
 {
-    var logger = Log.Logger;
-    logger.Information("Checking and running pending database migrations...");
-    
-    using (var scope = app.Services.CreateScope())
+    try
     {
-        var db = scope.ServiceProvider.GetRequiredService<DatabaseHelper>();
-        await RunPendingMigrationsAsync(db, logger);
+        var logger = Log.Logger;
+        logger.Information("Checking and running pending database migrations...");
+
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<DatabaseHelper>();
+            await RunPendingMigrationsAsync(db, logger, failFastOnMigrationError);
+        }
+
+        logger.Information("Migrations completed successfully.");
     }
-    
-    logger.Information("Migrations completed successfully.");
-}
-catch (Exception migrationEx)
-{
-    Log.Error(migrationEx, "Error running migrations");
+    catch (Exception migrationEx)
+    {
+        Log.Error(migrationEx, "Error running migrations");
+        if (failFastOnMigrationError)
+            throw;
+    }
 }
 
 app.MapControllers();
@@ -394,7 +406,7 @@ finally
 
 // ── Helper method to run pending migrations ───────────────────────
 
-async Task RunPendingMigrationsAsync(backend.Data.DatabaseHelper db, Serilog.ILogger logger)
+async Task RunPendingMigrationsAsync(backend.Data.DatabaseHelper db, Serilog.ILogger logger, bool failFastOnError)
 {
     try
     {
@@ -467,7 +479,8 @@ async Task RunPendingMigrationsAsync(backend.Data.DatabaseHelper db, Serilog.ILo
     catch (Exception ex)
     {
         logger.Error(ex, "Error running migrations. Application may not function properly without the badge UI styling columns.");
-        // Don't rethrow - allow app to continue running
+        if (failFastOnError)
+            throw;
     }
 }
 

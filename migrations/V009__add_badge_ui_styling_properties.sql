@@ -10,9 +10,17 @@
 -- =============================================================================
 
 -- Add UI styling columns to badges table
-ALTER TABLE badges ADD COLUMN IF NOT EXISTS icon_type VARCHAR(50) DEFAULT 'star' COMMENT 'Icon type for lucide-react icons: star, bolt, shield, etc.';
-ALTER TABLE badges ADD COLUMN IF NOT EXISTS icon_color VARCHAR(20) DEFAULT '#8f8f3e' COMMENT 'Icon color in hex format';
-ALTER TABLE badges ADD COLUMN IF NOT EXISTS unlock_hint VARCHAR(100) DEFAULT 'Locked' COMMENT 'Hint text for locked badges';
+SET @c1 = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'badges' AND COLUMN_NAME = 'icon_type');
+SET @s1 = IF(@c1 = 0, "ALTER TABLE badges ADD COLUMN icon_type VARCHAR(50) DEFAULT 'star' COMMENT 'Icon type for lucide-react icons: star, bolt, shield, etc.'", 'SELECT 1');
+PREPARE stmt FROM @s1; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @c2 = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'badges' AND COLUMN_NAME = 'icon_color');
+SET @s2 = IF(@c2 = 0, "ALTER TABLE badges ADD COLUMN icon_color VARCHAR(20) DEFAULT '#8f8f3e' COMMENT 'Icon color in hex format'", 'SELECT 1');
+PREPARE stmt FROM @s2; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @c3 = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'badges' AND COLUMN_NAME = 'unlock_hint');
+SET @s3 = IF(@c3 = 0, "ALTER TABLE badges ADD COLUMN unlock_hint VARCHAR(100) DEFAULT 'Locked' COMMENT 'Hint text for locked badges'", 'SELECT 1');
+PREPARE stmt FROM @s3; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- Backfill known badge styles so the frontend can render distinct icons immediately.
 UPDATE badges
