@@ -176,6 +176,7 @@ jobs:
         run: dotnet test Testing/IntegrationTests/IntegrationTests.csproj --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --results-directory Testing/IntegrationTests/TestResults
 
       - name: Enforce 70% combined line coverage
+        if: (github.event_name == 'pull_request' && github.base_ref == 'main') || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         shell: bash
         run: |
           set -euo pipefail
@@ -214,7 +215,7 @@ jobs:
           PY
 
       - name: Upload Coverage Report
-        if: always()
+        if: always() && ((github.event_name == 'pull_request' && github.base_ref == 'main') || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
         uses: actions/upload-artifact@v4
         with:
           name: coverlet-coverage-report
