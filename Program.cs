@@ -265,6 +265,7 @@ builder.Services.AddScoped<IQuizQuestionService, QuizQuestionService>();
 builder.Services.AddSingleton<IXpService, XpService>();
 builder.Services.AddScoped<IQuizAttemptRepository, QuizAttemptRepository>();
 builder.Services.AddScoped<IQuizAttemptService, QuizAttemptService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<ICodingQuestionRepository, CodingQuestionRepository>();
 builder.Services.AddScoped<ICodingQuestionService, CodingQuestionService>();
 builder.Services.AddScoped<IBadgeRepository, BadgeRepository>();

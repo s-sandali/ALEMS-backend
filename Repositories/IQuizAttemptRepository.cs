@@ -39,6 +39,20 @@ public interface IQuizAttemptRepository
         int xpToAward);
 
     /// <summary>
+    /// Retrieves all quiz attempts across all users and quizzes.
+    /// </summary>
+    Task<IEnumerable<QuizAttempt>> GetAllAsync();
+
+    /// <summary>
+    /// Retrieves paginated quiz attempts for a specific user, ordered by completed_at descending (newest first).
+    /// </summary>
+    /// <param name="userId">The user ID to filter by.</param>
+    /// <param name="pageNumber">The page number (1-indexed).</param>
+    /// <param name="pageSize">The number of attempts per page.</param>
+    /// <returns>A tuple containing the attempts and the total count of all attempts for the user.</returns>
+    Task<(IEnumerable<QuizAttempt> Attempts, int TotalCount)> GetAttemptsForUserAsync(int userId, int pageNumber, int pageSize);
+
+    /// <summary>
     /// Returns all quiz attempts for a student ordered by completion date descending.
     /// Each row is enriched with the quiz title and algorithm name for display purposes.
     /// </summary>

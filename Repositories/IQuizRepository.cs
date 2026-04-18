@@ -29,6 +29,11 @@ public interface IQuizRepository
     Task<Quiz?> GetActiveByIdAsync(int id);
 
     /// <summary>
+    /// Retrieves multiple quizzes by their IDs in a single query (includes both active and inactive).
+    /// </summary>
+    Task<IEnumerable<Quiz>> GetByIdsAsync(IEnumerable<int> quizIds);
+
+    /// <summary>
     /// Inserts a new quiz and returns the created record with the generated ID.
     /// </summary>
     Task<Quiz> CreateAsync(Quiz quiz);

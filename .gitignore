@@ -74,3 +74,5 @@ ScaffoldingReadMe.txt
 ## OS
 .DS_Store
 Thumbs.db
+server-e2e.err.log
+server-e2e.out.log

@@ -206,6 +206,89 @@ public class QuizAttemptRepository : IQuizAttemptRepository
     }
 
     /// <inheritdoc />
+    public async Task<IEnumerable<QuizAttempt>> GetAllAsync()
+    {
+        const string sql = @"
+            SELECT attempt_id, user_id, quiz_id, score, total_questions, xp_earned, passed, started_at, completed_at
+            FROM quiz_attempts
+            ORDER BY started_at DESC;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+        await using var cmd = new MySqlCommand(sql, connection);
+
+        var attempts = new List<QuizAttempt>();
+        await using var reader = (MySqlDataReader)await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            attempts.Add(new QuizAttempt
+            {
+                AttemptId = reader.GetInt32(0),
+                UserId = reader.GetInt32(1),
+                QuizId = reader.GetInt32(2),
+                Score = reader.GetInt32(3),
+                TotalQuestions = reader.GetInt32(4),
+                XpEarned = reader.GetInt32(5),
+                Passed = reader.GetBoolean(6),
+                StartedAt = reader.GetDateTime(7),
+                CompletedAt = reader.IsDBNull(8) ? null : reader.GetDateTime(8)
+            });
+        }
+
+        return attempts;
+    }
+
+    /// <inheritdoc />
+    public async Task<(IEnumerable<QuizAttempt> Attempts, int TotalCount)> GetAttemptsForUserAsync(int userId, int pageNumber, int pageSize)
+    {
+        const string countSql = @"
+            SELECT COUNT(1)
+            FROM quiz_attempts
+            WHERE user_id = @UserId;";
+
+        const string selectSql = @"
+            SELECT attempt_id, user_id, quiz_id, score, total_questions, xp_earned, passed, started_at, completed_at
+            FROM quiz_attempts
+            WHERE user_id = @UserId
+            ORDER BY completed_at DESC, started_at DESC
+            LIMIT @PageSize OFFSET @Offset;";
+
+        await using var connection = await _db.OpenConnectionAsync();
+
+        // Get total count
+        await using var countCmd = new MySqlCommand(countSql, connection);
+        countCmd.Parameters.AddWithValue("@UserId", userId);
+        var totalCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync());
+
+        // Get paginated attempts
+        await using var selectCmd = new MySqlCommand(selectSql, connection);
+        selectCmd.Parameters.AddWithValue("@UserId", userId);
+        selectCmd.Parameters.AddWithValue("@PageSize", pageSize);
+        selectCmd.Parameters.AddWithValue("@Offset", (pageNumber - 1) * pageSize);
+
+        var attempts = new List<QuizAttempt>();
+        await using var reader = (MySqlDataReader)await selectCmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            attempts.Add(new QuizAttempt
+            {
+                AttemptId = reader.GetInt32(0),
+                UserId = reader.GetInt32(1),
+                QuizId = reader.GetInt32(2),
+                Score = reader.GetInt32(3),
+                TotalQuestions = reader.GetInt32(4),
+                XpEarned = reader.GetInt32(5),
+                Passed = reader.GetBoolean(6),
+                StartedAt = reader.GetDateTime(7),
+                CompletedAt = reader.IsDBNull(8) ? null : reader.GetDateTime(8)
+            });
+        }
+
+        return (attempts, totalCount);
+    }
+
+    /// <inheritdoc />
     public async Task<IEnumerable<QuizAttemptHistoryItemDto>> GetAttemptHistoryByUserIdAsync(int userId)
     {
         const string sql = @"
@@ -250,8 +333,8 @@ public class QuizAttemptRepository : IQuizAttemptRepository
         const string sql = @"
             SELECT
                 a.algorithm_id                                                       AS algorithm_id,
-                a.Name                                                              AS algorithm_name,
-                a.Category                                                          AS category,
+                a.name                                                               AS algorithm_name,
+                a.category                                                           AS category,
                 COUNT(qa.attempt_id)                                                AS total_attempts,
                 SUM(CASE WHEN qa.passed = 1 THEN 1 ELSE 0 END)                     AS passed_attempts,
                 MAX(CASE
@@ -262,8 +345,8 @@ public class QuizAttemptRepository : IQuizAttemptRepository
             FROM algorithms a
             LEFT JOIN quizzes       q  ON q.algorithm_id = a.algorithm_id AND q.is_active = 1
             LEFT JOIN quiz_attempts qa ON qa.quiz_id      = q.quiz_id    AND qa.user_id  = @UserId
-            GROUP BY a.algorithm_id, a.Name, a.Category
-            ORDER BY a.Name ASC;";
+            GROUP BY a.algorithm_id, a.name, a.category
+            ORDER BY a.name ASC;";
 
         await using var connection = await _db.OpenConnectionAsync();
         await using var cmd = new MySqlCommand(sql, connection);
