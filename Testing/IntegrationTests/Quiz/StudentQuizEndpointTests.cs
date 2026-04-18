@@ -629,8 +629,10 @@ public class StudentQuizEndpointTests : IClassFixture<StudentQuizEndpointWebAppl
         const string deleteUserBadgesSql = @"
             DELETE ub
             FROM user_badges ub
-            INNER JOIN Users u ON u.Id = ub.user_id
-            WHERE u.email LIKE @Prefix;";
+            LEFT JOIN Users u ON u.Id = ub.user_id
+            LEFT JOIN badges b ON b.badge_id = ub.badge_id
+            WHERE u.email LIKE @Prefix
+               OR b.badge_name LIKE @Prefix;";
 
         const string deleteAttemptAnswersSql = @"
             DELETE aa
