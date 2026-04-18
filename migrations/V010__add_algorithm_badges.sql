@@ -5,9 +5,9 @@
 -- -----------------------------------------------------------------------------
 -- Step 1: Add column if it doesn't exist
 -- -----------------------------------------------------------------------------
-ALTER TABLE badges
-ADD COLUMN IF NOT EXISTS algorithm_id INT NULL
-COMMENT 'NULL = XP badge; set = awarded when user passes a quiz for this algorithm';
+SET @c1 = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'badges' AND COLUMN_NAME = 'algorithm_id');
+SET @s1 = IF(@c1 = 0, "ALTER TABLE badges ADD COLUMN algorithm_id INT NULL COMMENT 'NULL = XP badge; set = awarded when user passes a quiz for this algorithm'", 'SELECT 1');
+PREPARE stmt FROM @s1; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- -----------------------------------------------------------------------------
 -- Step 2: Add FK constraint only if it doesn't already exist
