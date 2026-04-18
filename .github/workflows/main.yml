@@ -6,12 +6,17 @@ on:
     branches:
       - develop
       - main
+      - QA
+      - devops
 
   # Run CI on push to dev; deploy only when main gets updated (after merge)
   push:
     branches:
       - develop
       - main
+      - QA
+      - devops
+
 
 jobs:
 
