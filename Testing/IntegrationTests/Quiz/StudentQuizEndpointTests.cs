@@ -629,7 +629,7 @@ public class StudentQuizEndpointTests : IClassFixture<StudentQuizEndpointWebAppl
         const string deleteUserBadgesSql = @"
             DELETE ub
             FROM user_badges ub
-            INNER JOIN users u ON u.id = ub.user_id
+            INNER JOIN Users u ON u.Id = ub.user_id
             WHERE u.email LIKE @Prefix;";
 
         const string deleteAttemptAnswersSql = @"
@@ -653,7 +653,7 @@ public class StudentQuizEndpointTests : IClassFixture<StudentQuizEndpointWebAppl
 
         const string deleteQuizzesSql = "DELETE FROM quizzes WHERE title LIKE @Prefix;";
         const string deleteBadgesSql = "DELETE FROM badges WHERE badge_name LIKE @Prefix;";
-        const string deleteUsersSql = "DELETE FROM users WHERE email LIKE @Prefix;";
+        const string deleteUsersSql = "DELETE FROM Users WHERE email LIKE @Prefix;";
 
         foreach (var sql in new[]
                  {

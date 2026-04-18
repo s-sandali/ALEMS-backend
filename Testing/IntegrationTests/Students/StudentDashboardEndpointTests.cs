@@ -299,11 +299,11 @@ public class StudentDashboardEndpointTests : IClassFixture<StudentDashboardWebAp
         const string deleteUserBadgesSql = @"
             DELETE ub
             FROM user_badges ub
-            INNER JOIN users u ON u.id = ub.user_id
+            INNER JOIN Users u ON u.Id = ub.user_id
             WHERE u.email LIKE @Prefix;";
 
         const string deleteUsersSql = @"
-            DELETE FROM users
+            DELETE FROM Users
             WHERE email LIKE @Prefix
                OR clerkUserId LIKE @Prefix;";
 
