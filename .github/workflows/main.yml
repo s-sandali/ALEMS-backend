@@ -60,7 +60,7 @@ jobs:
           --health-retries=10
 
     env:
-      ConnectionStrings__DefaultConnection: Server=127.0.0.1;Port=3306;Database=alems_test;Uid=root;Pwd=root;SslMode=None;AllowPublicKeyRetrieval=True
+      ConnectionStrings__DefaultConnection: Server=127.0.0.1;Port=3306;Database=alems_test;Uid=root;Pwd=root;SslMode=Disabled;AllowPublicKeyRetrieval=True
 
     steps:
       - name: Checkout code
@@ -125,7 +125,7 @@ jobs:
           --health-retries=10
 
     env:
-      ConnectionStrings__DefaultConnection: Server=127.0.0.1;Port=3306;Database=alems_test;Uid=root;Pwd=root;SslMode=None;AllowPublicKeyRetrieval=True
+      ConnectionStrings__DefaultConnection: Server=127.0.0.1;Port=3306;Database=alems_test;Uid=root;Pwd=root;SslMode=Disabled;AllowPublicKeyRetrieval=True
       COVERAGE_THRESHOLD: '70'
 
     steps:
