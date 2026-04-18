@@ -29,13 +29,15 @@ SET started_at = COALESCE(started_at, submitted_at, CURRENT_TIMESTAMP),
     completed_at = COALESCE(completed_at, submitted_at)
 WHERE completed_at IS NULL OR started_at IS NULL;
 
--- Recreate indexes on completed_at (drop old ones first if they exist)
-SET @i1 = (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'quiz_attempts' AND INDEX_NAME = 'idx_quiz_attempts_user');
-SET @d1 = IF(@i1 > 0, 'DROP INDEX idx_quiz_attempts_user ON quiz_attempts', 'SELECT 1');
-PREPARE stmt FROM @d1; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+-- Swap idx_quiz_attempts_user to completed_at.
+-- Must create a temp index first so the FK on user_id is never left uncovered.
+CREATE INDEX idx_quiz_attempts_user_tmp ON quiz_attempts (user_id);
+DROP INDEX idx_quiz_attempts_user ON quiz_attempts;
 CREATE INDEX idx_quiz_attempts_user ON quiz_attempts (user_id, completed_at);
+DROP INDEX idx_quiz_attempts_user_tmp ON quiz_attempts;
 
-SET @i2 = (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'quiz_attempts' AND INDEX_NAME = 'idx_quiz_attempts_quiz');
-SET @d2 = IF(@i2 > 0, 'DROP INDEX idx_quiz_attempts_quiz ON quiz_attempts', 'SELECT 1');
-PREPARE stmt FROM @d2; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+-- Swap idx_quiz_attempts_quiz to completed_at (same pattern for quiz_id FK).
+CREATE INDEX idx_quiz_attempts_quiz_tmp ON quiz_attempts (quiz_id);
+DROP INDEX idx_quiz_attempts_quiz ON quiz_attempts;
 CREATE INDEX idx_quiz_attempts_quiz ON quiz_attempts (quiz_id, completed_at);
+DROP INDEX idx_quiz_attempts_quiz_tmp ON quiz_attempts;
