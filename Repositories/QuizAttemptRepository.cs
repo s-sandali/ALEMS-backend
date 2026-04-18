@@ -249,9 +249,9 @@ public class QuizAttemptRepository : IQuizAttemptRepository
     {
         const string sql = @"
             SELECT
-                a.algorithm_id                                                       AS AlgorithmId,
-                a.Name                                                              AS algorithm_name,
-                a.Category,
+                a.algorithm_id                                                       AS algorithm_id,
+                a.name                                                               AS algorithm_name,
+                a.category                                                           AS category,
                 COUNT(qa.attempt_id)                                                AS total_attempts,
                 SUM(CASE WHEN qa.passed = 1 THEN 1 ELSE 0 END)                     AS passed_attempts,
                 MAX(CASE
@@ -262,8 +262,8 @@ public class QuizAttemptRepository : IQuizAttemptRepository
             FROM algorithms a
             LEFT JOIN quizzes       q  ON q.algorithm_id = a.algorithm_id AND q.is_active = 1
             LEFT JOIN quiz_attempts qa ON qa.quiz_id      = q.quiz_id    AND qa.user_id  = @UserId
-            GROUP BY a.algorithm_id, a.Name, a.Category
-            ORDER BY a.Name ASC;";
+            GROUP BY a.algorithm_id, a.name, a.category
+            ORDER BY a.name ASC;";
 
         await using var connection = await _db.OpenConnectionAsync();
         await using var cmd = new MySqlCommand(sql, connection);
