@@ -110,10 +110,10 @@ public class AdminStatsEndpointTests : IClassFixture<CustomWebApplicationFactory
 
         await reader.ReadAsync();
 
-        var totalUsers = reader.GetInt32("total_users");
-        var totalQuizzes = reader.GetInt32("total_quizzes");
-        var totalAttempts = reader.GetInt32("total_attempts");
-        var passedAttempts = reader.GetInt32("passed_attempts");
+        var totalUsers = reader.GetInt32(reader.GetOrdinal("total_users"));
+        var totalQuizzes = reader.GetInt32(reader.GetOrdinal("total_quizzes"));
+        var totalAttempts = reader.GetInt32(reader.GetOrdinal("total_attempts"));
+        var passedAttempts = reader.GetInt32(reader.GetOrdinal("passed_attempts"));
 
         var averagePassRate = totalAttempts > 0
             ? (passedAttempts * 100.0) / totalAttempts
