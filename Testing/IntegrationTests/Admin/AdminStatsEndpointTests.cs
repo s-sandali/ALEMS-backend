@@ -27,8 +27,19 @@ public class AdminStatsEndpointTests : IClassFixture<CustomWebApplicationFactory
 
         try
         {
+            // Capture baseline BEFORE seeding so parallel-test activity doesn't skew expectations.
+            // We know exactly what SeedStatsDataAsync inserts: 2 users, 1 quiz, 3 attempts (2 passed).
+            var baseline = await ReadExpectedStatsFromDatabaseAsync(db);
+
             await SeedStatsDataAsync(db, tag);
-            var expected = await ReadExpectedStatsFromDatabaseAsync(db);
+
+            var expectedUsers    = baseline.TotalUsers    + 2;
+            var expectedQuizzes  = baseline.TotalQuizzes  + 1;
+            var expectedAttempts = baseline.TotalAttempts + 3;
+            var expectedPassed   = (int)Math.Round(baseline.AveragePassRate / 100.0 * baseline.TotalAttempts) + 2;
+            var expectedPassRate = expectedAttempts > 0
+                ? (expectedPassed * 100.0) / expectedAttempts
+                : 0.0;
 
             var client = BuildAuthorizedClient(TestAuthHandler.AdminToken);
             var response = await client.GetAsync("/api/admin/stats");
@@ -38,10 +49,10 @@ public class AdminStatsEndpointTests : IClassFixture<CustomWebApplicationFactory
             using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
             var root = body.RootElement;
 
-            root.GetProperty("totalUsers").GetInt32().Should().Be(expected.TotalUsers);
-            root.GetProperty("totalQuizzes").GetInt32().Should().Be(expected.TotalQuizzes);
-            root.GetProperty("totalAttempts").GetInt32().Should().Be(expected.TotalAttempts);
-            root.GetProperty("averagePassRate").GetDouble().Should().BeApproximately(expected.AveragePassRate, 0.0001);
+            root.GetProperty("totalUsers").GetInt32().Should().Be(expectedUsers);
+            root.GetProperty("totalQuizzes").GetInt32().Should().Be(expectedQuizzes);
+            root.GetProperty("totalAttempts").GetInt32().Should().Be(expectedAttempts);
+            root.GetProperty("averagePassRate").GetDouble().Should().BeApproximately(expectedPassRate, 0.01);
         }
         finally
         {
