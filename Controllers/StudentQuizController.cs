@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using backend.DTOs;
 using backend.Services;
+using Microsoft.ApplicationInsights;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -13,6 +14,9 @@ namespace backend.Controllers;
 /// All endpoints require a valid Clerk JWT (any authenticated user — Student or Admin).
 /// Only <b>active</b> quizzes and questions are returned from read endpoints.
 /// <b>Correct answers are never included in question responses.</b>
+///
+/// **Unexpected errors** bubble to <c>GlobalExceptionMiddleware</c> which
+/// returns <c>{ statusCode, message, correlationId, traceId }</c>.
 /// </remarks>
 [ApiController]
 [Route("api/student")]
@@ -20,21 +24,24 @@ namespace backend.Controllers;
 [Produces("application/json")]
 public class StudentQuizController : ControllerBase
 {
-    private readonly IQuizService            _quizService;
-    private readonly IQuizQuestionService    _questionService;
-    private readonly IQuizAttemptService     _attemptService;
+    private readonly IQuizService         _quizService;
+    private readonly IQuizQuestionService _questionService;
+    private readonly IQuizAttemptService  _attemptService;
     private readonly ILogger<StudentQuizController> _logger;
+    private readonly TelemetryClient _telemetryClient;
 
     public StudentQuizController(
         IQuizService quizService,
         IQuizQuestionService questionService,
         IQuizAttemptService attemptService,
-        ILogger<StudentQuizController> logger)
+        ILogger<StudentQuizController> logger,
+        TelemetryClient telemetryClient)
     {
         _quizService     = quizService;
         _questionService = questionService;
         _attemptService  = attemptService;
         _logger          = logger;
+        _telemetryClient = telemetryClient;
     }
 
     // ── GET /api/student/quizzes ─────────────────────────────────────
@@ -89,15 +96,9 @@ public class StudentQuizController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetActiveQuestions(int quizId)
     {
-        try
-        {
-            var questions = await _questionService.GetActiveQuestionsForStudentAsync(quizId);
-            return Ok(new { status = "success", data = questions });
-        }
-        catch (KeyNotFoundException knfe)
-        {
-            return NotFound(new { status = "error", message = knfe.Message });
-        }
+        // KeyNotFoundException → 404 via GlobalExceptionMiddleware
+        var questions = await _questionService.GetActiveQuestionsForStudentAsync(quizId);
+        return Ok(new { status = "success", data = questions });
     }
 
     // ── POST /api/student/quizzes/{quizId}/attempt ───────────────────
@@ -126,28 +127,34 @@ public class StudentQuizController : ControllerBase
         if (string.IsNullOrWhiteSpace(clerkUserId))
             return Unauthorized(new { status = "error", message = "Invalid token: missing user identifier." });
 
-        try
-        {
-            var result = await _attemptService.SubmitAttemptAsync(quizId, clerkUserId, dto);
+        // ArgumentException (invalid answers) → 400 via GlobalExceptionMiddleware
+        // KeyNotFoundException (quiz/user)    → 404 via GlobalExceptionMiddleware
+        var result = await _attemptService.SubmitAttemptAsync(quizId, clerkUserId, dto);
 
-            _logger.LogInformation(
-                "POST /api/student/quizzes/{QuizId}/attempt — submitted for ClerkId={ClerkId}",
-                quizId, clerkUserId);
-
-            return Ok(new
+        _telemetryClient.TrackEvent(
+            "QuizSubmitted",
+            new Dictionary<string, string>
             {
-                status  = "success",
-                message = "Quiz attempt submitted successfully.",
-                data    = result
+                ["userId"] = clerkUserId,
+                ["quizId"] = quizId.ToString(),
+                ["score"] = result.Score.ToString(),
+                ["correlationId"] = ResolveCorrelationId()
             });
-        }
-        catch (ArgumentException ae)
+
+        _logger.LogInformation(
+            "POST /api/student/quizzes/{QuizId}/attempt — submitted for ClerkId={ClerkId}",
+            quizId, clerkUserId);
+
+        return Ok(new
         {
-            return BadRequest(new { status = "error", message = ae.Message });
-        }
-        catch (KeyNotFoundException knfe)
-        {
-            return NotFound(new { status = "error", message = knfe.Message });
-        }
+            status  = "success",
+            message = "Quiz attempt submitted successfully.",
+            data    = result
+        });
+    }
+
+    private string ResolveCorrelationId()
+    {
+        return HttpContext.Items["CorrelationId"]?.ToString() ?? HttpContext.TraceIdentifier;
     }
 }
