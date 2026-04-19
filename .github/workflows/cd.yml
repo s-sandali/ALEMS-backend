@@ -22,10 +22,10 @@ jobs:
       url: ${{ steps.deploy.outputs.webapp-url }}
 
     steps:
-      - name: Verify Code Coverage Compliance
+      - name: Report Code Coverage Status
         shell: bash
         run: |
-          echo "✅ Code coverage check passed in CI workflow (≥70% requirement met)"
+          echo "ℹ️ Code coverage was reported in CI. Deployment is not blocked by the coverage threshold."
 
       - name: Download Artifact from CI (workflow_run)
         if: ${{ github.event_name == 'workflow_run' }}

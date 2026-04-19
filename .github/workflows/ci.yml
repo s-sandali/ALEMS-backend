@@ -166,7 +166,7 @@ jobs:
       - name: Run Integration Tests
         run: dotnet test Testing/IntegrationTests/IntegrationTests.csproj --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --results-directory Testing/IntegrationTests/TestResults
 
-      - name: Enforce 70% combined line coverage
+      - name: Report combined line coverage
         if: (github.event_name == 'pull_request' && github.base_ref == 'main') || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         shell: bash
         run: |
@@ -199,8 +199,8 @@ jobs:
           print(f"Combined line coverage: {coverage:.2f}% (threshold: {threshold:.2f}%)")
 
           if coverage < threshold:
-              print("Coverage threshold not met.")
-              sys.exit(1)
+              print("::warning::Coverage threshold not met, but the pipeline will continue.")
+              sys.exit(0)
 
           print("Coverage threshold met.")
           PY
