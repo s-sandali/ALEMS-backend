@@ -20,6 +20,7 @@ public class ReportRepository : IReportRepository
     /// <inheritdoc />
     public async Task<IEnumerable<PerStudentReportDto>> GetPerStudentReportAsync(DateTime startDate, DateTime endDate)
     {
+        // Issue #202: quiz_attempts no longer exposes created_at; use the aligned timestamps instead.
         const string sql = @"
             SELECT 
                 u.id AS student_id,
@@ -31,7 +32,7 @@ public class ReportRepository : IReportRepository
                 COUNT(DISTINCT qa.quiz_id) AS algorithms_attempted
             FROM quiz_attempts qa
             JOIN users u ON qa.user_id = u.id
-            WHERE qa.created_at BETWEEN @StartDate AND @EndDate
+            WHERE COALESCE(qa.completed_at, qa.submitted_at) BETWEEN @StartDate AND @EndDate
             GROUP BY u.id, u.username
             ORDER BY u.username;";
 
@@ -73,7 +74,7 @@ public class ReportRepository : IReportRepository
             FROM quiz_attempts qa
             JOIN quizzes q ON qa.quiz_id = q.id
             JOIN algorithms a ON q.algorithm_id = a.id
-            WHERE qa.created_at BETWEEN @StartDate AND @EndDate
+            WHERE COALESCE(qa.completed_at, qa.submitted_at) BETWEEN @StartDate AND @EndDate
             GROUP BY a.category
             ORDER BY a.category;";
 
@@ -112,7 +113,7 @@ public class ReportRepository : IReportRepository
                 MIN(qa.score) AS lowest_score
             FROM quiz_attempts qa
             JOIN quizzes q ON qa.quiz_id = q.id
-            WHERE qa.created_at BETWEEN @StartDate AND @EndDate
+            WHERE COALESCE(qa.completed_at, qa.submitted_at) BETWEEN @StartDate AND @EndDate
             GROUP BY q.id, q.title
             ORDER BY q.title;";
 
@@ -150,7 +151,7 @@ public class ReportRepository : IReportRepository
                 AVG(score) AS avg_score,
                 COALESCE(SUM(xp_earned), 0) AS total_xp
             FROM quiz_attempts
-            WHERE created_at BETWEEN @StartDate AND @EndDate;";
+            WHERE COALESCE(completed_at, submitted_at) BETWEEN @StartDate AND @EndDate;";
 
         await using var connection = await _db.OpenConnectionAsync();
         await using var cmd = new MySqlCommand(sql, connection);
