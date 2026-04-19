@@ -29,9 +29,15 @@ SET started_at = COALESCE(started_at, submitted_at, CURRENT_TIMESTAMP),
     completed_at = COALESCE(completed_at, submitted_at)
 WHERE completed_at IS NULL OR started_at IS NULL;
 
--- Recreate indexes (no DROP IF EXISTS)
-CREATE INDEX idx_quiz_attempts_user
-    ON quiz_attempts (user_id, completed_at);
+-- Swap idx_quiz_attempts_user to completed_at.
+-- Must create a temp index first so the FK on user_id is never left uncovered.
+CREATE INDEX idx_quiz_attempts_user_tmp ON quiz_attempts (user_id);
+DROP INDEX idx_quiz_attempts_user ON quiz_attempts;
+CREATE INDEX idx_quiz_attempts_user ON quiz_attempts (user_id, completed_at);
+DROP INDEX idx_quiz_attempts_user_tmp ON quiz_attempts;
 
-CREATE INDEX idx_quiz_attempts_quiz
-    ON quiz_attempts (quiz_id, completed_at);
+-- Swap idx_quiz_attempts_quiz to completed_at (same pattern for quiz_id FK).
+CREATE INDEX idx_quiz_attempts_quiz_tmp ON quiz_attempts (quiz_id);
+DROP INDEX idx_quiz_attempts_quiz ON quiz_attempts;
+CREATE INDEX idx_quiz_attempts_quiz ON quiz_attempts (quiz_id, completed_at);
+DROP INDEX idx_quiz_attempts_quiz_tmp ON quiz_attempts;

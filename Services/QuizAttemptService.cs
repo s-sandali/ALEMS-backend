@@ -13,6 +13,8 @@ public class QuizAttemptService : IQuizAttemptService
     private readonly IQuizQuestionRepository  _questionRepository;
     private readonly IUserRepository          _userRepository;
     private readonly IQuizAttemptRepository   _attemptRepository;
+    private readonly IAlgorithmRepository     _algorithmRepository;
+    private readonly IBadgeService            _badgeService;
     private readonly ILogger<QuizAttemptService> _logger;
 
     public QuizAttemptService(
@@ -20,12 +22,16 @@ public class QuizAttemptService : IQuizAttemptService
         IQuizQuestionRepository questionRepository,
         IUserRepository userRepository,
         IQuizAttemptRepository attemptRepository,
+        IAlgorithmRepository algorithmRepository,
+        IBadgeService badgeService,
         ILogger<QuizAttemptService> logger)
     {
         _quizRepository     = quizRepository;
         _questionRepository = questionRepository;
         _userRepository     = userRepository;
         _attemptRepository  = attemptRepository;
+        _algorithmRepository = algorithmRepository;
+        _badgeService       = badgeService;
         _logger             = logger;
     }
 
@@ -100,6 +106,12 @@ public class QuizAttemptService : IQuizAttemptService
             }),
             xpToAward);
 
+        // Check and award any newly unlocked badges after XP is awarded
+        if (xpToAward > 0)
+        {
+            await _badgeService.AwardUnlockedBadgesAsync(user.UserId);
+        }
+
         gradingResult.AttemptId      = attempt.AttemptId;
         gradingResult.QuizId         = quizId;
         gradingResult.Passed         = passed;
@@ -173,6 +185,68 @@ public class QuizAttemptService : IQuizAttemptService
             XpEarned       = xpEarned,
             Results        = answerResults
             // AttemptId, QuizId, Passed set after DB insert
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<StudentAttemptHistoryResponseDto> GetUserAttemptHistoryAsync(int userId, int pageNumber, int pageSize)
+    {
+        // Validate pagination parameters
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;  // Cap at 100 per page
+
+        // Get paginated attempts from repository
+        var (attempts, totalCount) = await _attemptRepository.GetAttemptsForUserAsync(userId, pageNumber, pageSize);
+        var attemptList = attempts.ToList();
+
+        if (attemptList.Count == 0)
+        {
+            return new StudentAttemptHistoryResponseDto
+            {
+                Attempts = new List<UserAttemptHistoryDto>(),
+                Page = pageNumber,
+                PageSize = pageSize,
+                TotalAttempts = 0
+            };
+        }
+
+        // Get all quizzes and algorithms in one go
+        var quizIds = attemptList.Select(a => a.QuizId).Distinct().ToList();
+        var quizzes = (await _quizRepository.GetByIdsAsync(quizIds)).ToDictionary(q => q.QuizId);
+        
+        var algorithmIds = quizzes.Values.Select(q => q.AlgorithmId).Distinct().ToList();
+        var algorithms = (await _algorithmRepository.GetByIdsAsync(algorithmIds)).ToDictionary(a => a.AlgorithmId);
+
+        // Enrich attempts with quiz and algorithm data
+        var enrichedAttempts = attemptList
+            .Select(attempt =>
+            {
+                quizzes.TryGetValue(attempt.QuizId, out var quiz);
+                var algorithmId = quiz?.AlgorithmId ?? 0;
+                algorithms.TryGetValue(algorithmId, out var algorithm);
+
+                return new UserAttemptHistoryDto
+                {
+                    AttemptId = attempt.AttemptId,
+                    QuizId = attempt.QuizId,
+                    QuizTitle = quiz?.Title ?? "Unknown Quiz",
+                    AlgorithmName = algorithm?.Name ?? "Unknown Algorithm",
+                    Score = attempt.Score,
+                    XpEarned = attempt.XpEarned,
+                    Passed = attempt.Passed,
+                    CompletedAt = attempt.CompletedAt,
+                    StartedAt = attempt.StartedAt
+                };
+            })
+            .ToList();
+
+        return new StudentAttemptHistoryResponseDto
+        {
+            Attempts = enrichedAttempts,
+            Page = pageNumber,
+            PageSize = pageSize,
+            TotalAttempts = totalCount
         };
     }
 }

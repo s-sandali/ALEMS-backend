@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
         ON UPDATE CASCADE,
 
     FOREIGN KEY (user_id)
-        REFERENCES users (id)
+        REFERENCES Users (Id)
         ON DELETE RESTRICT
         ON UPDATE CASCADE
 ) ENGINE=InnoDB;

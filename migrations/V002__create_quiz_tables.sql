@@ -42,9 +42,11 @@ CREATE TABLE IF NOT EXISTS quizzes (
   COMMENT='One quiz per algorithm, authored by an admin user.';
 
 -- Index for common query: fetch all active quizzes for a given algorithm
-DROP INDEX IF EXISTS idx_quizzes_algorithm_active ON quizzes;
-CREATE INDEX idx_quizzes_algorithm_active
-    ON quizzes (algorithm_id, is_active);
+SET @idx1 = (SELECT COUNT(*) FROM information_schema.STATISTICS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'quizzes'
+               AND INDEX_NAME = 'idx_quizzes_algorithm_active');
+SET @sql1 = IF(@idx1 = 0, 'CREATE INDEX idx_quizzes_algorithm_active ON quizzes (algorithm_id, is_active)', 'SELECT 1');
+PREPARE stmt FROM @sql1; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- -----------------------------------------------------------------------------
 -- Table: quiz_questions
@@ -76,6 +78,8 @@ CREATE TABLE IF NOT EXISTS quiz_questions (
   COMMENT='Multiple-choice questions belonging to a quiz.';
 
 -- Index for common query: fetch ordered active questions for a quiz
-DROP INDEX IF EXISTS idx_quiz_questions_quiz_active ON quiz_questions;
-CREATE INDEX idx_quiz_questions_quiz_active
-    ON quiz_questions (quiz_id, is_active, order_index);
+SET @idx2 = (SELECT COUNT(*) FROM information_schema.STATISTICS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'quiz_questions'
+               AND INDEX_NAME = 'idx_quiz_questions_quiz_active');
+SET @sql2 = IF(@idx2 = 0, 'CREATE INDEX idx_quiz_questions_quiz_active ON quiz_questions (quiz_id, is_active, order_index)', 'SELECT 1');
+PREPARE stmt FROM @sql2; EXECUTE stmt; DEALLOCATE PREPARE stmt;

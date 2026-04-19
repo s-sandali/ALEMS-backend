@@ -46,4 +46,10 @@ public interface IQuizService
     /// Returns false if not found.
     /// </summary>
     Task<bool> DeleteQuizAsync(int id);
+
+    /// <summary>
+    /// Retrieves statistics for a specific quiz including attempt count, average score, and pass rate.
+    /// Returns null if the quiz does not exist.
+    /// </summary>
+    Task<QuizStatsDto?> GetStatsAsync(int id);
 }

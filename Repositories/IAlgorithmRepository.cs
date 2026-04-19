@@ -16,4 +16,9 @@ public interface IAlgorithmRepository
     /// Retrieves a single algorithm by its primary key, or null if not found.
     /// </summary>
     Task<Algorithm?> GetByIdAsync(int id);
+
+    /// <summary>
+    /// Retrieves multiple algorithms by their IDs in a single query.
+    /// </summary>
+    Task<IEnumerable<Algorithm>> GetByIdsAsync(IEnumerable<int> algorithmIds);
 }
