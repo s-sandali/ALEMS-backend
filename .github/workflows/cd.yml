@@ -180,7 +180,7 @@ jobs:
     if: failure()
 
     steps:
-      - uses: slackapi/slack-github-action@v1
+      - uses: slackapi/slack-github-action@v3
         with:
           payload: |
             {
@@ -208,7 +208,7 @@ jobs:
     if: success()
 
     steps:
-      - uses: slackapi/slack-github-action@v1
+      - uses: slackapi/slack-github-action@v3
         with:
           payload: |
             {
