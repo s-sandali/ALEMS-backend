@@ -9,8 +9,18 @@
 --   difficulty     – easy / medium / hard, used for filtering and scoring
 -- =============================================================================
 
-ALTER TABLE quiz_questions
-    ADD COLUMN IF NOT EXISTS question_type ENUM('MCQ','PREDICT_STEP') NOT NULL DEFAULT 'MCQ'
-        AFTER quiz_id,
-    ADD COLUMN IF NOT EXISTS difficulty    ENUM('easy','medium','hard') NOT NULL DEFAULT 'easy'
-        AFTER correct_option;
+SET @col1 = (SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'quiz_questions'
+               AND COLUMN_NAME = 'question_type');
+SET @sql1 = IF(@col1 = 0,
+    "ALTER TABLE quiz_questions ADD COLUMN question_type ENUM('MCQ','PREDICT_STEP') NOT NULL DEFAULT 'MCQ' AFTER quiz_id",
+    'SELECT 1');
+PREPARE stmt FROM @sql1; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @col2 = (SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'quiz_questions'
+               AND COLUMN_NAME = 'difficulty');
+SET @sql2 = IF(@col2 = 0,
+    "ALTER TABLE quiz_questions ADD COLUMN difficulty ENUM('easy','medium','hard') NOT NULL DEFAULT 'easy' AFTER correct_option",
+    'SELECT 1');
+PREPARE stmt FROM @sql2; EXECUTE stmt; DEALLOCATE PREPARE stmt;

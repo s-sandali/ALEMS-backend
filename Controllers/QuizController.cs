@@ -182,4 +182,62 @@ public class QuizController : ControllerBase
 
         return NoContent(); // 204
     }
+
+    /// <summary>
+    /// GET /api/quizzes/{id}/stats — Retrieve comprehensive statistics for a specific quiz across all student attempts.
+    /// </summary>
+    /// <param name="id">The auto-increment quiz ID. Example: 1</param>
+    /// <remarks>
+    /// **Admin-only endpoint.** Returns aggregated statistics for quiz analytics and monitoring:
+    /// - attemptCount: Total number of submission attempts across all students
+    /// - averageScore: Mean score as percentage (0-100) across all attempts
+    /// - passRate: Percentage of attempts (0-100) that met or exceeded quiz.passScore threshold
+    /// 
+    /// **Use cases**:
+    /// - Quiz analytics dashboard to assess difficulty and student performance
+    /// - Identify problematic quizzes (low pass rate) for content review
+    /// - Track engagement (attempt count growth over time)
+    /// 
+    /// Example response (for a quiz with 5 attempts, 3 passed, avg score 72%):
+    /// ```json
+    /// {
+    ///   "status": "success",
+    ///   "data": {
+    ///     "attemptCount": 5,
+    ///     "averageScore": 72.0,
+    ///     "passRate": 60.0
+    ///   }
+    /// }
+    /// ```
+    /// </remarks>
+    /// <returns>
+    /// Success response with QuizStats object containing:
+    /// attemptCount (int), averageScore (0-100 double), passRate (0-100 double).
+    /// </returns>
+    /// <response code="200">Quiz statistics retrieved successfully with all aggregated data.</response>
+    /// <response code="404">No quiz found with the supplied ID.</response>
+    /// <response code="500">Server error retrieving or calculating statistics (database failure).</response>
+    [HttpGet("{id:int}/stats")]
+    [ProducesResponseType(typeof(backend.DTOs.QuizStatsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetQuizStats(int id)
+    {
+        var stats = await _quizService.GetStatsAsync(id);
+        if (stats is null)
+        {
+            return NotFound(new
+            {
+                status  = "error",
+                message = $"Quiz with ID {id} not found."
+            });
+        }
+
+        _logger.LogInformation("GET /api/quizzes/{Id}/stats — returned stats", id);
+        return Ok(new
+        {
+            status = "success",
+            data   = stats
+        });
+    }
 }
