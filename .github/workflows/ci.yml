@@ -289,22 +289,23 @@ jobs:
           DELETE FROM Users WHERE ClerkUserId LIKE 'perf_clerk_%';
           SQL
 
-          mysql -h "${DB_HOST}" -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" <<SQL
-          WITH RECURSIVE seq AS (
-            SELECT 1 AS n
-            UNION ALL
-            SELECT n + 1 FROM seq WHERE n < 25
-          )
+          mysql -h "${DB_HOST}" -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" <<'SQL'
           INSERT INTO Users (ClerkUserId, Email, Role, XpTotal, IsActive, CreatedAt, UpdatedAt)
           SELECT
-            CONCAT('perf_clerk_', n),
-            CONCAT('perf.user.', n, '@example.com'),
+            CONCAT('perf_clerk_', n.n),
+            CONCAT('perf.user.', n.n, '@example.com'),
             'User',
             0,
             1,
             UTC_TIMESTAMP(),
             UTC_TIMESTAMP()
-          FROM seq;
+          FROM (
+            SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5
+            UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10
+            UNION ALL SELECT 11 UNION ALL SELECT 12 UNION ALL SELECT 13 UNION ALL SELECT 14 UNION ALL SELECT 15
+            UNION ALL SELECT 16 UNION ALL SELECT 17 UNION ALL SELECT 18 UNION ALL SELECT 19 UNION ALL SELECT 20
+            UNION ALL SELECT 21 UNION ALL SELECT 22 UNION ALL SELECT 23 UNION ALL SELECT 24 UNION ALL SELECT 25
+          ) AS n;
           SQL
 
           mysql -h "${DB_HOST}" -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -e "
@@ -323,24 +324,25 @@ jobs:
           QUIZ_ID=$(mysql -N -s -h "${DB_HOST}" -u"${DB_USER}" -p"${DB_PASS}" -D "${DB_NAME}" -e "SELECT quiz_id FROM quizzes WHERE title = 'Performance Load Quiz' LIMIT 1;")
 
           mysql -h "${DB_HOST}" -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" <<SQL
-          WITH RECURSIVE seq AS (
-            SELECT 1 AS n
-            UNION ALL
-            SELECT n + 1 FROM seq WHERE n < ${PERFORMANCE_RECORD_COUNT}
-          )
           INSERT INTO quiz_attempts (user_id, quiz_id, score, passed, submitted_at, total_questions, xp_earned, started_at, completed_at)
           SELECT
             u.Id,
             ${QUIZ_ID},
-            50 + MOD(seq.n, 51),
+            50 + MOD(nums.n, 51),
             1,
-            DATE_ADD('2026-04-01 12:00:00', INTERVAL MOD(seq.n, 28) DAY),
+            DATE_ADD('2026-04-01 12:00:00', INTERVAL MOD(nums.n, 28) DAY),
             10,
-            10 + MOD(seq.n, 21),
-            DATE_ADD('2026-04-01 11:55:00', INTERVAL MOD(seq.n, 28) DAY),
-            DATE_ADD('2026-04-01 12:00:00', INTERVAL MOD(seq.n, 28) DAY)
-          FROM seq
-          INNER JOIN Users u ON u.ClerkUserId = CONCAT('perf_clerk_', MOD(seq.n, 25) + 1);
+            10 + MOD(nums.n, 21),
+            DATE_ADD('2026-04-01 11:55:00', INTERVAL MOD(nums.n, 28) DAY),
+            DATE_ADD('2026-04-01 12:00:00', INTERVAL MOD(nums.n, 28) DAY)
+          FROM (
+            SELECT (a.d + 10 * b.d + 100 * c.d + 1) AS n
+            FROM (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS a
+            CROSS JOIN (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS b
+            CROSS JOIN (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS c
+          ) AS nums
+          INNER JOIN Users u ON u.ClerkUserId = CONCAT('perf_clerk_', MOD(nums.n, 25) + 1)
+          WHERE nums.n <= ${PERFORMANCE_RECORD_COUNT};
           SQL
 
           INSERTED_COUNT=$(mysql -N -s -h "${DB_HOST}" -u"${DB_USER}" -p"${DB_PASS}" -D "${DB_NAME}" -e "
