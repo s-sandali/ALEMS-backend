@@ -283,6 +283,7 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddHealthChecks();
 
 // ── Dependency Injection ───────────────────────────────────────────
 builder.Services.AddScoped<DatabaseHelper>();
@@ -433,6 +434,7 @@ if (!skipMigrations)
 }
 
 app.MapControllers();
+app.MapHealthChecks("/health");
 
 await app.RunAsync();
 
