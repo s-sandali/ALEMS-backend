@@ -17,8 +17,8 @@ namespace backend.Controllers;
 /// the action body runs (via <c>InvalidModelStateResponseFactory</c>).
 ///
 /// **Unexpected errors** bubble to <c>GlobalExceptionMiddleware</c> which
-/// returns <c>{ statusCode, message, traceId }</c> — raw exception details
-/// are never exposed to the client.
+/// returns <c>{ statusCode, message, correlationId, traceId }</c> — raw
+/// exception details are never exposed to the client.
 /// </remarks>
 [ApiController]
 [Route("api/quizzes")]
@@ -115,36 +115,17 @@ public class QuizController : ControllerBase
             });
         }
 
-        try
-        {
-            var result = await _quizService.CreateQuizAsync(dto, clerkUserId);
+        // ArgumentException (invalid algorithmId) → 400 via GlobalExceptionMiddleware
+        // KeyNotFoundException (user not synced)   → 404 via GlobalExceptionMiddleware
+        var result = await _quizService.CreateQuizAsync(dto, clerkUserId);
 
-            _logger.LogInformation("POST /api/quizzes — created QuizId={QuizId}", result.QuizId);
-            return StatusCode(StatusCodes.Status201Created, new
-            {
-                status  = "success",
-                message = "Quiz created successfully.",
-                data    = result
-            });
-        }
-        catch (ArgumentException ae)
+        _logger.LogInformation("POST /api/quizzes — created QuizId={QuizId}", result.QuizId);
+        return StatusCode(StatusCodes.Status201Created, new
         {
-            return BadRequest(new
-            {
-                status  = "error",
-                message = ae.Message
-            });
-        }
-        catch (KeyNotFoundException knfe)
-        {
-            return NotFound(new
-            {
-                status  = "error",
-                message = knfe.Message
-            });
-        }
-        // All other exceptions bubble to GlobalExceptionMiddleware
-        // → { statusCode: 500, message: "...", traceId: "..." }
+            status  = "success",
+            message = "Quiz created successfully.",
+            data    = result
+        });
     }
 
     /// <summary>
@@ -163,27 +144,16 @@ public class QuizController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> UpdateQuiz(int id, [FromBody] UpdateQuizDto dto)
     {
-        try
-        {
-            var result = await _quizService.UpdateQuizAsync(id, dto);
+        // KeyNotFoundException → 404 via GlobalExceptionMiddleware
+        var result = await _quizService.UpdateQuizAsync(id, dto);
 
-            _logger.LogInformation("PUT /api/quizzes/{Id} — updated", id);
-            return Ok(new
-            {
-                status  = "success",
-                message = "Quiz updated successfully.",
-                data    = result
-            });
-        }
-        catch (KeyNotFoundException knfe)
+        _logger.LogInformation("PUT /api/quizzes/{Id} — updated", id);
+        return Ok(new
         {
-            return NotFound(new
-            {
-                status  = "error",
-                message = knfe.Message
-            });
-        }
-        // All other exceptions bubble to GlobalExceptionMiddleware
+            status  = "success",
+            message = "Quiz updated successfully.",
+            data    = result
+        });
     }
 
     /// <summary>
@@ -211,7 +181,6 @@ public class QuizController : ControllerBase
         }
 
         return NoContent(); // 204
-        // All other exceptions bubble to GlobalExceptionMiddleware
     }
 
     /// <summary>

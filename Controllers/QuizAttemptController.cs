@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using backend.DTOs;
 using backend.Services;
+using Microsoft.ApplicationInsights;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -17,7 +18,7 @@ namespace backend.Controllers;
 /// the action body runs (via <c>InvalidModelStateResponseFactory</c>).
 ///
 /// **Unexpected errors** bubble to <c>GlobalExceptionMiddleware</c> which
-/// returns <c>{ statusCode, message, traceId }</c>.
+/// returns <c>{ statusCode, message, correlationId, traceId }</c>.
 /// </remarks>
 [ApiController]
 [Route("api/quizzes/{quizId:int}/attempts")]
@@ -27,13 +28,16 @@ public class QuizAttemptController : ControllerBase
 {
     private readonly IQuizAttemptService _attemptService;
     private readonly ILogger<QuizAttemptController> _logger;
+    private readonly TelemetryClient _telemetryClient;
 
     public QuizAttemptController(
         IQuizAttemptService attemptService,
-        ILogger<QuizAttemptController> logger)
+        ILogger<QuizAttemptController> logger,
+        TelemetryClient telemetryClient)
     {
         _attemptService = attemptService;
         _logger = logger;
+        _telemetryClient = telemetryClient;
     }
 
     /// <summary>
@@ -59,43 +63,40 @@ public class QuizAttemptController : ControllerBase
         {
             return Unauthorized(new
             {
-                status = "error",
+                status  = "error",
                 message = "Invalid token: missing user identifier."
             });
         }
 
-        try
-        {
-            var result = await _attemptService.SubmitAttemptAsync(quizId, clerkUserId, dto);
+        // ArgumentException (invalid answers) → 400 via GlobalExceptionMiddleware
+        // KeyNotFoundException (quiz/user)    → 404 via GlobalExceptionMiddleware
+        var result = await _attemptService.SubmitAttemptAsync(quizId, clerkUserId, dto);
 
-            _logger.LogInformation(
-                "POST /api/quizzes/{QuizId}/attempts — attempt submitted for ClerkId={ClerkId}",
-                quizId,
-                clerkUserId);
+        _telemetryClient.TrackEvent(
+            "QuizSubmitted",
+            new Dictionary<string, string>
+            {
+                ["userId"] = clerkUserId,
+                ["quizId"] = quizId.ToString(),
+                ["score"] = result.Score.ToString(),
+                ["correlationId"] = ResolveCorrelationId()
+            });
 
-            return Ok(new
-            {
-                status = "success",
-                message = "Quiz attempt submitted successfully.",
-                data = result
-            });
-        }
-        catch (ArgumentException ae)
+        _logger.LogInformation(
+            "POST /api/quizzes/{QuizId}/attempts — attempt submitted for ClerkId={ClerkId}",
+            quizId,
+            clerkUserId);
+
+        return Ok(new
         {
-            return BadRequest(new
-            {
-                status = "error",
-                message = ae.Message
-            });
-        }
-        catch (KeyNotFoundException knfe)
-        {
-            return NotFound(new
-            {
-                status = "error",
-                message = knfe.Message
-            });
-        }
-        // All other exceptions bubble to GlobalExceptionMiddleware
+            status  = "success",
+            message = "Quiz attempt submitted successfully.",
+            data    = result
+        });
+    }
+
+    private string ResolveCorrelationId()
+    {
+        return HttpContext.Items["CorrelationId"]?.ToString() ?? HttpContext.TraceIdentifier;
     }
 }
