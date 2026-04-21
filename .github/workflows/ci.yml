@@ -361,12 +361,12 @@ jobs:
         env:
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           PERF_ADMIN_USER_ID: ${{ vars.PERF_ADMIN_USER_ID }}
-          PERF_JWT_TEMPLATE: ${{ vars.PERF_JWT_TEMPLATE }}
+          VITE_CLERK_JWT_TEMPLATE: ${{ vars.VITE_CLERK_JWT_TEMPLATE }}
         run: |
           set -euo pipefail
 
-          if [ -z "${CLERK_SECRET_KEY:-}" ] || [ -z "${PERF_ADMIN_USER_ID:-}" ] || [ -z "${PERF_JWT_TEMPLATE:-}" ]; then
-            echo "Missing one or more required values (CLERK_SECRET_KEY secret, PERF_ADMIN_USER_ID var, PERF_JWT_TEMPLATE var)."
+          if [ -z "${CLERK_SECRET_KEY:-}" ] || [ -z "${PERF_ADMIN_USER_ID:-}" ] || [ -z "${VITE_CLERK_JWT_TEMPLATE:-}" ]; then
+            echo "Missing one or more required values (CLERK_SECRET_KEY secret, PERF_ADMIN_USER_ID var, VITE_CLERK_JWT_TEMPLATE var)."
             echo "has_token=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -385,7 +385,7 @@ jobs:
 
           PERFORMANCE_ADMIN_JWT=$(curl -fsS -X POST \
             -H "Authorization: Bearer ${CLERK_SECRET_KEY}" \
-            "https://api.clerk.com/v1/sessions/${SESSION_ID}/tokens/${PERF_JWT_TEMPLATE}" \
+            "https://api.clerk.com/v1/sessions/${SESSION_ID}/tokens/${VITE_CLERK_JWT_TEMPLATE}" \
             | python3 -c "import json,sys; print(json.load(sys.stdin).get('jwt',''))")
 
           if [ -z "${PERFORMANCE_ADMIN_JWT}" ]; then
@@ -495,4 +495,3 @@ jobs:
         with:
           name: backend-app
           path: ./publish
-
