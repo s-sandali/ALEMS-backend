@@ -117,7 +117,7 @@ jobs:
 
     env:
       ConnectionStrings__DefaultConnection: Server=127.0.0.1;Port=3306;Database=alems_test;Uid=root;Pwd=root;SslMode=Disabled;AllowPublicKeyRetrieval=True
-      COVERAGE_THRESHOLD: '40'
+      COVERAGE_THRESHOLD: '50'
       PERFORMANCE_BASE_URL: http://127.0.0.1:5181
       PERFORMANCE_START_DATE: '2026-04-01'
       PERFORMANCE_END_DATE: '2026-04-30'
