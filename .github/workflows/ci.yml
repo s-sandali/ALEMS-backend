@@ -355,11 +355,52 @@ jobs:
           echo "Inserted quiz attempts for perf dataset: ${INSERTED_COUNT}"
           test "${INSERTED_COUNT}" -ge "${PERFORMANCE_RECORD_COUNT}"
 
-      - name: Run JMeter load test (admin endpoints)
-        if: ${{ secrets.PERFORMANCE_ADMIN_JWT != '' }}
+      - name: Generate fresh admin JWT for performance tests
+        id: perf_admin_token
         shell: bash
         env:
-          PERFORMANCE_ADMIN_JWT: ${{ secrets.PERFORMANCE_ADMIN_JWT }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          PERF_ADMIN_USER_ID: ${{ vars.PERF_ADMIN_USER_ID }}
+          PERF_JWT_TEMPLATE: ${{ vars.PERF_JWT_TEMPLATE }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${CLERK_SECRET_KEY:-}" ] || [ -z "${PERF_ADMIN_USER_ID:-}" ] || [ -z "${PERF_JWT_TEMPLATE:-}" ]; then
+            echo "Missing one or more required values (CLERK_SECRET_KEY secret, PERF_ADMIN_USER_ID var, PERF_JWT_TEMPLATE var)."
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          SESSION_ID=$(curl -fsS \
+            -H "Authorization: Bearer ${CLERK_SECRET_KEY}" \
+            "https://api.clerk.com/v1/sessions?user_id=${PERF_ADMIN_USER_ID}&status=active&limit=1" \
+            | python3 -c "import json,sys; data=json.load(sys.stdin); print(data[0]['id'] if isinstance(data, list) and data else '')")
+
+          if [ -z "${SESSION_ID}" ]; then
+            echo "No active Clerk session found for PERF_ADMIN_USER_ID=${PERF_ADMIN_USER_ID}."
+            echo "Sign in once with that user to create an active session, then rerun."
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          PERFORMANCE_ADMIN_JWT=$(curl -fsS -X POST \
+            -H "Authorization: Bearer ${CLERK_SECRET_KEY}" \
+            "https://api.clerk.com/v1/sessions/${SESSION_ID}/tokens/${PERF_JWT_TEMPLATE}" \
+            | python3 -c "import json,sys; print(json.load(sys.stdin).get('jwt',''))")
+
+          if [ -z "${PERFORMANCE_ADMIN_JWT}" ]; then
+            echo "Failed to generate session token from Clerk."
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::add-mask::${PERFORMANCE_ADMIN_JWT}"
+          echo "PERFORMANCE_ADMIN_JWT=${PERFORMANCE_ADMIN_JWT}" >> "$GITHUB_ENV"
+          echo "has_token=true" >> "$GITHUB_OUTPUT"
+
+      - name: Run JMeter load test (admin endpoints)
+        if: ${{ steps.perf_admin_token.outputs.has_token == 'true' }}
+        shell: bash
         run: |
           set -euo pipefail
           mkdir -p Testing/PerformanceTests/results
@@ -377,7 +418,7 @@ jobs:
             -JLOOPS="${PERFORMANCE_LOOPS}"
 
       - name: Evaluate NFR-P03 from JMeter results
-        if: ${{ secrets.PERFORMANCE_ADMIN_JWT != '' }}
+        if: ${{ steps.perf_admin_token.outputs.has_token == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -387,10 +428,8 @@ jobs:
             --threshold-ms 5000
 
       - name: Download admin report files for artifact
-        if: ${{ secrets.PERFORMANCE_ADMIN_JWT != '' }}
+        if: ${{ steps.perf_admin_token.outputs.has_token == 'true' }}
         shell: bash
-        env:
-          PERFORMANCE_ADMIN_JWT: ${{ secrets.PERFORMANCE_ADMIN_JWT }}
         run: |
           set -euo pipefail
           mkdir -p Testing/PerformanceTests/results/admin-reports
@@ -405,11 +444,11 @@ jobs:
             "${PERFORMANCE_BASE_URL}/api/admin/reports?format=pdf&startDate=${PERFORMANCE_START_DATE}&endDate=${PERFORMANCE_END_DATE}" \
             -o Testing/PerformanceTests/results/admin-reports/admin-report.pdf
 
-      - name: Skip admin performance tests when JWT secret is missing
-        if: ${{ secrets.PERFORMANCE_ADMIN_JWT == '' }}
+      - name: Skip admin performance tests when runtime JWT is unavailable
+        if: ${{ steps.perf_admin_token.outputs.has_token != 'true' }}
         shell: bash
         run: |
-          echo "Skipping admin performance test execution because PERFORMANCE_ADMIN_JWT is not configured for this workflow run."
+          echo "Skipping admin performance test execution because no runtime admin JWT could be generated."
 
       - name: Upload JMeter dashboard and NFR summary
         if: always()
