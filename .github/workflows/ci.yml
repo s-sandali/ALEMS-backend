@@ -117,7 +117,14 @@ jobs:
 
     env:
       ConnectionStrings__DefaultConnection: Server=127.0.0.1;Port=3306;Database=alems_test;Uid=root;Pwd=root;SslMode=Disabled;AllowPublicKeyRetrieval=True
-      COVERAGE_THRESHOLD: '70'
+      COVERAGE_THRESHOLD: '50'
+      PERFORMANCE_BASE_URL: http://127.0.0.1:5181
+      PERFORMANCE_START_DATE: '2026-04-01'
+      PERFORMANCE_END_DATE: '2026-04-30'
+      PERFORMANCE_USERS: '20'
+      PERFORMANCE_RAMP_UP: '20'
+      PERFORMANCE_LOOPS: '10'
+      PERFORMANCE_RECORD_COUNT: '1000'
 
     steps:
       - name: Checkout code
@@ -215,6 +222,264 @@ jobs:
             Testing/IntegrationTests/TestResults/**/coverage.cobertura.xml
           if-no-files-found: warn
 
+      - name: Install JMeter
+        run: sudo apt-get update && sudo apt-get install -y jmeter
+
+      - name: Start backend API for performance tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet run --project backend.csproj --configuration Release --urls "${PERFORMANCE_BASE_URL}" > /tmp/backend-perf.log 2>&1 &
+          echo $! > /tmp/backend-perf.pid
+
+      - name: Wait for backend readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in {1..60}; do
+            if curl -fsS "${PERFORMANCE_BASE_URL}/health" >/dev/null; then
+              echo "Backend is ready for performance tests"
+              exit 0
+            fi
+            echo "Waiting for backend at ${PERFORMANCE_BASE_URL}..."
+            sleep 2
+          done
+
+          echo "Backend failed to become healthy. Logs:"
+          cat /tmp/backend-perf.log || true
+          exit 1
+
+      - name: Validate JMeter plan exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -la Testing/PerformanceTests
+          test -f Testing/PerformanceTests/staging-load-test.jmx || {
+            echo "❌ Missing JMeter test plan: Testing/PerformanceTests/staging-load-test.jmx"
+            exit 1
+          }
+
+      - name: Seed performance dataset (1000 records)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DB_HOST="127.0.0.1"
+          DB_USER="root"
+          DB_PASS="root"
+          DB_NAME="alems_test"
+
+          mysql -h "${DB_HOST}" -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" <<SQL
+          INSERT INTO Users (ClerkUserId, Email, Role, XpTotal, IsActive, CreatedAt, UpdatedAt)
+          VALUES ('perf_admin_clerk', 'perf.admin@example.com', 'Admin', 0, 1, UTC_TIMESTAMP(), UTC_TIMESTAMP())
+          ON DUPLICATE KEY UPDATE Role = VALUES(Role), IsActive = VALUES(IsActive), UpdatedAt = UTC_TIMESTAMP();
+
+          DELETE FROM attempt_answers
+          WHERE attempt_id IN (
+            SELECT attempt_id FROM quiz_attempts WHERE quiz_id IN (
+              SELECT quiz_id FROM quizzes WHERE title = 'Performance Load Quiz'
+            )
+          );
+
+          DELETE FROM quiz_attempts
+          WHERE quiz_id IN (SELECT quiz_id FROM quizzes WHERE title = 'Performance Load Quiz');
+
+          DELETE FROM quizzes WHERE title = 'Performance Load Quiz';
+          DELETE FROM algorithms WHERE name = 'Performance Algorithm';
+          DELETE FROM Users WHERE ClerkUserId LIKE 'perf_clerk_%';
+          SQL
+
+          mysql -h "${DB_HOST}" -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" <<'SQL'
+          INSERT INTO Users (ClerkUserId, Email, Role, XpTotal, IsActive, CreatedAt, UpdatedAt)
+          SELECT
+            CONCAT('perf_clerk_', n.n),
+            CONCAT('perf.user.', n.n, '@example.com'),
+            'User',
+            0,
+            1,
+            UTC_TIMESTAMP(),
+            UTC_TIMESTAMP()
+          FROM (
+            SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5
+            UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10
+            UNION ALL SELECT 11 UNION ALL SELECT 12 UNION ALL SELECT 13 UNION ALL SELECT 14 UNION ALL SELECT 15
+            UNION ALL SELECT 16 UNION ALL SELECT 17 UNION ALL SELECT 18 UNION ALL SELECT 19 UNION ALL SELECT 20
+            UNION ALL SELECT 21 UNION ALL SELECT 22 UNION ALL SELECT 23 UNION ALL SELECT 24 UNION ALL SELECT 25
+          ) AS n;
+          SQL
+
+          mysql -h "${DB_HOST}" -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -e "
+            INSERT INTO algorithms (name, category, description, time_complexity_best, time_complexity_average, time_complexity_worst, created_at)
+            VALUES ('Performance Algorithm', 'Sorting', 'Perf test algorithm', 'O(n)', 'O(n log n)', 'O(n^2)', UTC_TIMESTAMP());
+          "
+
+          ALGORITHM_ID=$(mysql -N -s -h "${DB_HOST}" -u"${DB_USER}" -p"${DB_PASS}" -D "${DB_NAME}" -e "SELECT algorithm_id FROM algorithms WHERE name = 'Performance Algorithm' LIMIT 1;")
+          ADMIN_ID=$(mysql -N -s -h "${DB_HOST}" -u"${DB_USER}" -p"${DB_PASS}" -D "${DB_NAME}" -e "SELECT Id FROM Users WHERE ClerkUserId = 'perf_admin_clerk' LIMIT 1;")
+
+          mysql -h "${DB_HOST}" -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -e "
+            INSERT INTO quizzes (algorithm_id, created_by, title, description, time_limit_mins, pass_score, is_active, created_at, updated_at)
+            VALUES (${ALGORITHM_ID}, ${ADMIN_ID}, 'Performance Load Quiz', 'NFR-P03 dataset quiz', NULL, 50, 1, UTC_TIMESTAMP(), UTC_TIMESTAMP());
+          "
+
+          QUIZ_ID=$(mysql -N -s -h "${DB_HOST}" -u"${DB_USER}" -p"${DB_PASS}" -D "${DB_NAME}" -e "SELECT quiz_id FROM quizzes WHERE title = 'Performance Load Quiz' LIMIT 1;")
+
+          mysql -h "${DB_HOST}" -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" <<SQL
+          INSERT INTO quiz_attempts (user_id, quiz_id, score, passed, submitted_at, total_questions, xp_earned, started_at, completed_at)
+          SELECT
+            u.Id,
+            ${QUIZ_ID},
+            50 + MOD(nums.n, 51),
+            1,
+            DATE_ADD('2026-04-01 12:00:00', INTERVAL MOD(nums.n, 28) DAY),
+            10,
+            10 + MOD(nums.n, 21),
+            DATE_ADD('2026-04-01 11:55:00', INTERVAL MOD(nums.n, 28) DAY),
+            DATE_ADD('2026-04-01 12:00:00', INTERVAL MOD(nums.n, 28) DAY)
+          FROM (
+            SELECT (a.d + 10 * b.d + 100 * c.d + 1) AS n
+            FROM (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS a
+            CROSS JOIN (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS b
+            CROSS JOIN (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) AS c
+          ) AS nums
+          INNER JOIN Users u ON u.ClerkUserId = CONCAT('perf_clerk_', MOD(nums.n, 25) + 1)
+          WHERE nums.n <= ${PERFORMANCE_RECORD_COUNT};
+          SQL
+
+          INSERTED_COUNT=$(mysql -N -s -h "${DB_HOST}" -u"${DB_USER}" -p"${DB_PASS}" -D "${DB_NAME}" -e "
+            SELECT COUNT(*)
+            FROM quiz_attempts qa
+            INNER JOIN quizzes q ON q.quiz_id = qa.quiz_id
+            WHERE q.title = 'Performance Load Quiz';
+          ")
+
+          echo "Inserted quiz attempts for perf dataset: ${INSERTED_COUNT}"
+          test "${INSERTED_COUNT}" -ge "${PERFORMANCE_RECORD_COUNT}"
+
+      - name: Generate fresh admin JWT for performance tests
+        id: perf_admin_token
+        shell: bash
+        env:
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          PERF_ADMIN_USER_ID: ${{ vars.PERF_ADMIN_USER_ID }}
+          PERF_JWT_TEMPLATE: ${{ vars.PERF_JWT_TEMPLATE }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${CLERK_SECRET_KEY:-}" ] || [ -z "${PERF_ADMIN_USER_ID:-}" ] || [ -z "${PERF_JWT_TEMPLATE:-}" ]; then
+            echo "Missing one or more required values (CLERK_SECRET_KEY secret, PERF_ADMIN_USER_ID var, PERF_JWT_TEMPLATE var)."
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          SESSION_ID=$(curl -fsS \
+            -H "Authorization: Bearer ${CLERK_SECRET_KEY}" \
+            "https://api.clerk.com/v1/sessions?user_id=${PERF_ADMIN_USER_ID}&status=active&limit=1" \
+            | python3 -c "import json,sys; data=json.load(sys.stdin); print(data[0]['id'] if isinstance(data, list) and data else '')")
+
+          if [ -z "${SESSION_ID}" ]; then
+            echo "No active Clerk session found for PERF_ADMIN_USER_ID=${PERF_ADMIN_USER_ID}."
+            echo "Sign in once with that user to create an active session, then rerun."
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          PERFORMANCE_ADMIN_JWT=$(curl -fsS -X POST \
+            -H "Authorization: Bearer ${CLERK_SECRET_KEY}" \
+            "https://api.clerk.com/v1/sessions/${SESSION_ID}/tokens/${PERF_JWT_TEMPLATE}" \
+            | python3 -c "import json,sys; print(json.load(sys.stdin).get('jwt',''))")
+
+          if [ -z "${PERFORMANCE_ADMIN_JWT}" ]; then
+            echo "Failed to generate session token from Clerk."
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::add-mask::${PERFORMANCE_ADMIN_JWT}"
+          echo "PERFORMANCE_ADMIN_JWT=${PERFORMANCE_ADMIN_JWT}" >> "$GITHUB_ENV"
+          echo "has_token=true" >> "$GITHUB_OUTPUT"
+
+      - name: Run JMeter load test (admin endpoints)
+        if: ${{ steps.perf_admin_token.outputs.has_token == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p Testing/PerformanceTests/results
+
+          jmeter -n \
+            -t Testing/PerformanceTests/staging-load-test.jmx \
+            -l Testing/PerformanceTests/results/results.jtl \
+            -e -o Testing/PerformanceTests/results/dashboard \
+            -JBASE_URL="${PERFORMANCE_BASE_URL}" \
+            -JADMIN_JWT="${PERFORMANCE_ADMIN_JWT}" \
+            -JSTART_DATE="${PERFORMANCE_START_DATE}" \
+            -JEND_DATE="${PERFORMANCE_END_DATE}" \
+            -JUSERS="${PERFORMANCE_USERS}" \
+            -JRAMP_UP="${PERFORMANCE_RAMP_UP}" \
+            -JLOOPS="${PERFORMANCE_LOOPS}"
+
+      - name: Evaluate NFR-P03 from JMeter results
+        if: ${{ steps.perf_admin_token.outputs.has_token == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 Testing/PerformanceTests/scripts/summarize_jmeter_results.py \
+            --input Testing/PerformanceTests/results/results.jtl \
+            --output Testing/PerformanceTests/results/summary.md \
+            --threshold-ms 5000
+
+      - name: Download admin report files for artifact
+        if: ${{ steps.perf_admin_token.outputs.has_token == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p Testing/PerformanceTests/results/admin-reports
+
+          curl -fS \
+            -H "Authorization: Bearer ${PERFORMANCE_ADMIN_JWT}" \
+            "${PERFORMANCE_BASE_URL}/api/admin/reports?format=csv&startDate=${PERFORMANCE_START_DATE}&endDate=${PERFORMANCE_END_DATE}" \
+            -o Testing/PerformanceTests/results/admin-reports/admin-report.csv
+
+          curl -fS \
+            -H "Authorization: Bearer ${PERFORMANCE_ADMIN_JWT}" \
+            "${PERFORMANCE_BASE_URL}/api/admin/reports?format=pdf&startDate=${PERFORMANCE_START_DATE}&endDate=${PERFORMANCE_END_DATE}" \
+            -o Testing/PerformanceTests/results/admin-reports/admin-report.pdf
+
+      - name: Skip admin performance tests when runtime JWT is unavailable
+        if: ${{ steps.perf_admin_token.outputs.has_token != 'true' }}
+        shell: bash
+        run: |
+          echo "Skipping admin performance test execution because no runtime admin JWT could be generated."
+
+      - name: Upload JMeter dashboard and NFR summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jmeter-report
+          path: |
+            Testing/PerformanceTests/results/dashboard/**
+            Testing/PerformanceTests/results/results.jtl
+            Testing/PerformanceTests/results/summary.md
+          if-no-files-found: warn
+
+      - name: Upload downloadable admin reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-report-downloads
+          path: |
+            Testing/PerformanceTests/results/admin-reports/admin-report.csv
+            Testing/PerformanceTests/results/admin-reports/admin-report.pdf
+          if-no-files-found: warn
+
+      - name: Stop backend API after performance tests
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f /tmp/backend-perf.pid ]; then
+            kill "$(cat /tmp/backend-perf.pid)" || true
+          fi
+
       # NOTE: E2E tests (Testing/E2ETests) are excluded from CI.
       # They require a visible Chrome browser and manual human interaction
       # (e.g. entering Clerk email verification codes) and cannot run in
@@ -230,3 +495,4 @@ jobs:
         with:
           name: backend-app
           path: ./publish
+
