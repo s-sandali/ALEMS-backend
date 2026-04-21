@@ -20,20 +20,21 @@ public class ReportRepository : IReportRepository
     /// <inheritdoc />
     public async Task<IEnumerable<PerStudentReportDto>> GetPerStudentReportAsync(DateTime startDate, DateTime endDate)
     {
+        // Issue #202: quiz_attempts no longer exposes created_at; use the aligned timestamps instead.
         const string sql = @"
             SELECT 
                 u.id AS student_id,
-                u.username AS student_name,
-                COUNT(qa.id) AS total_attempts,
+                u.email AS student_name,
+                COUNT(qa.attempt_id) AS total_attempts,
                 AVG(qa.score) AS avg_score,
                 MAX(qa.score) AS best_score,
                 COALESCE(SUM(qa.xp_earned), 0) AS total_xp,
                 COUNT(DISTINCT qa.quiz_id) AS algorithms_attempted
             FROM quiz_attempts qa
             JOIN users u ON qa.user_id = u.id
-            WHERE qa.created_at BETWEEN @StartDate AND @EndDate
-            GROUP BY u.id, u.username
-            ORDER BY u.username;";
+            WHERE COALESCE(qa.completed_at, qa.submitted_at) BETWEEN @StartDate AND @EndDate
+            GROUP BY u.id, u.email
+            ORDER BY u.email;";
 
         await using var connection = await _db.OpenConnectionAsync();
         await using var cmd = new MySqlCommand(sql, connection);
@@ -67,13 +68,13 @@ public class ReportRepository : IReportRepository
         const string sql = @"
             SELECT 
                 a.category AS algorithm_type,
-                COUNT(qa.id) AS attempt_count,
+                COUNT(qa.attempt_id) AS attempt_count,
                 AVG(qa.score) AS avg_score,
                 SUM(CASE WHEN qa.score >= 50 THEN 1 ELSE 0 END) * 100.0 / COUNT(*) AS pass_rate
             FROM quiz_attempts qa
-            JOIN quizzes q ON qa.quiz_id = q.id
-            JOIN algorithms a ON q.algorithm_id = a.id
-            WHERE qa.created_at BETWEEN @StartDate AND @EndDate
+            JOIN quizzes q ON qa.quiz_id = q.quiz_id
+            JOIN algorithms a ON q.algorithm_id = a.algorithm_id
+            WHERE COALESCE(qa.completed_at, qa.submitted_at) BETWEEN @StartDate AND @EndDate
             GROUP BY a.category
             ORDER BY a.category;";
 
@@ -106,14 +107,14 @@ public class ReportRepository : IReportRepository
         const string sql = @"
             SELECT 
                 q.title,
-                COUNT(qa.id) AS attempt_count,
+                COUNT(qa.attempt_id) AS attempt_count,
                 AVG(qa.score) AS avg_score,
                 MAX(qa.score) AS highest_score,
                 MIN(qa.score) AS lowest_score
             FROM quiz_attempts qa
-            JOIN quizzes q ON qa.quiz_id = q.id
-            WHERE qa.created_at BETWEEN @StartDate AND @EndDate
-            GROUP BY q.id, q.title
+            JOIN quizzes q ON qa.quiz_id = q.quiz_id
+            WHERE COALESCE(qa.completed_at, qa.submitted_at) BETWEEN @StartDate AND @EndDate
+            GROUP BY q.quiz_id, q.title
             ORDER BY q.title;";
 
         await using var connection = await _db.OpenConnectionAsync();
@@ -150,7 +151,7 @@ public class ReportRepository : IReportRepository
                 AVG(score) AS avg_score,
                 COALESCE(SUM(xp_earned), 0) AS total_xp
             FROM quiz_attempts
-            WHERE created_at BETWEEN @StartDate AND @EndDate;";
+            WHERE COALESCE(completed_at, submitted_at) BETWEEN @StartDate AND @EndDate;";
 
         await using var connection = await _db.OpenConnectionAsync();
         await using var cmd = new MySqlCommand(sql, connection);
