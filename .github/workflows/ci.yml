@@ -401,10 +401,29 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          SUMMARY_PATH="Testing/PerformanceTests/results/summary.md"
+          RESULTS_JTL="Testing/PerformanceTests/results/results.jtl"
+
+          set +e
           python3 Testing/PerformanceTests/scripts/summarize_jmeter_results.py \
             --input Testing/PerformanceTests/results/results.jtl \
-            --output Testing/PerformanceTests/results/summary.md \
+            --output "${SUMMARY_PATH}" \
             --threshold-ms 5000
+          STATUS=$?
+          set -e
+
+          if [ -f "${SUMMARY_PATH}" ]; then
+            echo "Generated NFR summary:"
+            cat "${SUMMARY_PATH}"
+          else
+            echo "Summary file was not generated."
+          fi
+
+          if [ "${STATUS}" -ne 0 ]; then
+            echo "NFR-P03 evaluation failed. Showing first lines of JTL for diagnostics:"
+            head -n 20 "${RESULTS_JTL}" || true
+            exit "${STATUS}"
+          fi
 
       - name: Download admin report files for artifact
         shell: bash
