@@ -68,7 +68,7 @@
           <stringProp name="HTTPSampler.domain"/>
           <stringProp name="HTTPSampler.port"/>
           <stringProp name="HTTPSampler.protocol"/>
-          <stringProp name="HTTPSampler.path">${__P(BASE_URL,http://localhost:5181)}/api/admin/reports</stringProp>
+          <stringProp name="HTTPSampler.path">${__P(BASE_URL,http://localhost:5181)}/api/admin/reports?format=csv&amp;startDate=${__P(START_DATE,2026-04-01)}&amp;endDate=${__P(END_DATE,2026-04-30)}</stringProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
@@ -119,7 +119,7 @@
           <stringProp name="HTTPSampler.domain"/>
           <stringProp name="HTTPSampler.port"/>
           <stringProp name="HTTPSampler.protocol"/>
-          <stringProp name="HTTPSampler.path">${__P(BASE_URL,http://localhost:5181)}/api/admin/reports</stringProp>
+          <stringProp name="HTTPSampler.path">${__P(BASE_URL,http://localhost:5181)}/api/admin/reports?format=pdf&amp;startDate=${__P(START_DATE,2026-04-01)}&amp;endDate=${__P(END_DATE,2026-04-30)}</stringProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <boolProp name="HTTPSampler.auto_redirects">false</boolProp>

@@ -31,7 +31,7 @@ public class ReportRepository : IReportRepository
                 COALESCE(SUM(qa.xp_earned), 0) AS total_xp,
                 COUNT(DISTINCT qa.quiz_id) AS algorithms_attempted
             FROM quiz_attempts qa
-            JOIN users u ON qa.user_id = u.id
+            JOIN Users u ON qa.user_id = u.id
             WHERE COALESCE(qa.completed_at, qa.submitted_at) BETWEEN @StartDate AND @EndDate
             GROUP BY u.id, u.email
             ORDER BY u.email;";
