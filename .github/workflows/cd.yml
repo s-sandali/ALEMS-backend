@@ -90,7 +90,7 @@ jobs:
           exit 1
 
       - name: Checkout repository (for JMeter test plan)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 1
