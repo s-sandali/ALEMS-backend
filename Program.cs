@@ -7,8 +7,10 @@ using backend.Services.Simulations;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.ApplicationInsights.Extensibility;
+using Microsoft.AspNetCore.Authentication;
 using Serilog;
 using Serilog.Sinks.ApplicationInsights.TelemetryConverters;
+using backend.Security;
 
 // ── Serilog Bootstrap ─────────────────────────────────────────────
 Log.Logger = new LoggerConfiguration()
@@ -173,12 +175,44 @@ if (string.IsNullOrWhiteSpace(clerkAuthority))
 var clerkAudience = Environment.GetEnvironmentVariable("CLERK_AUDIENCE")
     ?? builder.Configuration["Clerk:Audience"];  // optional — null disables audience check
 
+var perfServiceToken = Environment.GetEnvironmentVariable("PERF_SERVICE_TOKEN")
+    ?? builder.Configuration["Perf:ServiceToken"];
+var enablePerfServiceTokenAuth =
+    string.Equals(Environment.GetEnvironmentVariable("ENABLE_PERF_SERVICE_TOKEN_AUTH"), "true", StringComparison.OrdinalIgnoreCase)
+    || builder.Configuration.GetValue<bool>("Perf:EnableServiceTokenAuth");
+
+builder.Services.Configure<PerfServiceTokenOptions>(options =>
+{
+    options.Enabled = enablePerfServiceTokenAuth;
+    options.Token = perfServiceToken;
+});
+
 builder.Services
     .AddAuthentication(options =>
     {
-        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-        options.DefaultChallengeScheme    = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultAuthenticateScheme = "SmartAuth";
+        options.DefaultChallengeScheme    = "SmartAuth";
     })
+    .AddPolicyScheme("SmartAuth", "JWT or Performance service token", options =>
+    {
+        options.ForwardDefaultSelector = context =>
+        {
+            var authorization = context.Request.Headers.Authorization.ToString();
+            if (enablePerfServiceTokenAuth
+                && !string.IsNullOrWhiteSpace(perfServiceToken)
+                && authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            {
+                var incomingToken = authorization["Bearer ".Length..].Trim();
+                if (incomingToken == perfServiceToken)
+                    return PerfServiceTokenAuthenticationHandler.SchemeName;
+            }
+
+            return JwtBearerDefaults.AuthenticationScheme;
+        };
+    })
+    .AddScheme<AuthenticationSchemeOptions, PerfServiceTokenAuthenticationHandler>(
+        PerfServiceTokenAuthenticationHandler.SchemeName,
+        _ => { })
     .AddJwtBearer(options =>
     {
         // Clerk publishes its JWKS at {Authority}/.well-known/jwks.json
