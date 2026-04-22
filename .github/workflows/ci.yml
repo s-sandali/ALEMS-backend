@@ -362,6 +362,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p Testing/PerformanceTests/results
+          RESULTS_JTL="Testing/PerformanceTests/results/results.jtl"
+          JMETER_LOG="Testing/PerformanceTests/results/jmeter.log"
           if [ -z "${PERF_SERVICE_TOKEN:-}" ]; then
             echo "Missing required secret: PERF_SERVICE_TOKEN"
             exit 1
@@ -369,7 +371,7 @@ jobs:
 
           jmeter -n \
             -t Testing/PerformanceTests/staging-load-test.jmx \
-            -l Testing/PerformanceTests/results/results.jtl \
+            -l "${RESULTS_JTL}" \
             -e -o Testing/PerformanceTests/results/dashboard \
             -JBASE_URL="${PERFORMANCE_BASE_URL}" \
             -JADMIN_JWT="${PERF_SERVICE_TOKEN}" \
@@ -377,7 +379,17 @@ jobs:
             -JEND_DATE="${PERFORMANCE_END_DATE}" \
             -JUSERS="${PERFORMANCE_USERS}" \
             -JRAMP_UP="${PERFORMANCE_RAMP_UP}" \
-            -JLOOPS="${PERFORMANCE_LOOPS}"
+            -JLOOPS="${PERFORMANCE_LOOPS}" \
+            -j "${JMETER_LOG}"
+
+          if [ ! -f "${RESULTS_JTL}" ]; then
+            echo "JMeter completed but no results file was produced at ${RESULTS_JTL}"
+            echo "JMeter log:"
+            cat "${JMETER_LOG}" || true
+            echo "Backend log:"
+            cat /tmp/backend-perf.log || true
+            exit 1
+          fi
 
       - name: Evaluate NFR-P03 from JMeter results
         shell: bash
