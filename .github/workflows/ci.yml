@@ -225,7 +225,14 @@ jobs:
           if-no-files-found: warn
 
       - name: Install JMeter
-        run: sudo apt-get update && sudo apt-get install -y jmeter
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y default-jdk wget
+          wget -q https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
+          tar -xzf apache-jmeter-5.6.3.tgz
+          echo "$PWD/apache-jmeter-5.6.3/bin" >> "$GITHUB_PATH"
 
       - name: Start backend API for performance tests
         shell: bash
