@@ -96,7 +96,8 @@ builder.Services.AddCors(options =>
             policy.WithOrigins(allowedOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
                   .AllowAnyHeader()
                   .AllowAnyMethod()
-                  .AllowCredentials();
+                  .AllowCredentials()
+                  .WithExposedHeaders("Content-Disposition");
         });
 });
 
