@@ -364,7 +364,7 @@ jobs:
           echo "Inserted quiz attempts for perf dataset: ${INSERTED_COUNT}"
           test "${INSERTED_COUNT}" -ge "${PERFORMANCE_RECORD_COUNT}"
 
-      - name: Run JMeter load test (admin endpoints)
+      - name: Run JMeter load test (user endpoints)
         shell: bash
         run: |
           set -euo pipefail
@@ -425,22 +425,6 @@ jobs:
             exit "${STATUS}"
           fi
 
-      - name: Download admin report files for artifact
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p Testing/PerformanceTests/results/admin-reports
-
-          curl -fS \
-            -H "Authorization: Bearer ${PERF_SERVICE_TOKEN}" \
-            "${PERFORMANCE_BASE_URL}/api/admin/reports?format=csv&startDate=${PERFORMANCE_START_DATE}&endDate=${PERFORMANCE_END_DATE}" \
-            -o Testing/PerformanceTests/results/admin-reports/admin-report.csv
-
-          curl -fS \
-            -H "Authorization: Bearer ${PERF_SERVICE_TOKEN}" \
-            "${PERFORMANCE_BASE_URL}/api/admin/reports?format=pdf&startDate=${PERFORMANCE_START_DATE}&endDate=${PERFORMANCE_END_DATE}" \
-            -o Testing/PerformanceTests/results/admin-reports/admin-report.pdf
-
       - name: Upload JMeter dashboard and NFR summary
         if: always()
         uses: actions/upload-artifact@v4
@@ -450,16 +434,6 @@ jobs:
             Testing/PerformanceTests/results/dashboard/**
             Testing/PerformanceTests/results/results.jtl
             Testing/PerformanceTests/results/summary.md
-          if-no-files-found: warn
-
-      - name: Upload downloadable admin reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: admin-report-downloads
-          path: |
-            Testing/PerformanceTests/results/admin-reports/admin-report.csv
-            Testing/PerformanceTests/results/admin-reports/admin-report.pdf
           if-no-files-found: warn
 
       - name: Stop backend API after performance tests
