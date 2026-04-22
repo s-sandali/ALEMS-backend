@@ -27,19 +27,19 @@ public class ReportService : IReportService
 
         try
         {
-            var summaryTask = _reportRepository.GetSummaryStatisticsAsync(startDate, endDate);
-            var perStudentTask = _reportRepository.GetPerStudentReportAsync(startDate, endDate);
-            var perAlgorithmTask = _reportRepository.GetPerAlgorithmReportAsync(startDate, endDate);
-            var perQuizTask = _reportRepository.GetPerQuizReportAsync(startDate, endDate);
-
-            await Task.WhenAll(summaryTask, perStudentTask, perAlgorithmTask, perQuizTask);
+            // Run sequentially to avoid opening 4 concurrent DB connections per request.
+            // Under load tests, parallel fan-out here can exhaust MySQL connection limits.
+            var summary = await _reportRepository.GetSummaryStatisticsAsync(startDate, endDate);
+            var perStudent = await _reportRepository.GetPerStudentReportAsync(startDate, endDate);
+            var perAlgorithm = await _reportRepository.GetPerAlgorithmReportAsync(startDate, endDate);
+            var perQuiz = await _reportRepository.GetPerQuizReportAsync(startDate, endDate);
 
             return new AdminReportBundleDto
             {
-                Summary = await summaryTask,
-                PerStudent = await perStudentTask,
-                PerAlgorithm = await perAlgorithmTask,
-                PerQuiz = await perQuizTask
+                Summary = summary,
+                PerStudent = perStudent,
+                PerAlgorithm = perAlgorithm,
+                PerQuiz = perQuiz
             };
         }
         catch (Exception ex)

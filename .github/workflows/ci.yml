@@ -125,6 +125,8 @@ jobs:
       PERFORMANCE_RAMP_UP: '20'
       PERFORMANCE_LOOPS: '10'
       PERFORMANCE_RECORD_COUNT: '1000'
+      ENABLE_PERF_SERVICE_TOKEN_AUTH: 'true'
+      PERF_SERVICE_TOKEN: ${{ secrets.PERF_SERVICE_TOKEN }}
 
     steps:
       - name: Checkout code
@@ -223,7 +225,14 @@ jobs:
           if-no-files-found: warn
 
       - name: Install JMeter
-        run: sudo apt-get update && sudo apt-get install -y jmeter
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y default-jdk wget
+          wget -q https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
+          tar -xzf apache-jmeter-5.6.3.tgz
+          echo "$PWD/apache-jmeter-5.6.3/bin" >> "$GITHUB_PATH"
 
       - name: Start backend API for performance tests
         shell: bash
@@ -355,100 +364,82 @@ jobs:
           echo "Inserted quiz attempts for perf dataset: ${INSERTED_COUNT}"
           test "${INSERTED_COUNT}" -ge "${PERFORMANCE_RECORD_COUNT}"
 
-      - name: Generate fresh admin JWT for performance tests
-        id: perf_admin_token
-        shell: bash
-        env:
-          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
-          PERF_ADMIN_USER_ID: ${{ vars.PERF_ADMIN_USER_ID }}
-          VITE_CLERK_JWT_TEMPLATE: ${{ vars.VITE_CLERK_JWT_TEMPLATE }}
-        run: |
-          set -euo pipefail
-
-          if [ -z "${CLERK_SECRET_KEY:-}" ] || [ -z "${PERF_ADMIN_USER_ID:-}" ] || [ -z "${VITE_CLERK_JWT_TEMPLATE:-}" ]; then
-            echo "Missing one or more required values (CLERK_SECRET_KEY secret, PERF_ADMIN_USER_ID var, VITE_CLERK_JWT_TEMPLATE var)."
-            echo "has_token=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          SESSION_ID=$(curl -fsS \
-            -H "Authorization: Bearer ${CLERK_SECRET_KEY}" \
-            "https://api.clerk.com/v1/sessions?user_id=${PERF_ADMIN_USER_ID}&status=active&limit=1" \
-            | python3 -c "import json,sys; data=json.load(sys.stdin); print(data[0]['id'] if isinstance(data, list) and data else '')")
-
-          if [ -z "${SESSION_ID}" ]; then
-            echo "No active Clerk session found for PERF_ADMIN_USER_ID=${PERF_ADMIN_USER_ID}."
-            echo "Sign in once with that user to create an active session, then rerun."
-            echo "has_token=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          PERFORMANCE_ADMIN_JWT=$(curl -fsS -X POST \
-            -H "Authorization: Bearer ${CLERK_SECRET_KEY}" \
-            "https://api.clerk.com/v1/sessions/${SESSION_ID}/tokens/${VITE_CLERK_JWT_TEMPLATE}" \
-            | python3 -c "import json,sys; print(json.load(sys.stdin).get('jwt',''))")
-
-          if [ -z "${PERFORMANCE_ADMIN_JWT}" ]; then
-            echo "Failed to generate session token from Clerk."
-            echo "has_token=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "::add-mask::${PERFORMANCE_ADMIN_JWT}"
-          echo "PERFORMANCE_ADMIN_JWT=${PERFORMANCE_ADMIN_JWT}" >> "$GITHUB_ENV"
-          echo "has_token=true" >> "$GITHUB_OUTPUT"
-
       - name: Run JMeter load test (admin endpoints)
-        if: ${{ steps.perf_admin_token.outputs.has_token == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p Testing/PerformanceTests/results
+          RESULTS_JTL="Testing/PerformanceTests/results/results.jtl"
+          JMETER_LOG="Testing/PerformanceTests/results/jmeter.log"
+          if [ -z "${PERF_SERVICE_TOKEN:-}" ]; then
+            echo "Missing required secret: PERF_SERVICE_TOKEN"
+            exit 1
+          fi
 
           jmeter -n \
             -t Testing/PerformanceTests/staging-load-test.jmx \
-            -l Testing/PerformanceTests/results/results.jtl \
-            -e -o Testing/PerformanceTests/results/dashboard \
+            -l "${RESULTS_JTL}" \
             -JBASE_URL="${PERFORMANCE_BASE_URL}" \
-            -JADMIN_JWT="${PERFORMANCE_ADMIN_JWT}" \
+            -JADMIN_JWT="${PERF_SERVICE_TOKEN}" \
             -JSTART_DATE="${PERFORMANCE_START_DATE}" \
             -JEND_DATE="${PERFORMANCE_END_DATE}" \
             -JUSERS="${PERFORMANCE_USERS}" \
             -JRAMP_UP="${PERFORMANCE_RAMP_UP}" \
-            -JLOOPS="${PERFORMANCE_LOOPS}"
+            -JLOOPS="${PERFORMANCE_LOOPS}" \
+            -j "${JMETER_LOG}"
+
+          if [ ! -f "${RESULTS_JTL}" ]; then
+            echo "JMeter completed but no results file was produced at ${RESULTS_JTL}"
+            echo "JMeter log:"
+            cat "${JMETER_LOG}" || true
+            echo "Backend log:"
+            cat /tmp/backend-perf.log || true
+            exit 1
+          fi
 
       - name: Evaluate NFR-P03 from JMeter results
-        if: ${{ steps.perf_admin_token.outputs.has_token == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
+          SUMMARY_PATH="Testing/PerformanceTests/results/summary.md"
+          RESULTS_JTL="Testing/PerformanceTests/results/results.jtl"
+
+          set +e
           python3 Testing/PerformanceTests/scripts/summarize_jmeter_results.py \
             --input Testing/PerformanceTests/results/results.jtl \
-            --output Testing/PerformanceTests/results/summary.md \
+            --output "${SUMMARY_PATH}" \
             --threshold-ms 5000
+          STATUS=$?
+          set -e
+
+          if [ -f "${SUMMARY_PATH}" ]; then
+            echo "Generated NFR summary:"
+            cat "${SUMMARY_PATH}"
+          else
+            echo "Summary file was not generated."
+          fi
+
+          if [ "${STATUS}" -ne 0 ]; then
+            echo "NFR-P03 evaluation failed. Showing first lines of JTL for diagnostics:"
+            head -n 20 "${RESULTS_JTL}" || true
+            exit "${STATUS}"
+          fi
 
       - name: Download admin report files for artifact
-        if: ${{ steps.perf_admin_token.outputs.has_token == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p Testing/PerformanceTests/results/admin-reports
 
           curl -fS \
-            -H "Authorization: Bearer ${PERFORMANCE_ADMIN_JWT}" \
+            -H "Authorization: Bearer ${PERF_SERVICE_TOKEN}" \
             "${PERFORMANCE_BASE_URL}/api/admin/reports?format=csv&startDate=${PERFORMANCE_START_DATE}&endDate=${PERFORMANCE_END_DATE}" \
             -o Testing/PerformanceTests/results/admin-reports/admin-report.csv
 
           curl -fS \
-            -H "Authorization: Bearer ${PERFORMANCE_ADMIN_JWT}" \
+            -H "Authorization: Bearer ${PERF_SERVICE_TOKEN}" \
             "${PERFORMANCE_BASE_URL}/api/admin/reports?format=pdf&startDate=${PERFORMANCE_START_DATE}&endDate=${PERFORMANCE_END_DATE}" \
             -o Testing/PerformanceTests/results/admin-reports/admin-report.pdf
-
-      - name: Skip admin performance tests when runtime JWT is unavailable
-        if: ${{ steps.perf_admin_token.outputs.has_token != 'true' }}
-        shell: bash
-        run: |
-          echo "Skipping admin performance test execution because no runtime admin JWT could be generated."
 
       - name: Upload JMeter dashboard and NFR summary
         if: always()
