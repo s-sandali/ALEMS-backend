@@ -137,11 +137,11 @@ jobs:
           jmeter -n \
             -t "Testing/PerformanceTests/staging-load-test.jmx" \
             -l "$RESULTS_JTL" \
-            -Jbase_url="$DEPLOYMENT_URL" \
-            -Jclerk_token="$TEST_TOKEN" \
-            -Jnum_threads=100 \
-            -Jramp_up=60 \
-            -Jduration=300 \
+            -JBASE_URL="$DEPLOYMENT_URL" \
+            -JADMIN_JWT="$TEST_TOKEN" \
+            -JUSERS=100 \
+            -JRAMP_UP=60 \
+            -JLOOPS=30 \
             -j /tmp/jmeter.log || true
 
           ERROR_COUNT=$(grep -c '"success":"false"' "$RESULTS_JTL" || echo "0")
