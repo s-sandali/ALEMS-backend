@@ -56,17 +56,16 @@ public class BadgeService : IBadgeService
 
         var awards = new List<BadgeResponseDto>();
 
-        // 1. XP-based badges: award any whose threshold the user has crossed
+        // Award all unlocked badges in stable badge_id order to reduce lock-order variation.
         var xpBadges = await _badgeRepository.GetUnlockedBadgesByUserIdAsync(userId);
-        foreach (var badge in xpBadges)
-        {
-            if (await AwardBadgeAsync(userId, badge.BadgeId))
-                awards.Add(MapToDto(badge));
-        }
-
-        // 2. Algorithm badges: award any whose algorithm the user has passed a quiz for
         var algorithmBadges = await _badgeRepository.GetUnlockedAlgorithmBadgesByUserIdAsync(userId);
-        foreach (var badge in algorithmBadges)
+        var orderedUniqueBadges = xpBadges
+            .Concat(algorithmBadges)
+            .GroupBy(b => b.BadgeId)
+            .Select(g => g.First())
+            .OrderBy(b => b.BadgeId);
+
+        foreach (var badge in orderedUniqueBadges)
         {
             if (await AwardBadgeAsync(userId, badge.BadgeId))
                 awards.Add(MapToDto(badge));
