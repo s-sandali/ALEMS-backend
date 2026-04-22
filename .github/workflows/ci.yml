@@ -372,7 +372,6 @@ jobs:
           jmeter -n \
             -t Testing/PerformanceTests/staging-load-test.jmx \
             -l "${RESULTS_JTL}" \
-            -e -o Testing/PerformanceTests/results/dashboard \
             -JBASE_URL="${PERFORMANCE_BASE_URL}" \
             -JADMIN_JWT="${PERF_SERVICE_TOKEN}" \
             -JSTART_DATE="${PERFORMANCE_START_DATE}" \
