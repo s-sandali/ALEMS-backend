@@ -182,29 +182,35 @@ public class BadgeRepository : IBadgeRepository
     public async Task<bool> AwardBadgeToUserAsync(int userId, int badgeId)
     {
         const string sql = @"
-            INSERT INTO user_badges (user_id, badge_id)
+            INSERT IGNORE INTO user_badges (user_id, badge_id)
             VALUES (@UserId, @BadgeId);";
 
-        try
+        const int maxAttempts = 3;
+        for (var tryNumber = 1; tryNumber <= maxAttempts; tryNumber++)
         {
-            await using var connection = await _db.OpenConnectionAsync();
-            await using var cmd = new MySqlCommand(sql, connection);
-            cmd.Parameters.AddWithValue("@UserId", userId);
-            cmd.Parameters.AddWithValue("@BadgeId", badgeId);
+            try
+            {
+                await using var connection = await _db.OpenConnectionAsync();
+                await using var cmd = new MySqlCommand(sql, connection);
+                cmd.Parameters.AddWithValue("@UserId", userId);
+                cmd.Parameters.AddWithValue("@BadgeId", badgeId);
 
-            var rowsAffected = await cmd.ExecuteNonQueryAsync();
-            return rowsAffected > 0;
+                var rowsAffected = await cmd.ExecuteNonQueryAsync();
+                // INSERT IGNORE: 1 = inserted, 0 = duplicate/ignored.
+                return rowsAffected > 0;
+            }
+            catch (MySqlException ex) when ((ex.Number == 1213 || ex.Number == 1205) && tryNumber < maxAttempts)
+            {
+                await Task.Delay(tryNumber * 50);
+            }
+            catch (MySqlException ex) when (ex.Number == 1452) // Foreign key constraint fails
+            {
+                // Invalid user_id or badge_id
+                return false;
+            }
         }
-        catch (MySqlException ex) when (ex.Number == 1062) // Duplicate key error
-        {
-            // Badge already awarded to this user
-            return false;
-        }
-        catch (MySqlException ex) when (ex.Number == 1452) // Foreign key constraint fails
-        {
-            // Invalid user_id or badge_id
-            return false;
-        }
+
+        return false;
     }
 
     /// <inheritdoc />
